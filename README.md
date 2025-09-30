@@ -8,7 +8,9 @@ ragserver は、テキストおよびマルチモーダル（テキスト + 画�
 
 ### 2.1 デフォルト構成
 
-| アクター       | 役割                                              | 実装ディレクトリ                                   | 備考                                                                    |
+<img width="1454" height="996" alt="Image" src="https://github.com/user-attachments/assets/6ed2c975-2715-4b78-8913-a83b99ac4a52" />
+
+|        | 役割                                              | 実装ディレクトリ                                   | 備考                                                                    |
 | -------------- | ------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------- |
 | ragserver 本体 | REST API、MCP サーバ、検索・投入制御              | `ragserver/`                                       | `main.py` がエントリポイント                                            |
 | store          | ベクトルストア（既定: Chroma）                    | `ragserver/store/`、`chroma_db/`、`chroma_server/` | `ChromaManager` がローカル永続 DB (`chroma_db/`) を使用                 |
@@ -92,6 +94,19 @@ TOPK_RERANK_SCALE=1
 ragserver の API を利用するデモクライアントとして、ragclient を用意しています。
 - `ragclient/run.sh`
   - デフォルトで 8004 ボートを使用し、streamlit サーバが起動します。
+
+<table>
+  <tr>
+    <td><img width="498" height="563" alt="Image" src="https://github.com/user-attachments/assets/e2d6a285-d110-40c6-aee2-c51a044fb300" /></td>
+    <td><img width="885" height="1110" alt="Image" src="https://github.com/user-attachments/assets/118d62e8-06e0-499e-a575-11692cded0b3" /></td>
+    <td><img width="887" height="1240" alt="Image" src="https://github.com/user-attachments/assets/731243d9-a8be-4c01-92ac-8dd17623acac" /></td>
+  </tr>
+  <tr>
+    <td><img width="1019" height="548" alt="Image" src="https://github.com/user-attachments/assets/8023ad14-636d-4283-91b0-9141e4bd675b" /></td>
+    <td><img width="1018" height="534" alt="Image" src="https://github.com/user-attachments/assets/a20175ac-ae7a-47ec-9e0d-1987044d593b" /></td>
+    <td><img width="1014" height="561" alt="Image" src="https://github.com/user-attachments/assets/163fa05e-7a3d-4ec9-a526-e71eb7bec825" /></td>
+  </tr>
+</table>
 
 ## 4. REST API 利用手順
 
