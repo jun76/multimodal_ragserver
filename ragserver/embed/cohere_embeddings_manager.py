@@ -17,7 +17,7 @@ from ragserver.logger import logger
 class CohereMultimodalEmbeddings(CohereEmbeddings, MultimodalEmbeddings):
     def __init__(self, model_text: str, model_image: str) -> None:
         """MultimodalEmbeddings の embed_image() 抽象に対する実装を与えるクラス。
-        テキスト埋め込みの場合は MyOpenAIEmbeddings で完結。
+        テキスト埋め込みの場合は CohereEmbeddings で完結。
 
         Args:
             model_text (str): テキスト埋め込みモデル名
