@@ -9,8 +9,8 @@ __all__ = ["get_config"]
 
 CHROMA_STORE_NAME = "chroma"
 PGVECTOR_STORE_NAME = "pgvector"
-LOCAL_EMBED_NAME = "local"
-LOCAL_RERANK_NAME = "local"
+HFCLIP_EMBED_NAME = "hfclip"
+HF_RERANK_NAME = "hf"
 
 
 @dataclass
@@ -23,12 +23,12 @@ class Config:
     check_update: bool
 
     # Embeddings
-    embed_provider: str  # local|openai|cohere
-    local_embed_base_url: str
+    embed_provider: str  # hfclip|openai|cohere
+    hfclip_embed_base_url: str
 
     # Retrieval/Rerank
-    rerank_provider: str  # local|cohere|none
-    local_rerank_base_url: str
+    rerank_provider: str  # hf|cohere|none
+    hf_rerank_base_url: str
 
 
 def _to_bool(key: str, default: bool) -> bool:
@@ -79,15 +79,13 @@ def get_config() -> Config:
         vector_store=os.getenv("VECTOR_STORE", CHROMA_STORE_NAME),
         check_update=_to_bool("CHECK_UPDATE", False),
         # Embeddings
-        embed_provider=os.getenv("EMBED_PROVIDER", LOCAL_EMBED_NAME),
-        local_embed_base_url=os.getenv(
-            "LOCAL_EMBED_BASE_URL", "http://localhost:8001/v1"
+        embed_provider=os.getenv("EMBED_PROVIDER", HFCLIP_EMBED_NAME),
+        hfclip_embed_base_url=os.getenv(
+            "HFCLIP_EMBED_BASE_URL", "http://localhost:8001/v1"
         ),
         # Retrieval/Rerank
-        rerank_provider=os.getenv("RERANK_PROVIDER", LOCAL_RERANK_NAME),
-        local_rerank_base_url=os.getenv(
-            "LOCAL_RERANK_BASE_URL", "http://localhost:8002/v1"
-        ),
+        rerank_provider=os.getenv("RERANK_PROVIDER", HF_RERANK_NAME),
+        hf_rerank_base_url=os.getenv("HF_RERANK_BASE_URL", "http://localhost:8002/v1"),
     )
 
     return cfg

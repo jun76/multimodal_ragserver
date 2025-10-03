@@ -1,0 +1,40 @@
+{
+	"name": "multimodal_ragserver",
+	"build": {
+		"context": ".",
+		"dockerfile": "Dockerfile"
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.black-formatter",
+				"ms-python.isort",
+				"ms-python.mypy-type-checker",
+				"ms-python.flake8",
+				"MS-CEINTL.vscode-language-pack-ja"
+			]
+		}
+	},
+	"postCreateCommand": "/bin/sh .devcontainer/postCreateCommand.sh",
+	"postStartCommand": "service postgresql start",
+	"remoteUser": "root",
+	"forwardPorts": [
+		1234, // LM Studio
+		8000, // ragserver + MCP
+		8001, // hfclip_embed
+		8002, // hf_rerank
+		8003, // chroma
+		8004, // ragclient
+		8005, // reserved
+		5432 // pgvector
+	],
+	"containerEnv": {
+		"HF_HOME": "/opt/hf",
+		"TORCH_HOME": "/opt/torch"
+	},
+	"mounts": [
+		"type=volume,source=huggingface-cache,target=/opt/hf",
+		"type=volume,source=torch-cache,target=/opt/torch"
+	]
+}

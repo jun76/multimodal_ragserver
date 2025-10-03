@@ -17,7 +17,7 @@ from ragserver.config import get_config
 from ragserver.core import names
 from ragserver.embed.cohere_embeddings_manager import CohereEmbeddingsManager
 from ragserver.embed.embeddings_manager import EmbeddingsManager
-from ragserver.embed.local_embeddings_manager import LocalEmbeddingsManager
+from ragserver.embed.hfclip_embeddings_manager import HFCLIPEmbeddingsManager
 from ragserver.embed.multimodal_embeddings_manager import MultimodalEmbeddingsManager
 from ragserver.embed.openai_embeddings_manager import OpenAIEmbeddingsManager
 from ragserver.ingest import ingest
@@ -25,7 +25,7 @@ from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.html_loader import HTMLLoader
 from ragserver.logger import logger
 from ragserver.rerank.cohere_rerank_manager import CohereRerankManager
-from ragserver.rerank.local_rerank_manager import LocalRerankManager
+from ragserver.rerank.hf_rerank_manager import HFRerankManager
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.retrieval import retriever
 from ragserver.store.chroma_manager import ChromaManager
@@ -155,11 +155,11 @@ def _create_embed(name: Optional[str] = None) -> EmbeddingsManager:
                 model_text=cfg.cohere_embed_model_text,
                 model_image=cfg.cohere_embed_model_image,
             )
-        case names.LOCAL_EMBED_NAME:
-            return LocalEmbeddingsManager(
-                model_text=cfg.local_embed_model_text,
-                model_image=cfg.local_embed_model_image,
-                base_url=cfg.local_embed_base_url,
+        case names.HFCLIP_EMBED_NAME:
+            return HFCLIPEmbeddingsManager(
+                model_text=cfg.hfclip_embed_model_text,
+                model_image=cfg.hfclip_embed_model_image,
+                base_url=cfg.hfclip_embed_base_url,
                 api_key=cfg.openai_api_key,
             )
         case _:
@@ -191,10 +191,10 @@ def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
         cfg.rerank_provider = name
 
     match cfg.rerank_provider:
-        case names.LOCAL_RERANK_NAME:
-            return LocalRerankManager(
-                model=cfg.local_rerank_model,
-                base_url=cfg.local_rerank_base_url,
+        case names.HF_RERANK_NAME:
+            return HFRerankManager(
+                model=cfg.hf_rerank_model,
+                base_url=cfg.hf_rerank_base_url,
             )
         case names.COHERE_RERANK_NAME:
             return CohereRerankManager(cfg.cohere_rerank_model)

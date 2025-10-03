@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from langchain_core.embeddings import Embeddings
-from openai import OpenAI
 
 from ragserver.logger import logger
 
@@ -69,79 +68,3 @@ class MultimodalEmbeddings(Embeddings):
         """
         logger.debug("trace")
         ...
-
-
-class MyOpenAIEmbeddings(Embeddings):
-    def __init__(
-        self, model: str, base_url: Optional[str] = None, api_key: Optional[str] = None
-    ):
-        """OpenAIEmbeddings 代替独自ラッパークラス
-
-        langchain_openai.OpenAIEmbeddings だと base_url 使用時に何故か request body の
-        フォーマットが崩れる？（ローカル埋め込みモデル側に受理されない）ので
-        独自にラッパークラスを定義して使用
-
-        Args:
-            model (str): テキスト埋め込みモデル名
-            base_url (Optional[str], optional): ローカルモデルのエンドポイント Defaults to None.
-            api_key (Optional[str], optional): API キー Defaults to None.
-
-        Raises:
-            RuntimeError: OpenAI クライアントの初期化に失敗した場合
-        """
-        logger.debug("trace")
-
-        self._model = model
-
-        if base_url:
-            logger.info(f"base_url specified: {base_url}")
-
-        try:
-            self._client = OpenAI(base_url=base_url, api_key=api_key)
-        except Exception as e:
-            raise RuntimeError("failed to initialize OpenAI client") from e
-
-    def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        """代替 embed_documents
-
-        Args:
-            texts (list[str]): 埋め込み対象テキスト
-
-        Returns:
-            list[list[float]]: 埋め込みベクトル
-
-        Raises:
-            RuntimeError: 埋め込みの生成に失敗した場合
-        """
-        logger.debug("trace")
-
-        if len(texts) == 0:
-            return []
-
-        try:
-            res = self._client.embeddings.create(model=self._model, input=texts)
-        except Exception as e:
-            raise RuntimeError("failed to create embeddings") from e
-
-        return [d.embedding for d in res.data]
-
-    def embed_query(self, query: str) -> list[float]:
-        """代替 embed_query
-
-        Args:
-            query (str): 埋め込み対象クエリ
-
-        Returns:
-            list[float]: 埋め込みベクトル
-
-        Raises:
-            RuntimeError: 埋め込みの生成に失敗した場合
-        """
-        logger.debug("trace")
-
-        try:
-            res = self._client.embeddings.create(model=self._model, input=[query])
-        except Exception as e:
-            raise RuntimeError("failed to create embedding") from e
-
-        return res.data[0].embedding

@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import Optional
 
 from langchain_core.embeddings import Embeddings
+from langchain_openai import OpenAIEmbeddings
 
 from ragserver.core.metadata import EMBTYPE_TEXT
 from ragserver.core.names import OPENAI_EMBED_NAME
 from ragserver.embed.embeddings_manager import EmbeddingsManager
-from ragserver.embed.langchain_like import MyOpenAIEmbeddings
 from ragserver.embed.util import generate_space_key
 from ragserver.logger import logger
 
@@ -33,8 +33,11 @@ class OpenAIEmbeddingsManager(EmbeddingsManager):
         EmbeddingsManager.__init__(
             self, name="openai", model_text=model_text, need_norm=need_norm
         )
-        self._embed = MyOpenAIEmbeddings(
-            model=model_text, base_url=base_url, api_key=api_key
+        self._embed = OpenAIEmbeddings(
+            check_embedding_ctx_length=False,
+            model=model_text,
+            base_url=base_url,
+            api_key=api_key,  # type: ignore
         )
 
     def get_embeddings(self) -> Embeddings:

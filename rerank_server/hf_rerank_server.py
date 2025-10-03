@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-logger = logging.getLogger("local_rerank_server")
+logger = logging.getLogger("hf_rerank_server")
 
 # バッチサイズと最大トークン長（必要に応じて調整）
 BATCH_SIZE = 32
@@ -30,8 +30,8 @@ model.to(DEVICE)
 model.eval()
 torch.set_grad_enabled(False)
 
-# uvicorn local_rerank_server:app --host 0.0.0.0 --port 8002
-app = FastAPI(title="local_rerank_server", version="1.0")
+# uvicorn hf_rerank_server:app --host 0.0.0.0 --port 8002
+app = FastAPI(title="hf_rerank_server", version="1.0")
 
 
 class RerankRequest(BaseModel):
@@ -93,7 +93,7 @@ async def list_models():
             {
                 "id": MODEL_NAME,
                 "object": "model",
-                "owned_by": "local",
+                "owned_by": "hf",
             }
         ],
     }

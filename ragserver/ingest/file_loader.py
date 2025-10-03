@@ -633,8 +633,9 @@ class FileLoader(Loader, FileLoaderForWeb):
                         space_key_multi=space_key_multi,
                     )
                 else:
-                    raise RuntimeError(
-                        f"{ext} is not supported. {' '.join(Exts.SUPPORTED_EXTS)} are supported"
+                    logger.warning(
+                        f"'{ext}' is not supported in this system(or model). "
+                        f"{' '.join(Exts.SUPPORTED_EXTS)} are supported"
                     )
             except Exception as e:
                 logger.exception(e)

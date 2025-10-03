@@ -8,7 +8,7 @@ from PIL import Image
 from pydantic import BaseModel
 from transformers import CLIPModel, CLIPProcessor
 
-logger = logging.getLogger("local_embed_server")
+logger = logging.getLogger("hfclip_embed_server")
 
 # 利用モデルの定義
 MODEL_NAME = "openai/clip-vit-base-patch32"
@@ -27,8 +27,8 @@ model.to(DEVICE)  # type: ignore
 model.eval()
 torch.set_grad_enabled(False)
 
-# uvicorn local_embed_server:app --host 0.0.0.0 --port 8001
-app = FastAPI(title="local_embed_server", version="1.0")
+# uvicorn hfclip_embed_server:app --host 0.0.0.0 --port 8001
+app = FastAPI(title="hfclip_embed_server", version="1.0")
 
 
 class EmbeddingRequest(BaseModel):
@@ -93,7 +93,7 @@ async def list_models():
             {
                 "id": MODEL_NAME,
                 "object": "model",
-                "owned_by": "local",
+                "owned_by": "hfclip",
             }
         ],
     }

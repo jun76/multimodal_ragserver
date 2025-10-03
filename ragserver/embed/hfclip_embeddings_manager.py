@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from langchain_openai import OpenAIEmbeddings
+
 from ragserver.core.metadata import EMBTYPE_IMAGE, EMBTYPE_TEXT
-from ragserver.core.names import LOCAL_EMBED_NAME
+from ragserver.core.names import HFCLIP_EMBED_NAME
 from ragserver.core.util import cool_down
-from ragserver.embed.langchain_like import MyOpenAIEmbeddings
 from ragserver.embed.multimodal_embeddings_manager import (
     MultimodalEmbeddings,
     MultimodalEmbeddingsManager,
@@ -12,12 +13,12 @@ from ragserver.embed.util import generate_space_key, image_to_data_uri
 from ragserver.logger import logger
 
 
-class LocalMultimodalEmbeddings(MyOpenAIEmbeddings, MultimodalEmbeddings):
+class HFCLIPMultimodalEmbeddings(OpenAIEmbeddings, MultimodalEmbeddings):
     def __init__(
         self, model_text: str, model_image: str, base_url: str, api_key: str
     ) -> None:
         """MultimodalEmbeddings の embed_image() 抽象に対する実装を与えるクラス。
-        テキスト埋め込みの場合は MyOpenAIEmbeddings で完結。
+        テキスト埋め込みの場合は OpenAIEmbeddings で完結。
 
         Args:
             model_text (str): テキスト埋め込みモデル名
@@ -27,8 +28,12 @@ class LocalMultimodalEmbeddings(MyOpenAIEmbeddings, MultimodalEmbeddings):
         """
         logger.debug("trace")
 
-        MyOpenAIEmbeddings.__init__(
-            self, model=model_text, base_url=base_url, api_key=api_key
+        OpenAIEmbeddings.__init__(
+            self,
+            check_embedding_ctx_length=False,
+            model=model_text,
+            base_url=base_url,
+            api_key=api_key,  # type: ignore
         )
         MultimodalEmbeddings.__init__(self)
         self._model_image = model_image
@@ -77,7 +82,7 @@ class LocalMultimodalEmbeddings(MyOpenAIEmbeddings, MultimodalEmbeddings):
         return vecs
 
 
-class LocalEmbeddingsManager(MultimodalEmbeddingsManager):
+class HFCLIPEmbeddingsManager(MultimodalEmbeddingsManager):
     def __init__(
         self,
         model_text: str,
@@ -103,12 +108,12 @@ class LocalEmbeddingsManager(MultimodalEmbeddingsManager):
 
         MultimodalEmbeddingsManager.__init__(
             self,
-            name="local",
+            name="hfclip",
             model_text=model_text,
             model_image=model_image,
             need_norm=need_norm,
         )
-        self._embed = LocalMultimodalEmbeddings(
+        self._embed = HFCLIPMultimodalEmbeddings(
             model_text=model_text,
             model_image=model_image,
             base_url=base_url,
@@ -126,14 +131,14 @@ class LocalEmbeddingsManager(MultimodalEmbeddingsManager):
         return self._embed
 
     def space_key_text(self) -> str:
-        """Local CLIP テキスト文書用ベクトルの空間キー。
+        """HuggingFace CLIP テキスト文書用ベクトルの空間キー。
 
         Returns:
             str: 空間キー
         """
         logger.debug("trace")
 
-        return generate_space_key(LOCAL_EMBED_NAME, self._model_text, EMBTYPE_TEXT)
+        return generate_space_key(HFCLIP_EMBED_NAME, self._model_text, EMBTYPE_TEXT)
 
     def embed_text_for_image_query(self, query: str) -> list[float]:
         """検索クエリ（照会用）のテキストを埋め込む。
@@ -154,11 +159,11 @@ class LocalEmbeddingsManager(MultimodalEmbeddingsManager):
             return []
 
     def space_key_multi(self) -> str:
-        """Local CLIP 画像ベクトルの空間キー。
+        """HuggingFace CLIP 画像ベクトルの空間キー。
 
         Returns:
             str: 空間キー
         """
         logger.debug("trace")
 
-        return generate_space_key(LOCAL_EMBED_NAME, self._model_image, EMBTYPE_IMAGE)
+        return generate_space_key(HFCLIP_EMBED_NAME, self._model_image, EMBTYPE_IMAGE)

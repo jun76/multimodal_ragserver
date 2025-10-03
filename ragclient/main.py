@@ -149,8 +149,8 @@ def _init_services() -> tuple[RagServerClient, str, str, str]:
     cfg = get_config()
     client = RagServerClient(cfg.ragserver_base_url)
     ragserver_health = cfg.ragserver_base_url.rstrip("/") + "/health"
-    embed_health = cfg.local_embed_base_url.rstrip("/") + "/health"
-    rerank_health = cfg.local_rerank_base_url.rstrip("/") + "/health"
+    embed_health = cfg.hfclip_embed_base_url.rstrip("/") + "/health"
+    rerank_health = cfg.hf_rerank_base_url.rstrip("/") + "/health"
     return client, ragserver_health, embed_health, rerank_health
 
 
@@ -947,10 +947,10 @@ def _render_admin_view(client: RagServerClient) -> None:
     st.caption("ragserver へリロード要求を送信します")
     st.multiselect("ベクトルストア", options=["chroma", "pgvector"], key="admin_vs")
     st.multiselect(
-        "埋め込みプロバイダ", options=["local", "openai", "cohere"], key="admin_embed"
+        "埋め込みプロバイダ", options=["hfclip", "openai", "cohere"], key="admin_embed"
     )
     st.multiselect(
-        "リランクプロバイダ", options=["local", "cohere", "none"], key="admin_rerank"
+        "リランクプロバイダ", options=["hf", "cohere", "none"], key="admin_rerank"
     )
     st.button(
         "🔁 サーバをリロード",

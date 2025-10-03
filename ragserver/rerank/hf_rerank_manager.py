@@ -12,18 +12,18 @@ from ragserver.logger import logger
 from ragserver.rerank.rerank_manager import RerankManager
 
 
-class LocalRerank(BaseDocumentCompressor):
+class HFRerank(BaseDocumentCompressor):
     def __init__(
         self,
         model: str,
         base_url: str,
         topk: int,
     ):
-        """OpenAI 互換（風）のローカルモデルリランカークラス
+        """OpenAI 互換（風）の HuggingFace モデルリランカークラス
 
         Args:
             model (str): リランカーモデル名
-            base_url (str): ローカルモデルのエンドポイント
+            base_url (str): HuggingFace モデルのエンドポイント
             topk (int): 取得件数。 Defaults to 10.
         """
         logger.debug("trace")
@@ -203,18 +203,18 @@ class LocalRerank(BaseDocumentCompressor):
         return [documents[idx] for idx in selected_indices[:limit]]
 
 
-class LocalRerankManager(RerankManager):
-    """OpenAI 互換（風）のローカルモデルリランカーの管理クラス"""
+class HFRerankManager(RerankManager):
+    """OpenAI 互換（風）の HuggingFace モデルリランカーの管理クラス"""
 
     def __init__(self, model: str, base_url: str, topk: int = 10) -> None:
         """コンストラクタ
 
         Args:
             model (str): リランカーモデル名
-            base_url (str): ローカルモデルのエンドポイント
+            base_url (str):  HuggingFace モデルのエンドポイント
             topk (int, optional): 取得件数。 Defaults to 10.
         """
         logger.debug("trace")
 
-        RerankManager.__init__(self, "local")
-        self._rerank = LocalRerank(model=model, base_url=base_url, topk=topk)
+        RerankManager.__init__(self, "hf")
+        self._rerank = HFRerank(model=model, base_url=base_url, topk=topk)

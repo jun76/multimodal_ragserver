@@ -10,8 +10,8 @@ from ragserver.core.names import (
     CHROMA_STORE_NAME,
     COHERE_EMBED_NAME,
     COHERE_RERANK_NAME,
-    LOCAL_EMBED_NAME,
-    LOCAL_RERANK_NAME,
+    HF_RERANK_NAME,
+    HFCLIP_EMBED_NAME,
     OPENAI_EMBED_NAME,
     PGVECTOR_STORE_NAME,
     PROJECT_NAME,
@@ -44,16 +44,16 @@ class Config:
     pg_password: str
 
     # Embeddings
-    emped_provider: str  # local|openai|cohere
+    emped_provider: str  # hfclip|openai|cohere
     openai_embed_model_text: str
     openai_api_key: str
     openai_base_url: str | None
     cohere_embed_model_text: str
     cohere_embed_model_image: str
     cohere_api_key: str | None
-    local_embed_model_text: str
-    local_embed_model_image: str
-    local_embed_base_url: str
+    hfclip_embed_model_text: str
+    hfclip_embed_model_image: str
+    hfclip_embed_base_url: str
 
     # Ingestion
     chunk_size: int
@@ -61,9 +61,9 @@ class Config:
     user_agent: str
 
     # Retrieval/Rerank
-    rerank_provider: str  # local|cohere|none
-    local_rerank_model: str
-    local_rerank_base_url: str
+    rerank_provider: str  # hf|cohere|none
+    hf_rerank_model: str
+    hf_rerank_base_url: str
     cohere_rerank_model: str
     topk: int
     topk_rerank_scale: int
@@ -166,11 +166,11 @@ def _validate_config(cfg: Config) -> Config:
     if cfg.vector_store not in allowed_stores:
         raise ValueError("vector_store must be chroma or pgvector")
 
-    allowed_embeds = {LOCAL_EMBED_NAME, OPENAI_EMBED_NAME, COHERE_EMBED_NAME}
+    allowed_embeds = {HFCLIP_EMBED_NAME, OPENAI_EMBED_NAME, COHERE_EMBED_NAME}
     if cfg.emped_provider not in allowed_embeds:
         raise ValueError("unsupported embed provider")
 
-    allowed_rerank = {LOCAL_RERANK_NAME, COHERE_RERANK_NAME, "none"}
+    allowed_rerank = {HF_RERANK_NAME, COHERE_RERANK_NAME, "none"}
     if cfg.rerank_provider not in allowed_rerank:
         raise ValueError("unsupported rerank provider")
 
@@ -202,11 +202,11 @@ def _validate_config(cfg: Config) -> Config:
             if not value:
                 raise ValueError(f"{key} must not be empty")
 
-    if cfg.emped_provider == LOCAL_EMBED_NAME and not cfg.local_embed_base_url:
-        raise ValueError("local_embed_base_url must not be empty")
+    if cfg.emped_provider == HFCLIP_EMBED_NAME and not cfg.hfclip_embed_base_url:
+        raise ValueError("hfclip_embed_base_url must not be empty")
 
-    if cfg.rerank_provider == LOCAL_RERANK_NAME and not cfg.local_rerank_base_url:
-        raise ValueError("local_rerank_base_url must not be empty")
+    if cfg.rerank_provider == HF_RERANK_NAME and not cfg.hf_rerank_base_url:
+        raise ValueError("hf_rerank_base_url must not be empty")
 
     if cfg.user_agent.strip() == "":
         raise ValueError("user_agent must not be empty")
@@ -250,7 +250,7 @@ def get_config() -> Config:
         pg_user=os.getenv("PG_USER", PROJECT_NAME),
         pg_password=os.getenv("PG_PASSWORD", PROJECT_NAME),
         # Embeddings
-        emped_provider=os.getenv("EMBED_PROVIDER", LOCAL_EMBED_NAME),
+        emped_provider=os.getenv("EMBED_PROVIDER", HFCLIP_EMBED_NAME),
         openai_embed_model_text=os.getenv(
             "OPENAI_EMBED_MODEL_TEXT", "text-embedding-3-small"
         ),
@@ -259,25 +259,23 @@ def get_config() -> Config:
         cohere_embed_model_text=os.getenv("COHERE_EMBED_MODEL_TEXT", "embed-v4.0"),
         cohere_embed_model_image=os.getenv("COHERE_EMBED_MODEL_IMAGE", "embed-v4.0"),
         cohere_api_key=os.getenv("COHERE_API_KEY"),
-        local_embed_model_text=os.getenv(
-            "LOCAL_EMBED_MODEL_TEXT", "openai/clip-vit-base-patch32"
+        hfclip_embed_model_text=os.getenv(
+            "HFCLIP_EMBED_MODEL_TEXT", "openai/clip-vit-base-patch32"
         ),
-        local_embed_model_image=os.getenv(
-            "LOCAL_EMBED_MODEL_IMAGE", "openai/clip-vit-base-patch32"
+        hfclip_embed_model_image=os.getenv(
+            "HFCLIP_EMBED_MODEL_IMAGE", "openai/clip-vit-base-patch32"
         ),
-        local_embed_base_url=os.getenv(
-            "LOCAL_EMBED_BASE_URL", "http://localhost:8001/v1"
+        hfclip_embed_base_url=os.getenv(
+            "HFCLIP_EMBED_BASE_URL", "http://localhost:8001/v1"
         ),
         # Ingestion
         chunk_size=_to_int("CHUNK_SIZE", 500),
         chunk_overlap=_to_int("CHUNK_OVERLAP", 50),
         user_agent=os.getenv("USER_AGENT", PROJECT_NAME),
         # Retrieval/Rerank
-        rerank_provider=os.getenv("RERANK_PROVIDER", LOCAL_RERANK_NAME),
-        local_rerank_model=os.getenv("LOCAL_RERANK_MODEL", "BAAI/bge-reranker-v2-m3"),
-        local_rerank_base_url=os.getenv(
-            "LOCAL_RERANK_BASE_URL", "http://localhost:8002/v1"
-        ),
+        rerank_provider=os.getenv("RERANK_PROVIDER", HF_RERANK_NAME),
+        hf_rerank_model=os.getenv("HF_RERANK_MODEL", "BAAI/bge-reranker-v2-m3"),
+        hf_rerank_base_url=os.getenv("HF_RERANK_BASE_URL", "http://localhost:8002/v1"),
         cohere_rerank_model=os.getenv(
             "COHERE_RERANK_MODEL", "rerank-multilingual-v3.0"
         ),

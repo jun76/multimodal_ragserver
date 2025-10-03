@@ -8,33 +8,33 @@ ragserver は、マルチモーダル（テキスト + 画像）検索のため�
 
 ### 2.1 デフォルト構成
 
-<img width="1454" height="996" alt="Image" src="https://github.com/user-attachments/assets/6ed2c975-2715-4b78-8913-a83b99ac4a52" />
+<img alt="Image" src="https://github.com/user-attachments/assets/6ed2c975-2715-4b78-8913-a83b99ac4a52" />
 
-|        | 役割                                              | 実装ディレクトリ                                   | 備考                                                                    |
-| -------------- | ------------------------------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------- |
-| ragserver 本体 | REST API、MCP サーバ、検索・投入制御              | `ragserver/`                                       | `main.py` がエントリポイント                                            |
-| store          | ベクトルストア（既定: Chroma）                    | `ragserver/store/`、`chroma_db/`、`chroma_server/` | `ChromaManager` がローカル永続 DB (`chroma_db/`) を使用                 |
-| embed          | テキスト/画像埋め込み生成（既定: ローカル CLIP）  | `ragserver/embed/`、`embed_server/`                | `LocalEmbeddingsManager` が `embed_server/local_embed_server.py` に接続 |
-| rerank         | 検索結果のリランク（既定: ローカル BGE reranker） | `ragserver/rerank/`、`rerank_server/`              | `LocalRerankManager` が `rerank_server/local_rerank_server.py` に接続   |
+|                | 役割                                                 | 実装ディレクトリ                                   | 備考                                                                      |
+| -------------- | ---------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------- |
+| ragserver 本体 | REST API、MCP サーバ、検索・投入制御                 | `ragserver/`                                       | `main.py` がエントリポイント                                              |
+| store          | ベクトルストア（既定: Chroma）                       | `ragserver/store/`、`chroma_db/`、`chroma_server/` | `ChromaManager` がローカル永続 DB (`chroma_db/`) を使用                   |
+| embed          | テキスト/画像埋め込み生成（既定: HuggingFace CLIP）  | `ragserver/embed/`、`embed_server/`                | `HFCLIPEmbeddingsManager` が `embed_server/hfclip_embed_server.py` に接続 |
+| rerank         | 検索結果のリランク（既定: HuggingFace BGE reranker） | `ragserver/rerank/`、`rerank_server/`              | `HFRerankManager` が `rerank_server/hf_rerank_server.py` に接続           |
 
 - ragserver 本体 (`ragserver/`): FastAPI アプリ (`main.py`) が REST API と MCP の窓口。`core/`, `store/`, `embed/`, `ingest/`, `retrieval/`, `rerank/` がモジュール群です。
 - store: `ragserver/store/` で抽象化し、既定の `ChromaManager` が `chroma_db/` を永続ディレクトリとして使用。別途 `chroma_server/run.sh` でリモート Chroma にも切り替え可能。
-- embed: `ragserver/embed/` に埋め込みのインタフェース。既定は `embed_server/local_embed_server.py`（ローカル CLIP）を叩く構成で、OpenAI/Cohere などへの切り替えも環境変数で対応。
-- rerank: `ragserver/rerank/` にリランク機構。既定はローカル BGE (`rerank_server/local_rerank_server.py`) を使用。
+- embed: `ragserver/embed/` に埋め込みのインタフェース。既定は `embed_server/hfclip_embed_server.py`（HuggingFace CLIP）を叩く構成で、OpenAI/Cohere などへの切り替えも環境変数で対応。
+- rerank: `ragserver/rerank/` にリランク機構。既定は HuggingFace BGE (`rerank_server/hf_rerank_server.py`) を使用。
 
 ### 2.2 カスタマイズ例
 
 `.env` に設定を記述し、ベクトルストア／埋め込み／リランクを差し替えます。以下に 3 つの例を示します。
 
-#### (A) 既定ローカル構成（Chroma + ローカル CLIP + ローカル BGE）
+#### (A) 既定ローカル構成（Chroma + HuggingFace CLIP + HuggingFace BGE）
 
 ```env
 VECTOR_STORE=chroma
 CHROMA_PERSIST_DIR=chroma_db
-EMBED_PROVIDER=local
-LOCAL_EMBED_BASE_URL=http://localhost:8001/v1
-RERANK_PROVIDER=local
-LOCAL_RERANK_BASE_URL=http://localhost:8002/v1
+EMBED_PROVIDER=hfclip
+HFCLIP_EMBED_BASE_URL=http://localhost:8001/v1
+RERANK_PROVIDER=hf
+HF_RERANK_BASE_URL=http://localhost:8002/v1
 TOPK=10
 TOPK_RERANK_SCALE=5
 ```
@@ -79,7 +79,9 @@ TOPK_RERANK_SCALE=1
 `pgvector_server/init_pgdb.sh` で DB を初期化後、Cohere API による埋め込みと PgVector を組み合わせます。リランクは無効化されます。
 
 ## 3. 起動停止手順
+
 ### 3.1 サーバ群
+
 - `ragserver/run.sh`
   - FastAPI アプリ（`ragserver.main:app`）のみ起動。
 - `run_all.sh`
@@ -91,20 +93,22 @@ TOPK_RERANK_SCALE=1
 また、起動中はログレベル INFO で標準出力にログが出力されます。必要に応じて `ragserver/logger.py` を修正下さい。
 
 ### 3.2 ragclient
+
 ragserver の API を利用するデモクライアントとして、ragclient を用意しています。
+
 - `ragclient/run.sh`
   - デフォルトで 8004 ボートを使用し、streamlit サーバが起動します。
 
 <table>
   <tr>
-    <td><img width="498" height="563" alt="Image" src="https://github.com/user-attachments/assets/e2d6a285-d110-40c6-aee2-c51a044fb300" /></td>
-    <td><img width="885" height="1110" alt="Image" src="https://github.com/user-attachments/assets/118d62e8-06e0-499e-a575-11692cded0b3" /></td>
-    <td><img width="887" height="1240" alt="Image" src="https://github.com/user-attachments/assets/731243d9-a8be-4c01-92ac-8dd17623acac" /></td>
+    <td><img  alt="Image" src="https://github.com/user-attachments/assets/e2d6a285-d110-40c6-aee2-c51a044fb300" /></td>
+    <td><img  alt="Image" src="https://github.com/user-attachments/assets/118d62e8-06e0-499e-a575-11692cded0b3" /></td>
+    <td><img  alt="Image" src="https://github.com/user-attachments/assets/731243d9-a8be-4c01-92ac-8dd17623acac" /></td>
   </tr>
   <tr>
-    <td><img width="1019" height="548" alt="Image" src="https://github.com/user-attachments/assets/8023ad14-636d-4283-91b0-9141e4bd675b" /></td>
-    <td><img width="1018" height="534" alt="Image" src="https://github.com/user-attachments/assets/a20175ac-ae7a-47ec-9e0d-1987044d593b" /></td>
-    <td><img width="1014" height="561" alt="Image" src="https://github.com/user-attachments/assets/163fa05e-7a3d-4ec9-a526-e71eb7bec825" /></td>
+    <td><img  alt="Image" src="https://github.com/user-attachments/assets/8023ad14-636d-4283-91b0-9141e4bd675b" /></td>
+    <td><img  alt="Image" src="https://github.com/user-attachments/assets/a20175ac-ae7a-47ec-9e0d-1987044d593b" /></td>
+    <td><img  alt="Image" src="https://github.com/user-attachments/assets/163fa05e-7a3d-4ec9-a526-e71eb7bec825" /></td>
   </tr>
 </table>
 
@@ -184,42 +188,42 @@ MCP クライアント側に ragserver を登録すると、`query`, `ingest` �
 
 `ragserver/config.py` が読み込む環境変数と値域は以下のとおりです。
 
-| 変数名                     | 用途                                   | 値域/例                       |
-| -------------------------- | -------------------------------------- | ----------------------------- |
-| `VECTOR_STORE`             | ベクトルストア選択                     | `chroma` / `pgvector`         |
-| `LOAD_LIMIT`               | メタ情報ロード上限件数                 | 正の整数                      |
-| `CHECK_UPDATE`             | 既存ソースの更新チェックを有効化するか | `true/false` 等の真偽文字列   |
-| `CHROMA_PERSIST_DIR`       | Chroma 永続ディレクトリ                | パス文字列                    |
-| `CHROMA_HOST`              | Chroma サーバホスト                    | ホスト名/URL                  |
-| `CHROMA_PORT`              | Chroma サーバポート                    | 正の整数                      |
-| `CHROMA_API_KEY`           | Chroma Cloud API キー                  | 文字列                        |
-| `CHROMA_TENANT`            | Chroma Cloud テナント名                | 文字列                        |
-| `CHROMA_DATABASE`          | Chroma Cloud データベース名            | 文字列                        |
-| `PG_HOST`                  | PgVector ホスト                        | 文字列                        |
-| `PG_PORT`                  | PgVector ポート                        | 正の整数                      |
-| `PG_DATABASE`              | PgVector DB 名                         | 文字列                        |
-| `PG_USER`                  | PgVector ユーザ名                      | 文字列                        |
-| `PG_PASSWORD`              | PgVector パスワード                    | 文字列                        |
-| `EMBED_PROVIDER`           | 埋め込みプロバイダ選択                 | `local` / `openai` / `cohere` |
-| `OPENAI_EMBED_MODEL_TEXT`  | OpenAI テキストモデル名                | 文字列                        |
-| `OPENAI_API_KEY`           | OpenAI API キー                        | 文字列                        |
-| `OPENAI_BASE_URL`          | OpenAI API Base URL                    | URL                           |
-| `COHERE_EMBED_MODEL_TEXT`  | Cohere テキストモデル名                | 文字列                        |
-| `COHERE_EMBED_MODEL_IMAGE` | Cohere 画像モデル名                    | 文字列                        |
-| `COHERE_API_KEY`           | Cohere API キー                        | 文字列                        |
-| `LOCAL_EMBED_MODEL_TEXT`   | ローカル埋め込みテキストモデル         | 文字列                        |
-| `LOCAL_EMBED_MODEL_IMAGE`  | ローカル埋め込み画像モデル             | 文字列                        |
-| `LOCAL_EMBED_BASE_URL`     | ローカル埋め込み API の URL            | URL                           |
-| `CHUNK_SIZE`               | テキスト分割チャンクサイズ             | 正の整数                      |
-| `CHUNK_OVERLAP`            | テキスト分割オーバーラップ             | `0 <= value < CHUNK_SIZE`     |
-| `USER_AGENT`               | HTML 取得時の User-Agent               | 文字列                        |
-| `RERANK_PROVIDER`          | リランクプロバイダ                     | `local` / `cohere` / `none`   |
-| `LOCAL_RERANK_MODEL`       | ローカルリランカーモデル名             | 文字列                        |
-| `LOCAL_RERANK_BASE_URL`    | ローカルリランカー API の URL          | URL                           |
-| `COHERE_RERANK_MODEL`      | Cohere リランカーモデル名              | 文字列                        |
-| `TOPK`                     | 取得件数                               | 正の整数                      |
-| `TOPK_RERANK_SCALE`        | リランキング前の取得倍率               | 正の整数                      |
-| `UPLOAD_DIR`               | ファイルアップロード用ディレクトリ名   | `upload`                      |
+| 変数名                     | 用途                                   | 値域/例                        |
+| -------------------------- | -------------------------------------- | ------------------------------ |
+| `VECTOR_STORE`             | ベクトルストア選択                     | `chroma` / `pgvector`          |
+| `LOAD_LIMIT`               | メタ情報ロード上限件数                 | 正の整数                       |
+| `CHECK_UPDATE`             | 既存ソースの更新チェックを有効化するか | `true/false` 等の真偽文字列    |
+| `CHROMA_PERSIST_DIR`       | Chroma 永続ディレクトリ                | パス文字列                     |
+| `CHROMA_HOST`              | Chroma サーバホスト                    | ホスト名/URL                   |
+| `CHROMA_PORT`              | Chroma サーバポート                    | 正の整数                       |
+| `CHROMA_API_KEY`           | Chroma Cloud API キー                  | 文字列                         |
+| `CHROMA_TENANT`            | Chroma Cloud テナント名                | 文字列                         |
+| `CHROMA_DATABASE`          | Chroma Cloud データベース名            | 文字列                         |
+| `PG_HOST`                  | PgVector ホスト                        | 文字列                         |
+| `PG_PORT`                  | PgVector ポート                        | 正の整数                       |
+| `PG_DATABASE`              | PgVector DB 名                         | 文字列                         |
+| `PG_USER`                  | PgVector ユーザ名                      | 文字列                         |
+| `PG_PASSWORD`              | PgVector パスワード                    | 文字列                         |
+| `EMBED_PROVIDER`           | 埋め込みプロバイダ選択                 | `hfclip` / `openai` / `cohere` |
+| `OPENAI_EMBED_MODEL_TEXT`  | OpenAI テキストモデル名                | 文字列                         |
+| `OPENAI_API_KEY`           | OpenAI API キー                        | 文字列                         |
+| `OPENAI_BASE_URL`          | OpenAI API Base URL                    | URL                            |
+| `COHERE_EMBED_MODEL_TEXT`  | Cohere テキストモデル名                | 文字列                         |
+| `COHERE_EMBED_MODEL_IMAGE` | Cohere 画像モデル名                    | 文字列                         |
+| `COHERE_API_KEY`           | Cohere API キー                        | 文字列                         |
+| `HFCLIP_EMBED_MODEL_TEXT`  | ローカル埋め込みテキストモデル         | 文字列                         |
+| `HFCLIP_EMBED_MODEL_IMAGE` | ローカル埋め込み画像モデル             | 文字列                         |
+| `HFCLIP_EMBED_BASE_URL`    | ローカル埋め込み API の URL            | URL                            |
+| `CHUNK_SIZE`               | テキスト分割チャンクサイズ             | 正の整数                       |
+| `CHUNK_OVERLAP`            | テキスト分割オーバーラップ             | `0 <= value < CHUNK_SIZE`      |
+| `USER_AGENT`               | HTML 取得時の User-Agent               | 文字列                         |
+| `RERANK_PROVIDER`          | リランクプロバイダ                     | `hf` / `cohere` / `none`       |
+| `HF_RERANK_MODEL`          | ローカルリランカーモデル名             | 文字列                         |
+| `HF_RERANK_BASE_URL`       | ローカルリランカー API の URL          | URL                            |
+| `COHERE_RERANK_MODEL`      | Cohere リランカーモデル名              | 文字列                         |
+| `TOPK`                     | 取得件数                               | 正の整数                       |
+| `TOPK_RERANK_SCALE`        | リランキング前の取得倍率               | 正の整数                       |
+| `UPLOAD_DIR`               | ファイルアップロード用ディレクトリ名   | `upload`                       |
 
 ### 6.2 収集対象ファイル
 
@@ -238,7 +242,7 @@ URL ingest（`HTMLLoader`）では、HTML に含まれるリンクから上記�
 空間キー (`space_key`) は「埋め込み種別 × モデル × 用途」を識別するキーで、ベクトルストア内のコレクション/テーブル命名に使用します。
 
 - 形式: `[embed provider]__[model name]__[text|image]`
-  - 例: `local__openai/clip-vit-base-patch32__text`
+  - 例: `hfclip__openai/clip-vit-base-patch32__text`
 - 埋め込みやストア構成を切り替えると異なる空間キーが生成され、既存データとは別コレクションとして扱われます。モデルを切り替えた場合は再インジェストが必要です。
 - マルチモーダル構成ではテキスト用 `space_key` と画像用 `space_key_multi` の 2 種が存在し、それぞれ別コレクションに格納されます。
 
