@@ -20,41 +20,19 @@ class Config:
 
     # vector store
     vector_store: str
-    check_update: bool
 
     # Embeddings
-    embed_provider: str  # hfclip|openai|cohere
     hfclip_embed_base_url: str
 
     # Retrieval/Rerank
-    rerank_provider: str  # hf|cohere|none
     hf_rerank_base_url: str
 
-
-def _to_bool(key: str, default: bool) -> bool:
-    """bool 型の環境変数を解釈し、未指定時はデフォルト値を返す。
-
-    Args:
-        key (str): 環境変数名
-        default (bool): デフォルト値
-
-    Raises:
-        ValueError: 真偽値として解釈できない文字列が指定された場合
-
-    Returns:
-        bool: 解釈した真偽値
-    """
-    raw = os.getenv(key)
-    if raw is None or raw.strip() == "":
-        return default
-
-    lowered = raw.strip().lower()
-    if lowered in {"1", "true", "yes", "on"}:
-        return True
-    if lowered in {"0", "false", "no", "off"}:
-        return False
-
-    raise ValueError(f"{key} must be a boolean string")
+    # LLM
+    llm_provider: str  # local|openai
+    llm_local_model: str
+    llm_local_base_url: str
+    llm_openai_model: str
+    openai_api_key: str
 
 
 def get_config() -> Config:
@@ -77,15 +55,18 @@ def get_config() -> Config:
         ragserver_base_url=os.getenv("RAGSERVER_BASE_URL", "http://localhost:8000/v1"),
         # vector store
         vector_store=os.getenv("VECTOR_STORE", CHROMA_STORE_NAME),
-        check_update=_to_bool("CHECK_UPDATE", False),
         # Embeddings
-        embed_provider=os.getenv("EMBED_PROVIDER", HFCLIP_EMBED_NAME),
         hfclip_embed_base_url=os.getenv(
             "HFCLIP_EMBED_BASE_URL", "http://localhost:8001/v1"
         ),
         # Retrieval/Rerank
-        rerank_provider=os.getenv("RERANK_PROVIDER", HF_RERANK_NAME),
         hf_rerank_base_url=os.getenv("HF_RERANK_BASE_URL", "http://localhost:8002/v1"),
+        # LLM
+        llm_provider=os.getenv("LLM_PROVIDER", "local"),
+        llm_local_model=os.getenv("LLM_LOCAL_MODEL", "unsloth/gpt-oss-20b"),
+        llm_local_base_url=os.getenv("LLM_LOCAL_BASE_URL", "http://localhost:1234/v1"),
+        llm_openai_model=os.getenv("LLM_OPENAI_MODEL", "gpt-3.5-turbo"),
+        openai_api_key=os.getenv("OPENAI_API_KEY", ""),
     )
 
     return cfg
