@@ -8,7 +8,7 @@ ragserver は、マルチモーダル（テキスト + 画像）検索のため�
 
 ### 2.1 デフォルト構成
 
-<img alt="Image" src="https://github.com/user-attachments/assets/6ed2c975-2715-4b78-8913-a83b99ac4a52" />
+<img alt="Image" src="https://github.com/user-attachments/assets/32e65ddc-ef58-44a0-8348-df11d0640abe" />
 
 |                | 役割                                                 | 実装ディレクトリ                                   | 備考                                                                      |
 | -------------- | ---------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -101,7 +101,7 @@ ragserver の API を利用するデモクライアントとして、ragclient �
 
 <table>
   <tr>
-    <td><img  alt="Image" src="https://github.com/user-attachments/assets/e2d6a285-d110-40c6-aee2-c51a044fb300" /></td>
+    <td><img  alt="Image" src="https://github.com/user-attachments/assets/cbf64a94-a7bf-4e72-b778-339625190f52" /></td>
     <td><img  alt="Image" src="https://github.com/user-attachments/assets/118d62e8-06e0-499e-a575-11692cded0b3" /></td>
     <td><img  alt="Image" src="https://github.com/user-attachments/assets/731243d9-a8be-4c01-92ac-8dd17623acac" /></td>
   </tr>
@@ -188,42 +188,42 @@ MCP クライアント側に ragserver を登録すると、`query`, `ingest` �
 
 `ragserver/config.py` が読み込む環境変数と値域は以下のとおりです。
 
-| 変数名                     | 用途                                   | 値域/例                        |
-| -------------------------- | -------------------------------------- | ------------------------------ |
-| `VECTOR_STORE`             | ベクトルストア選択                     | `chroma` / `pgvector`          |
-| `LOAD_LIMIT`               | メタ情報ロード上限件数                 | 正の整数                       |
-| `CHECK_UPDATE`             | 既存ソースの更新チェックを有効化するか | `true/false` 等の真偽文字列    |
-| `CHROMA_PERSIST_DIR`       | Chroma 永続ディレクトリ                | パス文字列                     |
-| `CHROMA_HOST`              | Chroma サーバホスト                    | ホスト名/URL                   |
-| `CHROMA_PORT`              | Chroma サーバポート                    | 正の整数                       |
-| `CHROMA_API_KEY`           | Chroma Cloud API キー                  | 文字列                         |
-| `CHROMA_TENANT`            | Chroma Cloud テナント名                | 文字列                         |
-| `CHROMA_DATABASE`          | Chroma Cloud データベース名            | 文字列                         |
-| `PG_HOST`                  | PgVector ホスト                        | 文字列                         |
-| `PG_PORT`                  | PgVector ポート                        | 正の整数                       |
-| `PG_DATABASE`              | PgVector DB 名                         | 文字列                         |
-| `PG_USER`                  | PgVector ユーザ名                      | 文字列                         |
-| `PG_PASSWORD`              | PgVector パスワード                    | 文字列                         |
-| `EMBED_PROVIDER`           | 埋め込みプロバイダ選択                 | `hfclip` / `openai` / `cohere` |
-| `OPENAI_EMBED_MODEL_TEXT`  | OpenAI テキストモデル名                | 文字列                         |
-| `OPENAI_API_KEY`           | OpenAI API キー                        | 文字列                         |
-| `OPENAI_BASE_URL`          | OpenAI API Base URL                    | URL                            |
-| `COHERE_EMBED_MODEL_TEXT`  | Cohere テキストモデル名                | 文字列                         |
-| `COHERE_EMBED_MODEL_IMAGE` | Cohere 画像モデル名                    | 文字列                         |
-| `COHERE_API_KEY`           | Cohere API キー                        | 文字列                         |
-| `HFCLIP_EMBED_MODEL_TEXT`  | ローカル埋め込みテキストモデル         | 文字列                         |
-| `HFCLIP_EMBED_MODEL_IMAGE` | ローカル埋め込み画像モデル             | 文字列                         |
-| `HFCLIP_EMBED_BASE_URL`    | ローカル埋め込み API の URL            | URL                            |
-| `CHUNK_SIZE`               | テキスト分割チャンクサイズ             | 正の整数                       |
-| `CHUNK_OVERLAP`            | テキスト分割オーバーラップ             | `0 <= value < CHUNK_SIZE`      |
-| `USER_AGENT`               | HTML 取得時の User-Agent               | 文字列                         |
-| `RERANK_PROVIDER`          | リランクプロバイダ                     | `hf` / `cohere` / `none`       |
-| `HF_RERANK_MODEL`          | ローカルリランカーモデル名             | 文字列                         |
-| `HF_RERANK_BASE_URL`       | ローカルリランカー API の URL          | URL                            |
-| `COHERE_RERANK_MODEL`      | Cohere リランカーモデル名              | 文字列                         |
-| `TOPK`                     | 取得件数                               | 正の整数                       |
-| `TOPK_RERANK_SCALE`        | リランキング前の取得倍率               | 正の整数                       |
-| `UPLOAD_DIR`               | ファイルアップロード用ディレクトリ名   | `upload`                       |
+| 変数名                     | 用途                                    | 値域/例                        |
+| -------------------------- | --------------------------------------- | ------------------------------ |
+| `VECTOR_STORE`             | ベクトルストア選択                      | `chroma` / `pgvector`          |
+| `LOAD_LIMIT`               | メタ情報ロード上限件数                  | 正の整数                       |
+| `CHECK_UPDATE`             | 既存ソースの更新チェックを有効化するか  | `true/false` 等の真偽文字列    |
+| `CHROMA_PERSIST_DIR`       | Chroma 永続ディレクトリ                 | パス文字列                     |
+| `CHROMA_HOST`              | Chroma サーバホスト                     | ホスト名/URL                   |
+| `CHROMA_PORT`              | Chroma サーバポート                     | 正の整数                       |
+| `CHROMA_API_KEY`           | Chroma Cloud API キー                   | 文字列                         |
+| `CHROMA_TENANT`            | Chroma Cloud テナント名                 | 文字列                         |
+| `CHROMA_DATABASE`          | Chroma Cloud データベース名             | 文字列                         |
+| `PG_HOST`                  | PgVector ホスト                         | 文字列                         |
+| `PG_PORT`                  | PgVector ポート                         | 正の整数                       |
+| `PG_DATABASE`              | PgVector DB 名                          | 文字列                         |
+| `PG_USER`                  | PgVector ユーザ名                       | 文字列                         |
+| `PG_PASSWORD`              | PgVector パスワード                     | 文字列                         |
+| `EMBED_PROVIDER`           | 埋め込みプロバイダ選択                  | `hfclip` / `openai` / `cohere` |
+| `OPENAI_EMBED_MODEL_TEXT`  | OpenAI テキストモデル名                 | 文字列                         |
+| `OPENAI_API_KEY`           | OpenAI API キー                         | 文字列                         |
+| `OPENAI_BASE_URL`          | OpenAI API Base URL                     | URL                            |
+| `COHERE_EMBED_MODEL_TEXT`  | Cohere テキストモデル名                 | 文字列                         |
+| `COHERE_EMBED_MODEL_IMAGE` | Cohere 画像モデル名                     | 文字列                         |
+| `COHERE_API_KEY`           | Cohere API キー                         | 文字列                         |
+| `HFCLIP_EMBED_MODEL_TEXT`  | HuggingFace CLIP 埋め込みテキストモデル | 文字列                         |
+| `HFCLIP_EMBED_MODEL_IMAGE` | HuggingFace CLIP 埋め込み画像モデル     | 文字列                         |
+| `HFCLIP_EMBED_BASE_URL`    | HuggingFace CLIP 埋め込み API の URL    | URL                            |
+| `CHUNK_SIZE`               | テキスト分割チャンクサイズ              | 正の整数                       |
+| `CHUNK_OVERLAP`            | テキスト分割オーバーラップ              | `0 <= value < CHUNK_SIZE`      |
+| `USER_AGENT`               | HTML 取得時の User-Agent                | 文字列                         |
+| `RERANK_PROVIDER`          | リランクプロバイダ                      | `hf` / `cohere` / `none`       |
+| `HF_RERANK_MODEL`          | HuggingFace リランカーモデル名          | 文字列                         |
+| `HF_RERANK_BASE_URL`       | HuggingFace リランカー API の URL       | URL                            |
+| `COHERE_RERANK_MODEL`      | Cohere リランカーモデル名               | 文字列                         |
+| `TOPK`                     | 取得件数                                | 正の整数                       |
+| `TOPK_RERANK_SCALE`        | リランキング前の取得倍率                | 正の整数                       |
+| `UPLOAD_DIR`               | ファイルアップロード用ディレクトリ名    | `upload`                       |
 
 ### 6.2 収集対象ファイル
 
