@@ -1,3 +1,11 @@
+"""LlamaIndex ベースの multimodal_ragserver メインモジュール。
+
+このモジュールは、LlamaIndex を使用してマルチモーダルRAGシステムを構築し、
+FastAPI経由でREST APIとして公開します。
+
+既存のFastAPI仕様を維持しつつ、内部実装をLlamaIndexに最適化しています。
+"""
+
 from __future__ import annotations
 
 import logging
@@ -7,33 +15,30 @@ from pathlib import Path
 from typing import Any, Optional
 
 import aiofiles
+import chromadb
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi_mcp.server import FastApiMCP
-from langchain_core.documents import Document
+from llama_index.core import Settings, SimpleDirectoryReader, StorageContext
+from llama_index.core.indices import MultiModalVectorStoreIndex
+from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.schema import NodeWithScore, QueryBundle
+from llama_index.embeddings.cohere import CohereEmbedding
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.postprocessor.cohere_rerank import CohereRerank
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.vector_stores.postgres import PGVectorStore
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ragserver.config import get_config
 from ragserver.core import names
-from ragserver.embed.cohere_embeddings_manager import CohereEmbeddingsManager
-from ragserver.embed.embeddings_manager import EmbeddingsManager
-from ragserver.embed.hfclip_embeddings_manager import HFCLIPEmbeddingsManager
-from ragserver.embed.multimodal_embeddings_manager import MultimodalEmbeddingsManager
-from ragserver.embed.openai_embeddings_manager import OpenAIEmbeddingsManager
-from ragserver.ingest import ingest
-from ragserver.ingest.file_loader import FileLoader
-from ragserver.ingest.html_loader import HTMLLoader
+from ragserver.hf_rerank import HFRerank
+from ragserver.hfclip_embedding import HFCLIPEmbedding
 from ragserver.logger import logger
-from ragserver.rerank.cohere_rerank_manager import CohereRerankManager
-from ragserver.rerank.hf_rerank_manager import HFRerankManager
-from ragserver.rerank.rerank_manager import RerankManager
-from ragserver.retrieval import retriever
-from ragserver.store.chroma_manager import ChromaManager
-from ragserver.store.pgvector_manager import PgVectorManager
-from ragserver.store.vector_store_manager import VectorStoreManager
 
 __all__ = ["app"]
 
+# ログレベルの設定
 logging.getLogger("httpcore.http11").setLevel(logging.WARNING)
 logging.getLogger("httpcore.connection").setLevel(logging.WARNING)
 logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
@@ -44,40 +49,106 @@ logging.getLogger("unstructured.trace").setLevel(logging.WARNING)
 
 
 class ReloadRequest(BaseModel):
+    """リロードリクエストのモデル。"""
+
     target: str
     name: str
 
 
 class QueryTextRequest(BaseModel):
+    """テキストクエリリクエストのモデル。"""
+
     query: str
     topk: Optional[int] = None
 
 
 class QueryImageRequest(BaseModel):
+    """画像クエリリクエストのモデル。"""
+
     path: str
     topk: Optional[int] = None
 
 
 class PathRequest(BaseModel):
+    """パスリクエストのモデル。"""
+
     path: str
 
 
 class URLRequest(BaseModel):
+    """URLリクエストのモデル。"""
+
     url: str
 
 
-# uvicorn ragserver.main:app --host 0.0.0.0 --port 8000
-app = FastAPI(title=names.PROJECT_NAME, version="1.0")
+# FastAPI アプリケーション
+app = FastAPI(title=names.PROJECT_NAME, version="2.0-llamaindex")
+
+# グローバル変数
+_index: Optional[MultiModalVectorStoreIndex] = None
+_storage_context: Optional[StorageContext] = None
+_embed_model: Any = None
+_rerank: Any = None
+_request_lock = threading.Lock()
 
 
-def _create_store(name: Optional[str] = None) -> VectorStoreManager:
-    """ベクトルストアのインスタンスを新規生成する。
+def _create_embed_model(name: Optional[str] = None) -> Any:
+    """埋め込みモデルを生成する。
+
+    Args:
+        name (Optional[str], optional): 埋め込みプロバイダ名。 Defaults to None.
+
+    Returns:
+        Any: 埋め込みモデルインスタンス
+
+    Raises:
+        RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
+    """
+    logger.debug("trace")
+
+    try:
+        cfg = get_config()
+    except Exception as e:
+        traceback.print_exc()
+        raise RuntimeError(f"failed to load configuration: {e}") from e
+
+    if name:
+        cfg.emped_provider = name
+
+    match cfg.emped_provider:
+        case names.OPENAI_EMBED_NAME:
+            logger.info(f"Creating OpenAI embedding model: {cfg.openai_embed_model_text}")
+            return OpenAIEmbedding(
+                model=cfg.openai_embed_model_text,
+                api_key=cfg.openai_api_key,
+                api_base=cfg.openai_base_url if cfg.openai_base_url else None,
+            )
+        case names.COHERE_EMBED_NAME:
+            logger.info(f"Creating Cohere embedding model: {cfg.cohere_embed_model_text}")
+            # Cohere v4 はマルチモーダル対応
+            return CohereEmbedding(
+                model_name=cfg.cohere_embed_model_text,
+                api_key=cfg.cohere_api_key,
+            )
+        case names.HFCLIP_EMBED_NAME:
+            logger.info(f"Creating HFCLIP embedding model: {cfg.hfclip_embed_model_text}")
+            return HFCLIPEmbedding(
+                base_url=cfg.hfclip_embed_base_url,
+                text_model=cfg.hfclip_embed_model_text,
+                image_model=cfg.hfclip_embed_model_image,
+            )
+        case _:
+            raise RuntimeError(f"Unsupported embedding provider: {cfg.emped_provider}")
+
+
+def _create_vector_stores(name: Optional[str] = None) -> tuple[Any, Any]:
+    """テキストと画像用のベクトルストアを生成する。
 
     Args:
         name (Optional[str], optional): ベクトルストア名。 Defaults to None.
 
     Returns:
-        VectorStoreManager: 新しいインスタンス
+        tuple[Any, Any]: (text_store, image_store)
 
     Raises:
         RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
@@ -94,93 +165,70 @@ def _create_store(name: Optional[str] = None) -> VectorStoreManager:
         cfg.vector_store = name
 
     match cfg.vector_store:
-        case names.PGVECTOR_STORE_NAME:
-            return PgVectorManager(
-                host=cfg.pg_host,
-                port=cfg.pg_port,
-                dbname=cfg.pg_database,
-                user=cfg.pg_user,
-                password=cfg.pg_password,
-                load_limit=cfg.load_limit,
-                check_update=cfg.check_update,
-            )
         case names.CHROMA_STORE_NAME:
-            return ChromaManager(
-                persist_directory=cfg.chroma_persist_dir,
-                host=cfg.chroma_host,
-                port=cfg.chroma_port,
-                api_key=cfg.chroma_api_key,
-                tenant=cfg.chroma_tenant,
-                database=cfg.chroma_database,
-                load_limit=cfg.load_limit,
-                check_update=cfg.check_update,
+            logger.info("Creating Chroma vector stores")
+            # Chroma クライアントの作成
+            if cfg.chroma_host and cfg.chroma_port:
+                # リモートモード
+                client = chromadb.HttpClient(
+                    host=cfg.chroma_host,
+                    port=cfg.chroma_port,
+                    ssl=False,
+                )
+            else:
+                # ローカルモード
+                client = chromadb.PersistentClient(path=cfg.chroma_persist_dir)
+
+            # テキスト用と画像用のコレクションを作成
+            text_collection = client.get_or_create_collection("text_collection")
+            image_collection = client.get_or_create_collection("image_collection")
+
+            text_store = ChromaVectorStore(chroma_collection=text_collection)
+            image_store = ChromaVectorStore(chroma_collection=image_collection)
+
+            return text_store, image_store
+
+        case names.PGVECTOR_STORE_NAME:
+            logger.info("Creating PGVector vector stores")
+            # テキスト用と画像用のテーブルを作成
+            text_store = PGVectorStore.from_params(
+                database=cfg.pg_database,
+                host=cfg.pg_host,
+                password=cfg.pg_password,
+                port=cfg.pg_port,
+                user=cfg.pg_user,
+                table_name="text_embeddings",
             )
+
+            image_store = PGVectorStore.from_params(
+                database=cfg.pg_database,
+                host=cfg.pg_host,
+                password=cfg.pg_password,
+                port=cfg.pg_port,
+                user=cfg.pg_user,
+                table_name="image_embeddings",
+            )
+
+            return text_store, image_store
+
         case _:
-            raise RuntimeError(f"failed to create store")
+            raise RuntimeError(f"Unsupported vector store: {cfg.vector_store}")
 
 
-_store = _create_store()
-
-
-def _create_embed(name: Optional[str] = None) -> EmbeddingsManager:
-    """埋め込み管理インスタンスを生成する。
+def _create_rerank(name: Optional[str] = None) -> Optional[Any]:
+    """リランクモデルを生成する。
 
     Args:
-        name (Optional[str], optional): 埋め込み管理名。 Defaults to None.
+        name (Optional[str], optional): リランクプロバイダ名。 Defaults to None.
 
     Returns:
-        EmbeddingsManager: 生成された埋め込み管理
-
-    Raises:
-        RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
-    """
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise RuntimeError(f"failed to load configuration: {e}") from e
-
-    if name:
-        cfg.emped_provider = name
-
-    match cfg.emped_provider:
-        case names.OPENAI_EMBED_NAME:
-            return OpenAIEmbeddingsManager(
-                model_text=cfg.openai_embed_model_text,
-                base_url=cfg.openai_base_url,
-                api_key=cfg.openai_api_key,
-            )
-        case names.COHERE_EMBED_NAME:
-            return CohereEmbeddingsManager(
-                model_text=cfg.cohere_embed_model_text,
-                model_image=cfg.cohere_embed_model_image,
-            )
-        case names.HFCLIP_EMBED_NAME:
-            return HFCLIPEmbeddingsManager(
-                model_text=cfg.hfclip_embed_model_text,
-                model_image=cfg.hfclip_embed_model_image,
-                base_url=cfg.hfclip_embed_base_url,
-                api_key=cfg.openai_api_key,
-            )
-        case _:
-            raise RuntimeError(f"failed to create store")
-
-
-_embed = _create_embed()
-
-
-def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
-    """リランク管理インスタンスを生成する。
-
-    Args:
-        name (Optional[str], optional): リランク管理名。 Defaults to None.
-
-    Returns:
-        Optional[RerankManager]: 生成されたリランク管理
+        Optional[Any]: リランクモデルインスタンス
 
     Raises:
         RuntimeError: 設定の読み込みに失敗した場合
     """
+    logger.debug("trace")
+
     try:
         cfg = get_config()
     except Exception as e:
@@ -191,40 +239,98 @@ def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
         cfg.rerank_provider = name
 
     match cfg.rerank_provider:
-        case names.HF_RERANK_NAME:
-            return HFRerankManager(
-                model=cfg.hf_rerank_model,
-                base_url=cfg.hf_rerank_base_url,
-            )
         case names.COHERE_RERANK_NAME:
-            return CohereRerankManager(cfg.cohere_rerank_model)
+            logger.info(f"Creating Cohere rerank model: {cfg.cohere_rerank_model}")
+            return CohereRerank(
+                model=cfg.cohere_rerank_model,
+                api_key=cfg.cohere_api_key,
+                top_n=cfg.topk,
+            )
+        case names.HF_RERANK_NAME:
+            logger.info(f"Creating HF rerank model: {cfg.hf_rerank_model}")
+            return HFRerank(
+                base_url=cfg.hf_rerank_base_url,
+                model=cfg.hf_rerank_model,
+                top_n=cfg.topk,
+            )
         case _:
+            logger.info("No rerank model specified")
             return None
 
 
-_rerank = _create_rerank()
+def _initialize_index() -> None:
+    """インデックスとストレージコンテキストを初期化する。
+
+    Raises:
+        RuntimeError: 初期化に失敗した場合
+    """
+    logger.debug("trace")
+
+    global _index
+    global _storage_context
+    global _embed_model
+    global _rerank
+
+    try:
+        cfg = get_config()
+
+        # 埋め込みモデルの作成
+        _embed_model = _create_embed_model()
+        Settings.embed_model = _embed_model
+
+        # テキスト分割の設定
+        Settings.text_splitter = SentenceSplitter(
+            chunk_size=cfg.chunk_size,
+            chunk_overlap=cfg.chunk_overlap,
+        )
+
+        # ベクトルストアの作成
+        text_store, image_store = _create_vector_stores()
+
+        # ストレージコンテキストの作成
+        _storage_context = StorageContext.from_defaults(
+            vector_store=text_store,
+            image_store=image_store,
+        )
+
+        # インデックスの作成（空のインデックス）
+        _index = MultiModalVectorStoreIndex.from_documents(
+            [],
+            storage_context=_storage_context,
+        )
+
+        # リランクモデルの作成
+        _rerank = _create_rerank()
+
+        logger.info("Index initialization completed")
+
+    except Exception as e:
+        traceback.print_exc()
+        raise RuntimeError(f"Failed to initialize index: {e}") from e
 
 
-_request_lock = threading.Lock()
+# 起動時にインデックスを初期化
+_initialize_index()
 
 
-def _documents_to_response(docs: list[Document]) -> list[dict[str, Any]]:
-    """Document リストを JSON 返却可能な辞書リストへ変換する。
+def _nodes_to_response(nodes: list[NodeWithScore]) -> list[dict[str, Any]]:
+    """NodeWithScore リストを JSON 返却可能な辞書リストへ変換する。
 
     Args:
-        docs (list[Document]): 変換対象ドキュメント
+        nodes (list[NodeWithScore]): 変換対象ノード
 
     Returns:
-        list[dict[str, Any]]: JSON 変換済みドキュメントリスト
+        list[dict[str, Any]]: JSON 変換済みノードリスト
     """
     logger.debug("trace")
 
     return [
         {
-            "page_content": doc.page_content,
-            "metadata": doc.metadata,
+            "page_content": node.node.get_content(),
+            "metadata": node.node.metadata,
+            "score": node.score if node.score is not None else 0.0,
         }
-        for doc in docs
+        for node in nodes
     ]
 
 
@@ -237,13 +343,15 @@ async def health() -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    global _store
-    global _embed
+    global _index
+    global _embed_model
     global _rerank
+
     try:
-        store_name = _store.get_name()
-        embed_name = _embed.get_name()
-        rerank_name = _rerank.get_name() if _rerank else "none"
+        cfg = get_config()
+        store_name = cfg.vector_store
+        embed_name = cfg.emped_provider
+        rerank_name = cfg.rerank_provider if _rerank else "none"
     except Exception as e:
         return {"status": f"{e}"}
 
@@ -252,6 +360,7 @@ async def health() -> dict[str, Any]:
         "store": store_name,
         "embed": embed_name,
         "rerank": rerank_name,
+        "framework": "llamaindex",
     }
 
 
@@ -265,23 +374,37 @@ async def reload(payload: ReloadRequest) -> dict[str, Any]:
     Raises:
         HTTPException(500): 初期化やファイル作成に失敗した場合
 
-            Returns:
+    Returns:
         dict[str, Any]: 結果
     """
     logger.debug("trace")
 
-    global _store
-    global _embed
+    global _index
+    global _storage_context
+    global _embed_model
     global _rerank
+
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
             match payload.target:
                 case "store":
-                    _store = _create_store(payload.name)
+                    # ベクトルストアを再作成
+                    text_store, image_store = _create_vector_stores(payload.name)
+                    _storage_context = StorageContext.from_defaults(
+                        vector_store=text_store,
+                        image_store=image_store,
+                    )
+                    _index = MultiModalVectorStoreIndex.from_documents(
+                        [],
+                        storage_context=_storage_context,
+                    )
                 case "embed":
-                    _embed = _create_embed(payload.name)
+                    # 埋め込みモデルを再作成
+                    _embed_model = _create_embed_model(payload.name)
+                    Settings.embed_model = _embed_model
                 case "rerank":
+                    # リランクモデルを再作成
                     _rerank = _create_rerank(payload.name)
                 case _:
                     traceback.print_exc()
@@ -311,6 +434,8 @@ async def upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
     Returns:
         dict[str, Any]: 結果
     """
+    logger.debug("trace")
+
     try:
         cfg = get_config()
         upload_dir = Path(cfg.upload_dir)
@@ -373,6 +498,12 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     """
     logger.debug("trace")
 
+    global _index
+    global _rerank
+
+    if _index is None:
+        raise HTTPException(status_code=500, detail="Index is not initialized")
+
     try:
         cfg = get_config()
     except Exception as e:
@@ -384,27 +515,42 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            docs = await run_in_threadpool(
-                func=retriever.query_text,
-                query=payload.query,
-                store=_store,
-                embed=_embed,
-                topk=payload.topk or cfg.topk,
-                rerank=_rerank,
-                topk_rerank_scale=cfg.topk_rerank_scale,
+            # リトリーバーを作成
+            topk = payload.topk or cfg.topk
+            retriever = _index.as_retriever(
+                similarity_top_k=topk * cfg.topk_rerank_scale if _rerank else topk,
             )
+
+            # 検索実行
+            nodes = await run_in_threadpool(
+                retriever.retrieve,
+                payload.query,
+            )
+
+            # リランクを適用
+            if _rerank:
+                query_bundle = QueryBundle(query_str=payload.query)
+                nodes = await run_in_threadpool(
+                    _rerank.postprocess_nodes,
+                    nodes,
+                    query_bundle,
+                )
+            else:
+                # リランクなしの場合はtopkで切り詰め
+                nodes = nodes[:topk]
+
         except Exception as e:
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"query failure: {e}") from e
     finally:
         _request_lock.release()
 
-    return {"documents": _documents_to_response(docs)}
+    return {"documents": _nodes_to_response(nodes)}
 
 
 @app.post("/v1/query/text_multi", operation_id="query_text_multi")
 async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
-    """テキストクエリでマルチモーダル検索を実行する。
+    """テキストクエリでマルチモーダル検索を実行する（画像を検索）。
 
     Args:
         payload (QueryTextRequest): クエリ内容
@@ -417,11 +563,18 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    if not isinstance(_embed, MultimodalEmbeddingsManager):
-        traceback.print_exc()
+    global _index
+    global _embed_model
+    global _rerank
+
+    if _index is None:
+        raise HTTPException(status_code=500, detail="Index is not initialized")
+
+    # HFCLIP または Cohere の場合のみマルチモーダル検索をサポート
+    if not isinstance(_embed_model, (HFCLIPEmbedding, CohereEmbedding)):
         raise HTTPException(
             status_code=500,
-            detail="multimodal embeddings is not supported",
+            detail="Multimodal embeddings is not supported. Use HFCLIP or Cohere.",
         )
 
     try:
@@ -435,41 +588,73 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            docs = await run_in_threadpool(
-                func=retriever.query_text_multi,
-                query=payload.query,
-                store=_store,
-                embed=_embed,
-                topk=payload.topk or cfg.topk,
-                rerank=_rerank,
-                topk_rerank_scale=cfg.topk_rerank_scale,
+            # テキストクエリで画像を検索
+            topk = payload.topk or cfg.topk
+
+            # 画像用のリトリーバーを作成
+            retriever = _index.as_retriever(
+                image_similarity_top_k=topk * cfg.topk_rerank_scale if _rerank else topk,
             )
+
+            # 検索実行
+            nodes = await run_in_threadpool(
+                retriever.retrieve,
+                payload.query,
+            )
+
+            # 画像ノードのみをフィルタリング
+            image_nodes = [
+                node for node in nodes
+                if node.node.metadata.get("file_type", "").startswith("image/")
+            ]
+
+            # リランクを適用
+            if _rerank and len(image_nodes) > 0:
+                query_bundle = QueryBundle(query_str=payload.query)
+                image_nodes = await run_in_threadpool(
+                    _rerank.postprocess_nodes,
+                    image_nodes,
+                    query_bundle,
+                )
+            else:
+                # リランクなしの場合はtopkで切り詰め
+                image_nodes = image_nodes[:topk]
+
         except Exception as e:
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"query failure: {e}") from e
     finally:
         _request_lock.release()
 
-    return {"documents": _documents_to_response(docs)}
+    return {"documents": _nodes_to_response(image_nodes)}
 
 
 @app.post("/v1/query/image", operation_id="query_image")
 async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
-    """画像クエリによる検索を実行する。
+    """画像クエリによる検索を実行する（類似画像を検索）。
 
     Args:
         payload (QueryImageRequest): クエリ内容
 
     Returns:
         dict[str, Any]: 検索結果
+
+    Raises:
+        HTTPException: 設定の読み込みに失敗、または検索処理に失敗した場合
     """
     logger.debug("trace")
 
-    if not isinstance(_embed, MultimodalEmbeddingsManager):
-        traceback.print_exc()
+    global _index
+    global _embed_model
+
+    if _index is None:
+        raise HTTPException(status_code=500, detail="Index is not initialized")
+
+    # HFCLIP または Cohere の場合のみマルチモーダル検索をサポート
+    if not isinstance(_embed_model, (HFCLIPEmbedding, CohereEmbedding)):
         raise HTTPException(
             status_code=500,
-            detail="multimodal embeddings is not supported",
+            detail="Multimodal embeddings is not supported. Use HFCLIP or Cohere.",
         )
 
     try:
@@ -483,20 +668,49 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            docs = await run_in_threadpool(
-                func=retriever.query_image,
-                path=payload.path,
-                store=_store,
-                embed=_embed,
-                topk=payload.topk or cfg.topk,
+            # 画像の埋め込みベクトルを取得
+            if isinstance(_embed_model, HFCLIPEmbedding):
+                query_embedding = await run_in_threadpool(
+                    _embed_model.get_image_embedding,
+                    payload.path,
+                )
+            else:
+                # Cohere の場合は画像パスを直接使用
+                query_embedding = None
+
+            # 画像ストアから検索
+            topk = payload.topk or cfg.topk
+            retriever = _index.as_retriever(
+                image_similarity_top_k=topk,
             )
+
+            # 検索実行（画像クエリの場合はリランクなし）
+            if query_embedding:
+                # カスタム埋め込みを使用
+                nodes = await run_in_threadpool(
+                    retriever.retrieve,
+                    payload.path,
+                )
+            else:
+                # Cohere の場合
+                nodes = await run_in_threadpool(
+                    retriever.retrieve,
+                    payload.path,
+                )
+
+            # 画像ノードのみをフィルタリング
+            image_nodes = [
+                node for node in nodes
+                if node.node.metadata.get("file_type", "").startswith("image/")
+            ][:topk]
+
         except Exception as e:
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"query failure: {e}") from e
     finally:
         _request_lock.release()
 
-    return {"documents": _documents_to_response(docs)}
+    return {"documents": _nodes_to_response(image_nodes)}
 
 
 @app.post("/v1/ingest/path", operation_id="ingest_path")
@@ -509,37 +723,43 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
 
     Returns:
         dict[str, str]: 実行結果
+
+    Raises:
+        HTTPException: インジェスト処理に失敗した場合
     """
     logger.debug("trace")
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
+    global _index
 
-    file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_store
-    )
+    if _index is None:
+        raise HTTPException(status_code=500, detail="Index is not initialized")
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await run_in_threadpool(
-            func=ingest.ingest_from_path,
-            path=payload.path,
-            store=_store,
-            embed=_embed,
-            file_loader=file_loader,
-        )
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
+        try:
+            # SimpleDirectoryReader でドキュメントを読み込み
+            path = Path(payload.path)
+            reader = SimpleDirectoryReader(
+                input_dir=str(path) if path.is_dir() else None,
+                input_files=[str(path)] if path.is_file() else None,
+                recursive=True,
+            )
+
+            documents = await run_in_threadpool(reader.load_data)
+
+            # インデックスに追加
+            for doc in documents:
+                await run_in_threadpool(_index.insert, doc)
+
+            logger.info(f"Ingested {len(documents)} documents from {payload.path}")
+
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
     finally:
         _request_lock.release()
 
-    return {"status": "ok"}
+    return {"status": "ok", "documents_count": len(documents)}
 
 
 @app.post("/v1/ingest/path_list", operation_id="ingest_path_list")
@@ -551,87 +771,107 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
 
     Returns:
         dict[str, str]: 実行結果
+
+    Raises:
+        HTTPException: インジェスト処理に失敗した場合
     """
     logger.debug("trace")
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
+    global _index
 
-    file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_store
-    )
+    if _index is None:
+        raise HTTPException(status_code=500, detail="Index is not initialized")
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await run_in_threadpool(
-            func=ingest.ingest_from_path_list,
-            list_path=payload.path,
-            store=_store,
-            embed=_embed,
-            file_loader=file_loader,
-        )
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
+        try:
+            # パスリストを読み込み
+            with open(payload.path, "r") as f:
+                paths = [
+                    line.strip()
+                    for line in f
+                    if line.strip() and not line.strip().startswith("#")
+                ]
+
+            total_docs = 0
+            for path_str in paths:
+                # SimpleDirectoryReader でドキュメントを読み込み
+                path = Path(path_str)
+                reader = SimpleDirectoryReader(
+                    input_dir=str(path) if path.is_dir() else None,
+                    input_files=[str(path)] if path.is_file() else None,
+                    recursive=True,
+                )
+
+                documents = await run_in_threadpool(reader.load_data)
+
+                # インデックスに追加
+                for doc in documents:
+                    await run_in_threadpool(_index.insert, doc)
+
+                total_docs += len(documents)
+                logger.info(f"Ingested {len(documents)} documents from {path_str}")
+
+            logger.info(f"Total ingested {total_docs} documents")
+
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
     finally:
         _request_lock.release()
 
-    return {"status": "ok"}
+    return {"status": "ok", "documents_count": total_docs}
 
 
 @app.post("/v1/ingest/url", operation_id="ingest_url")
 async def ingest_url(payload: URLRequest) -> dict[str, str]:
     """URL からコンテンツを収集、埋め込み、ストアに格納する。
-    サイトマップ（.xml）の場合はツリーを下りながら複数サイトから取り込む。
+
+    注意: 現在は基本的な実装のみ。サイトマップ対応は今後追加予定。
 
     Args:
         payload (URLRequest): 対象 URL
 
     Returns:
         dict[str, str]: 実行結果
+
+    Raises:
+        HTTPException: インジェスト処理に失敗した場合
     """
     logger.debug("trace")
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
+    global _index
 
-    file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_store
-    )
-    html_loader = HTMLLoader(
-        chunk_size=cfg.chunk_size,
-        chunk_overlap=cfg.chunk_overlap,
-        file_loader=file_loader,
-        store=_store,
-        user_agent=cfg.user_agent,
-    )
+    if _index is None:
+        raise HTTPException(status_code=500, detail="Index is not initialized")
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await run_in_threadpool(
-            func=ingest.ingest_from_url,
-            url=payload.url,
-            store=_store,
-            embed=_embed,
-            html_loader=html_loader,
-        )
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
+        try:
+            # SimpleWebPageReader を使用（要インストール: llama-index-readers-web）
+            from llama_index.readers.web import SimpleWebPageReader
+
+            reader = SimpleWebPageReader()
+            documents = await run_in_threadpool(reader.load_data, [payload.url])
+
+            # インデックスに追加
+            for doc in documents:
+                await run_in_threadpool(_index.insert, doc)
+
+            logger.info(f"Ingested {len(documents)} documents from {payload.url}")
+
+        except ImportError:
+            raise HTTPException(
+                status_code=501,
+                detail="URL ingestion requires llama-index-readers-web. Install it with: pip install llama-index-readers-web",
+            )
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
     finally:
         _request_lock.release()
 
-    return {"status": "ok"}
+    return {"status": "ok", "documents_count": len(documents)}
 
 
 @app.post("/v1/ingest/url_list", operation_id="ingest_url_list")
@@ -643,44 +883,58 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
 
     Returns:
         dict[str, str]: 実行結果
+
+    Raises:
+        HTTPException: インジェスト処理に失敗した場合
     """
     logger.debug("trace")
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
+    global _index
 
-    file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_store
-    )
-    html_loader = HTMLLoader(
-        chunk_size=cfg.chunk_size,
-        chunk_overlap=cfg.chunk_overlap,
-        file_loader=file_loader,
-        store=_store,
-        user_agent=cfg.user_agent,
-    )
+    if _index is None:
+        raise HTTPException(status_code=500, detail="Index is not initialized")
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await run_in_threadpool(
-            func=ingest.ingest_from_url_list,
-            list_path=payload.path,
-            store=_store,
-            embed=_embed,
-            html_loader=html_loader,
-        )
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
+        try:
+            # SimpleWebPageReader を使用（要インストール: llama-index-readers-web）
+            from llama_index.readers.web import SimpleWebPageReader
+
+            # URLリストを読み込み
+            with open(payload.path, "r") as f:
+                urls = [
+                    line.strip()
+                    for line in f
+                    if line.strip() and not line.strip().startswith("#")
+                ]
+
+            reader = SimpleWebPageReader()
+            total_docs = 0
+
+            for url in urls:
+                documents = await run_in_threadpool(reader.load_data, [url])
+
+                # インデックスに追加
+                for doc in documents:
+                    await run_in_threadpool(_index.insert, doc)
+
+                total_docs += len(documents)
+                logger.info(f"Ingested {len(documents)} documents from {url}")
+
+            logger.info(f"Total ingested {total_docs} documents")
+
+        except ImportError:
+            raise HTTPException(
+                status_code=501,
+                detail="URL ingestion requires llama-index-readers-web. Install it with: pip install llama-index-readers-web",
+            )
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
     finally:
         _request_lock.release()
 
-    return {"status": "ok"}
+    return {"status": "ok", "documents_count": total_docs}
 
 
 # FastAPI アプリを MCP サーバとして公開
