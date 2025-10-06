@@ -1,36 +1,47 @@
 # LlamaIndex Core
-llama-index-core>=0.11.0
-llama-index>=0.11.0
+llama-index-core
+llama-index
 
 # Vector Stores
-llama-index-vector-stores-chroma>=0.2.0
-llama-index-vector-stores-postgres>=0.2.0
-chromadb>=0.4.22
-psycopg2-binary>=2.9.9
+llama-index-vector-stores-chroma
+llama-index-vector-stores-postgres
+chromadb
+psycopg2-binary
+
+# Ingestion
+llama-index-readers-web
+docx2txt
+nbconvert
 
 # Embeddings
-llama-index-embeddings-openai>=0.2.0
-llama-index-embeddings-cohere>=0.3.0
+llama-index-embeddings-openai
+llama-index-embeddings-cohere
+
+# CLIP Embeddings
+# Note: llama-index-embeddings-clip and CLIP are required for MultiModalVectorStoreIndex
+# even though we use custom HFCLIPEmbedding implementation
+llama-index-embeddings-clip
+git+https://github.com/openai/CLIP.git
 
 # Reranking
-llama-index-postprocessor-cohere-rerank>=0.2.0
+llama-index-postprocessor-cohere-rerank
 
 # Web Framework
-fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
-aiofiles>=23.2.1
-python-multipart>=0.0.6
-starlette>=0.35.0
+fastapi
+uvicorn[standard]
+aiofiles
+python-multipart
+starlette
 
 # MCP Server
-fastapi-mcp>=0.1.0
+fastapi-mcp
 
 # Utilities
-python-dotenv>=1.0.0
-requests>=2.31.0
-pydantic>=2.5.0
-pydantic-settings>=2.1.0
+python-dotenv
+requests
+pydantic
+pydantic-settings
 
 # Document Processing
-unstructured>=0.12.0
-pillow>=10.2.0
+unstructured
+pillow

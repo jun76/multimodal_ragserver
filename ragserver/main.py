@@ -25,6 +25,7 @@ from llama_index.core.schema import NodeWithScore, QueryBundle
 from llama_index.embeddings.cohere import CohereEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.postprocessor.cohere_rerank import CohereRerank
+from llama_index.readers.web import SimpleWebPageReader
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.vector_stores.postgres import PGVectorStore
 from pydantic import BaseModel
@@ -117,21 +118,26 @@ def _create_embed_model(name: Optional[str] = None) -> Any:
 
     match cfg.emped_provider:
         case names.OPENAI_EMBED_NAME:
-            logger.info(f"Creating OpenAI embedding model: {cfg.openai_embed_model_text}")
+            logger.info(
+                f"Creating OpenAI embedding model: {cfg.openai_embed_model_text}"
+            )
             return OpenAIEmbedding(
                 model=cfg.openai_embed_model_text,
                 api_key=cfg.openai_api_key,
                 api_base=cfg.openai_base_url if cfg.openai_base_url else None,
             )
         case names.COHERE_EMBED_NAME:
-            logger.info(f"Creating Cohere embedding model: {cfg.cohere_embed_model_text}")
-            # Cohere v4 はマルチモーダル対応
+            logger.info(
+                f"Creating Cohere embedding model: {cfg.cohere_embed_model_text}"
+            )
             return CohereEmbedding(
                 model_name=cfg.cohere_embed_model_text,
                 api_key=cfg.cohere_api_key,
             )
         case names.HFCLIP_EMBED_NAME:
-            logger.info(f"Creating HFCLIP embedding model: {cfg.hfclip_embed_model_text}")
+            logger.info(
+                f"Creating HFCLIP embedding model: {cfg.hfclip_embed_model_text}"
+            )
             return HFCLIPEmbedding(
                 base_url=cfg.hfclip_embed_base_url,
                 text_model=cfg.hfclip_embed_model_text,
@@ -195,7 +201,7 @@ def _create_vector_stores(name: Optional[str] = None) -> tuple[Any, Any]:
                 database=cfg.pg_database,
                 host=cfg.pg_host,
                 password=cfg.pg_password,
-                port=cfg.pg_port,
+                port=str(cfg.pg_port),
                 user=cfg.pg_user,
                 table_name="text_embeddings",
             )
@@ -204,7 +210,7 @@ def _create_vector_stores(name: Optional[str] = None) -> tuple[Any, Any]:
                 database=cfg.pg_database,
                 host=cfg.pg_host,
                 password=cfg.pg_password,
-                port=cfg.pg_port,
+                port=str(cfg.pg_port),
                 user=cfg.pg_user,
                 table_name="image_embeddings",
             )
@@ -593,7 +599,9 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
 
             # 画像用のリトリーバーを作成
             retriever = _index.as_retriever(
-                image_similarity_top_k=topk * cfg.topk_rerank_scale if _rerank else topk,
+                image_similarity_top_k=(
+                    topk * cfg.topk_rerank_scale if _rerank else topk
+                ),
             )
 
             # 検索実行
@@ -604,7 +612,8 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
 
             # 画像ノードのみをフィルタリング
             image_nodes = [
-                node for node in nodes
+                node
+                for node in nodes
                 if node.node.metadata.get("file_type", "").startswith("image/")
             ]
 
@@ -700,7 +709,8 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
 
             # 画像ノードのみをフィルタリング
             image_nodes = [
-                node for node in nodes
+                node
+                for node in nodes
                 if node.node.metadata.get("file_type", "").startswith("image/")
             ][:topk]
 
@@ -759,7 +769,7 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
     finally:
         _request_lock.release()
 
-    return {"status": "ok", "documents_count": len(documents)}
+    return {"status": "ok", "documents_count": f"{len(documents)}"}
 
 
 @app.post("/v1/ingest/path_list", operation_id="ingest_path_list")
@@ -820,7 +830,7 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
     finally:
         _request_lock.release()
 
-    return {"status": "ok", "documents_count": total_docs}
+    return {"status": "ok", "documents_count": f"{total_docs}"}
 
 
 @app.post("/v1/ingest/url", operation_id="ingest_url")
@@ -848,9 +858,6 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            # SimpleWebPageReader を使用（要インストール: llama-index-readers-web）
-            from llama_index.readers.web import SimpleWebPageReader
-
             reader = SimpleWebPageReader()
             documents = await run_in_threadpool(reader.load_data, [payload.url])
 
@@ -859,19 +866,13 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
                 await run_in_threadpool(_index.insert, doc)
 
             logger.info(f"Ingested {len(documents)} documents from {payload.url}")
-
-        except ImportError:
-            raise HTTPException(
-                status_code=501,
-                detail="URL ingestion requires llama-index-readers-web. Install it with: pip install llama-index-readers-web",
-            )
         except Exception as e:
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
     finally:
         _request_lock.release()
 
-    return {"status": "ok", "documents_count": len(documents)}
+    return {"status": "ok", "documents_count": f"{len(documents)}"}
 
 
 @app.post("/v1/ingest/url_list", operation_id="ingest_url_list")
@@ -897,9 +898,6 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            # SimpleWebPageReader を使用（要インストール: llama-index-readers-web）
-            from llama_index.readers.web import SimpleWebPageReader
-
             # URLリストを読み込み
             with open(payload.path, "r") as f:
                 urls = [
@@ -922,19 +920,13 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
                 logger.info(f"Ingested {len(documents)} documents from {url}")
 
             logger.info(f"Total ingested {total_docs} documents")
-
-        except ImportError:
-            raise HTTPException(
-                status_code=501,
-                detail="URL ingestion requires llama-index-readers-web. Install it with: pip install llama-index-readers-web",
-            )
         except Exception as e:
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"ingest failure: {e}") from e
     finally:
         _request_lock.release()
 
-    return {"status": "ok", "documents_count": total_docs}
+    return {"status": "ok", "documents_count": f"{total_docs}"}
 
 
 # FastAPI アプリを MCP サーバとして公開

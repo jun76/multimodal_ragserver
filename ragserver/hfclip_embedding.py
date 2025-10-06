@@ -41,7 +41,6 @@ class HFCLIPEmbedding(BaseEmbedding):
         text_model: str,
         image_model: str,
         timeout: int = 30,
-        **kwargs: Any,
     ) -> None:
         """HFCLIPEmbedding を初期化する。
 
@@ -50,17 +49,14 @@ class HFCLIPEmbedding(BaseEmbedding):
             text_model (str): テキスト埋め込みモデル名
             image_model (str): 画像埋め込みモデル名
             timeout (int, optional): タイムアウト秒数. Defaults to 30.
-            **kwargs: BaseEmbedding に渡す追加パラメータ
         """
         logger.debug("trace")
 
-        super().__init__(
-            base_url=base_url,
-            text_model=text_model,
-            image_model=image_model,
-            timeout=timeout,
-            **kwargs,
-        )
+        super().__init__()
+        self._base_url = base_url
+        self._text_model = text_model
+        self._image_model = image_model
+        self._timeout = timeout
         self._session = requests.Session()
 
     @classmethod
@@ -161,7 +157,7 @@ class HFCLIPEmbedding(BaseEmbedding):
         """
         logger.debug("trace")
 
-        url = f"{self.base_url}/embeddings"
+        url = f"{self._base_url}/embeddings"
         payload = {
             "input": text,
             "model": self.text_model,
@@ -196,14 +192,14 @@ class HFCLIPEmbedding(BaseEmbedding):
         """
         logger.debug("trace")
 
-        url = f"{self.base_url}/embeddings"
+        url = f"{self._base_url}/embeddings"
         payload = {
             "input": image_path,
-            "model": self.image_model,
+            "model": self._image_model,
         }
 
         try:
-            response = self._session.post(url, json=payload, timeout=self.timeout)
+            response = self._session.post(url, json=payload, timeout=self._timeout)
             response.raise_for_status()
             data = response.json()
 

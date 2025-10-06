@@ -46,10 +46,10 @@ class HFRerank(BaseNodePostprocessor):
         logger.debug("trace")
 
         super().__init__()
-        self.base_url = base_url
-        self.model = model
-        self.top_n = top_n
-        self.timeout = timeout
+        self._base_url = base_url
+        self._model = model
+        self._top_n = top_n
+        self._timeout = timeout
         self._session = requests.Session()
 
     @classmethod
@@ -94,16 +94,16 @@ class HFRerank(BaseNodePostprocessor):
         documents = [node.node.get_content() for node in nodes]
 
         # rerank_server にリクエスト
-        url = f"{self.base_url}/rerank"
+        url = f"{self._base_url}/rerank"
         payload = {
             "query": query_str,
             "documents": documents,
-            "model": self.model,
-            "top_n": min(self.top_n, len(documents)),
+            "model": self._model,
+            "top_n": min(self._top_n, len(documents)),
         }
 
         try:
-            response = self._session.post(url, json=payload, timeout=self.timeout)
+            response = self._session.post(url, json=payload, timeout=self._timeout)
             response.raise_for_status()
             data = response.json()
 
@@ -124,7 +124,7 @@ class HFRerank(BaseNodePostprocessor):
                     reranked_nodes.append(node)
 
             logger.debug(f"Reranked {len(reranked_nodes)} nodes")
-            return reranked_nodes[: self.top_n]
+            return reranked_nodes[: self._top_n]
 
         except requests.RequestException as e:
             logger.error(f"Failed to rerank: {e}")
