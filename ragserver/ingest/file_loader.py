@@ -25,9 +25,7 @@ class FileLoader(Loader):
         """
         logger.debug("trace")
 
-        Loader.__init__(self)
-        self._chunk_size = chunk_size
-        self._chunk_overlap = chunk_overlap
+        Loader.__init__(self, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
     async def load_from_path(
         self,
@@ -50,6 +48,7 @@ class FileLoader(Loader):
             chunk_overlap=self._chunk_overlap,
         )
 
+        # TODO: メタ整理
         try:
             path = Path(root)
             reader = SimpleDirectoryReader(

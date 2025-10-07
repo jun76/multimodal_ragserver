@@ -8,9 +8,9 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
-from langchain_community.document_loaders import WebBaseLoader
-from langchain_community.document_loaders.sitemap import SitemapLoader
-from langchain_core.documents import Document
+from llama_index.core.schema import Document
+from llama_index.readers.web.simple_web.base import SimpleWebPageReader
+from llama_index.readers.web.sitemap.base import SitemapReader
 
 from ragserver.core.metadata import EMBTYPE_TEXT
 from ragserver.core.metadata import META_KEYS as MK
@@ -21,7 +21,7 @@ from ragserver.core.metadata import (
 )
 from ragserver.core.names import PROJECT_NAME
 from ragserver.core.util import cool_down
-from ragserver.ingest.file_loader import FileLoaderForWeb
+from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.loader import Exts, Loader
 from ragserver.logger import logger
 from ragserver.store.vector_store_manager import VectorStoreManager
@@ -32,7 +32,7 @@ class HTMLLoader(Loader):
         self,
         chunk_size: int,
         chunk_overlap: int,
-        file_loader: FileLoaderForWeb,
+        file_loader: FileLoader,
         load_asset: bool = True,
         req_per_sec: int = 2,
         store: Optional[VectorStoreManager] = None,
@@ -45,7 +45,7 @@ class HTMLLoader(Loader):
         Args:
             chunk_size (int): チャンクサイズ
             chunk_overlap (int): チャンク重複語数
-            file_loader (FileLoaderForWeb): ファイル読み込み用
+            file_loader (FileLoader): ファイル読み込み用
             load_asset (bool, optional): アセットを読み込むか。 Defaults to True.
             req_per_sec (int): 秒間リクエスト数。Defaults to 2.
             store (Optional[VectorStoreManager], opitonal): 登録済みソースの判定に使用。Defaults to None.
@@ -79,6 +79,7 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
+        # TODO: 非同期関数化
         try:
             # 追加のヘッダあればここ
             res = requests.get(
@@ -208,7 +209,7 @@ class HTMLLoader(Loader):
 
     def _download_direct_linked_file(
         self, url: str, max_asset_bytes: int = 100 * 1024 * 1024
-    ) -> str:
+    ) -> Optional[str]:
         """直リンクのファイルをダウンロードし、ローカルの一時ファイルパスを返す。
 
         Args:
@@ -216,7 +217,7 @@ class HTMLLoader(Loader):
             max_asset_bytes (int, optional): データサイズ上限。 Defaults to 100*1024*1024.
 
         Returns:
-            str: ローカルの一時ファイルパス
+            Optional[str]: ローカルの一時ファイルパス
         """
         logger.debug("trace")
 
@@ -224,14 +225,14 @@ class HTMLLoader(Loader):
             res = self._request_get(url)
         except Exception as e:
             logger.exception(e)
-            return ""
+            return None
 
         body = res.content or b""
         if len(body) > int(max_asset_bytes):
             logger.warning(
                 f"skip asset (too large): {len(body)} Bytes > {int(max_asset_bytes)}"
             )
-            return ""
+            return None
 
         ext = os.path.splitext(url.split("?")[0])[1].lower()
         try:
@@ -242,87 +243,49 @@ class HTMLLoader(Loader):
                 path = f.name
         except OSError as e:
             logger.exception(e)
-            return ""
+            return None
 
         return path
 
-    def _load_direct_linked_file(
+    async def _load_direct_linked_file(
         self,
         url: str,
-        space_key: str,
-        space_key_multi: Optional[str] = None,
         base_url: Optional[str] = None,
-    ) -> tuple[list[Document], list[Document]]:
+    ) -> list[Document]:
         """ファイルへの直リンクからドキュメントを生成する。
 
         Args:
             url (str): 対象 URL
-            space_key (str): テキスト用空間キー
-            space_key_multi (Optional[str], optional): マルチモーダル用空間キー。 Defaults to None.
             base_url (Optional[str], optional): source の取得元を指定する場合。 Defaults to None.
 
         Returns:
-            tuple[list[Document], list[Document]]: テキストドキュメント, マルチモーダルドキュメント
+            list[Document]: ドキュメント（テキスト、画像混在）
         """
         logger.debug("trace")
 
-        if not self._required_ext(url, Exts.SUPPORTED_EXTS):
-            logger.warning(
-                f"not supported ext. {' '.join(Exts.SUPPORTED_EXTS)} are supported"
-            )
-            return [], []
-
-        path = self._download_direct_linked_file(url=url)
-        if path == "":
+        path = self._download_direct_linked_file(url)
+        if path is None:
             logger.warning("downloading file failure")
-            return [], []
+            return []
 
         try:
-            if self._required_ext(path, Exts.TEXT_FILE_EXTS):
-                return (
-                    self._file_loader.load_text_file(
-                        path=path, space_key=space_key, source=url, base_source=base_url
-                    ),
-                    [],
-                )
-            if self._required_ext(path, Exts.MARKDOWN_FILE_EXTS):
-                return (
-                    self._file_loader.load_markdown_file(
-                        path=path, space_key=space_key, source=url, base_source=base_url
-                    ),
-                    [],
-                )
-            if space_key_multi and self._required_ext(path, Exts.IMAGE_FILE_EXTS):
-                return [], self._file_loader.load_image_file(
-                    path=path,
-                    space_key=space_key_multi,
-                    source=url,
-                    base_source=base_url,
-                )
-            if self._required_ext(path, Exts.PDF_FILE_EXTS):
-                return self._file_loader.load_pdf_file(
-                    path=path,
-                    space_key=space_key,
-                    space_key_multi=space_key_multi,
-                    source=url,
-                    base_source=base_url,
-                )
+            fl = FileLoader(
+                chunk_size=self._chunk_size, chunk_overlap=self._chunk_overlap
+            )
+            docs = await fl.load_from_path(path)
         except Exception as e:
             logger.exception(e)
-            return [], []
-        else:
-            logger.info(f"load nothing from {url}")
+            return []
 
-        return [], []
+        return docs
 
     def _load_html_text(
-        self, url: str, space_key: str, base_url: Optional[str] = None
+        self, url: str, base_url: Optional[str] = None
     ) -> list[Document]:
         """HTML を読み込み、テキスト部分からドキュメントを生成する。
 
         Args:
             url (str): 対象 URL
-            space_key (str): 空間キー
             base_url (Optional[str], optional): source の取得元を指定する場合。 Defaults to None.
 
         Returns:
@@ -330,57 +293,22 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
-        try:
-            # beautifulsoup のパラメータもここで指定可能
-            # プロキシ設定もここ
-            loader = WebBaseLoader(web_path=url, requests_per_second=self._req_per_sec)
-            docs = loader.load()
-        except Exception as e:
-            logger.exception(e)
-            return []
+        # TODO: メタ整理
+        reader = SimpleWebPageReader(html_to_text=True)
 
-        # 一定長のチャンクに整形
-        docs = self._split_text(docs)
-
-        # メタ情報付与と ID 採番
-        own_meta = asdict(
-            WebTextMetaData(
-                source=url,
-                embed_type=EMBTYPE_TEXT,
-                space_key=space_key,
-                base_source=base_url if base_url else url,
-            )
-        )
-
-        for i, d in enumerate(docs):
-            d.metadata.update(own_meta)
-            d.metadata[MK.CHUNK_NO] = i
-
-            # 最後に id を生成・追加
-            d.metadata[MK.ID] = stable_id_from(
-                f"{d.metadata[MK.EMBED_TYPE]}"
-                f"::{d.metadata[MK.SOURCE]}"
-                f"::{d.metadata[MK.CHUNK_NO]}"
-            )
-            assert_required_keys(d.metadata, WebTextMetaData)
-
-        return docs
+        return reader.load_data([url])
 
     def _load_html_asset_files(
         self,
         base_url: str,
-        space_key: str,
-        space_key_multi: Optional[str] = None,
-    ) -> tuple[list[Document], list[Document]]:
+    ) -> list[Document]:
         """HTML を読み込み、アセットファイルからドキュメントを生成する。
 
         Args:
             base_url (str): 対象 URL
-            space_key (str): テキスト用空間キー
-            space_key_multi (Optional[str], optional): マルチモーダル用空間キー。 Defaults to None.
 
         Returns:
-            tuple[list[Document], list[Document]]: テキストドキュメント, マルチモーダルドキュメント
+            list[Document]: ドキュメント（テキスト、画像混在）
         """
         logger.debug("trace")
 
@@ -389,162 +317,107 @@ class HTMLLoader(Loader):
             html=html, base_url=base_url, allowed_exts=Exts.SUPPORTED_EXTS
         )
 
-        # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
-        # ここでは _source_cache.clear() しないこと。
-        text_docs = []
-        image_docs = []
+        docs = []
         for url in urls:
-            if url in self._source_cache:
-                continue
-
-            temp_text, temp_image = self._load_direct_linked_file(
+            temp = self._load_direct_linked_file(
                 url=url,
-                space_key=space_key,
-                space_key_multi=space_key_multi,
                 base_url=base_url,
             )
-            text_docs.extend(temp_text)
-            image_docs.extend(temp_image)
-            self._source_cache.add(url)
+            docs.extend(temp)
 
-        return text_docs, image_docs
+        return docs
 
     def _load_from_site(
         self,
         url: str,
-        space_key: str,
-        space_key_multi: Optional[str] = None,
-    ) -> tuple[list[Document], list[Document]]:
+    ) -> list[Document]:
         """単一サイトからコンテンツを取得し、ドキュメントを生成する。
 
         Args:
             url (str): 対象 URL
-            space_key (str): テキスト用空間キー
-            space_key_multi (Optional[str], optional): マルチモーダル用空間キー。 Defaults to None.
 
         Returns:
-            tuple[list[Document], list[Document]]: テキストドキュメント, マルチモーダルドキュメント
+            list[Document]: ドキュメント（テキスト、画像混在）
         """
         logger.debug("trace")
 
         if urlparse(url).scheme not in {"http", "https"}:
             logger.error("invalid URL. expected http(s)://*")
-            return [], []
+            return []
 
         if self._store and self._store.skip_update(url):
             logger.info(f"skip loading: source exists ({url})")
-            return [], []
+            return []
 
         if self._is_file_url(url):
             return self._load_direct_linked_file(
                 url=url,
-                space_key=space_key,
-                space_key_multi=space_key_multi,
                 base_url=url,
             )
 
-        text_docs = self._load_html_text(url=url, space_key=space_key)
+        docs = self._load_html_text(url)
 
         if self._load_asset:
-            buf, image_docs = self._load_html_asset_files(
-                base_url=url,
-                space_key=space_key,
-                space_key_multi=space_key_multi,
-            )
-            text_docs.extend(buf)
-        else:
-            image_docs = []
+            temp = self._load_html_asset_files(base_url=url)
+            docs.extend(temp)
 
-        logger.info(
-            f"loaded {len(text_docs)} text docs, {len(image_docs)} image docs from {url}"
-        )
+        logger.info(f"loaded {len(docs)} docs from {url}")
 
-        return text_docs, image_docs
+        return docs
 
     def load_from_url(
         self,
         url: str,
-        space_key: str,
-        space_key_multi: Optional[str] = None,
-    ) -> tuple[list[Document], list[Document]]:
+    ) -> list[Document]:
         """URL からコンテンツを取得し、ドキュメントを生成する。
         サイトマップ（.xml）の場合はツリーを下りながら複数サイトから取り込む。
 
         Args:
             url (str): 対象 URL
-            space_key (str): テキスト用空間キー
-            space_key_multi (Optional[str], optional): マルチモーダル用空間キー。 Defaults to None.
 
         Returns:
-            tuple[list[Document], list[Document]]: テキストドキュメント, マルチモーダルドキュメント
+            list[Document]: ドキュメント（テキスト、画像混在）
         """
         logger.debug("trace")
 
         # .xml 以外は単一のサイトとして読み込み
         if not url.endswith(".xml"):
-            return self._load_from_site(
-                url=url,
-                space_key=space_key,
-                space_key_multi=space_key_multi,
-            )
+            return self._load_from_site(url)
 
         # 以下、サイトマップの解析と読み込み
         try:
-            loader = SitemapLoader(url)
-            soup = loader.scrape(parser="xml")
+            loader = SitemapReader()
+            urls = loader._parse_sitemap(url)
         except Exception as e:
             logger.exception(e)
-            return [], []
+            return []
 
-        entries = loader.parse_sitemap(soup)
-        urls = [entry["loc"] for entry in entries if "loc" in entry]
-
-        # 最上位ループの一つ。キャッシュを空にしてから使う。
-        self._source_cache.clear()
-        text_docs = []
-        image_docs = []
+        docs = []
         for url in urls:
-            temp_text, temp_image = self._load_from_site(
-                url=url,
-                space_key=space_key,
-                space_key_multi=space_key_multi,
-            )
-            text_docs.extend(temp_text)
-            image_docs.extend(temp_image)
+            temp = self._load_from_site(url)
+            docs.extend(temp)
 
-        return text_docs, image_docs
+        return docs
 
     def load_from_url_list(
         self,
         list_path: str,
-        space_key: str,
-        space_key_multi: Optional[str] = None,
-    ) -> tuple[list[Document], list[Document]]:
+    ) -> list[Document]:
         """URL リストに記載の複数サイトからコンテンツを取得し、ドキュメントを生成する。
 
         Args:
             list_path (str): URL リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
-            space_key (str): テキスト用空間キー
-            space_key_multi (Optional[str], optional): マルチモーダル用空間キー。 Defaults to None.
 
         Returns:
-            tuple[list[Document], list[Document]]: テキストドキュメント, マルチモーダルドキュメント
+            list[Document]: ドキュメント（テキスト、画像混在）
         """
         logger.debug("trace")
 
         urls = self._read_sources_from_file(list_path)
 
-        # 最上位ループの一つ。キャッシュを空にしてから使う。
-        self._source_cache.clear()
-        text_docs = []
-        image_docs = []
+        docs = []
         for url in urls:
-            temp_text, temp_image = self.load_from_url(
-                url=url,
-                space_key=space_key,
-                space_key_multi=space_key_multi,
-            )
-            text_docs.extend(temp_text)
-            image_docs.extend(temp_image)
+            temp = self.load_from_url(url)
+            docs.extend(temp)
 
-        return text_docs, image_docs
+        return docs

@@ -17,9 +17,17 @@ class Exts:
 
 
 class Loader:
-    def __init__(self) -> None:
-        """ローダー基底クラス。"""
+    def __init__(self, chunk_size: int, chunk_overlap: int) -> None:
+        """ローダー基底クラス。
+
+        Args:
+            chunk_size (int): チャンクサイズ
+            chunk_overlap (int): チャンク重複語数
+        """
         logger.debug("trace")
+
+        self._chunk_size = chunk_size
+        self._chunk_overlap = chunk_overlap
 
     def _read_sources_from_file(self, path: str) -> list[str]:
         """空行・コメントを除外して source リストを読み込む。
