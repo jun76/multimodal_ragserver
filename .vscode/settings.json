@@ -1,0 +1,14 @@
+{
+  "python.analysis.typeCheckingMode": "basic",
+  "flake8.args": [
+    "--max-line-length=88"
+  ],
+  "flake8.severity": {
+    "undefined-variable": "Warning",
+  },
+  "mypy-type-checker.args": [
+    "--ignore-missing-imports",
+    "--disallow-untyped-defs",
+    "--config-file=<file>"
+  ]
+}

@@ -8,7 +8,7 @@ PGVECTOR_STORE_NAME = "pgvector"
 
 # embeddings
 # ! 変更すると空間キーの字列が変わって別空間（ingest やり直し）になるので注意 !
-HFCLIP_EMBED_NAME = "hfclip"
+CLIP_EMBED_NAME = "clip"
 OPENAI_EMBED_NAME = "openai"
 COHERE_EMBED_NAME = "cohere"
 

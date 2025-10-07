@@ -15,11 +15,11 @@ from starlette.concurrency import run_in_threadpool
 
 from ragserver.config import get_config
 from ragserver.core import names
-from ragserver.embed.cohere_embeddings_manager import CohereEmbeddingsManager
-from ragserver.embed.embeddings_manager import EmbeddingsManager
-from ragserver.embed.hfclip_embeddings_manager import HFCLIPEmbeddingsManager
-from ragserver.embed.multimodal_embeddings_manager import MultimodalEmbeddingsManager
-from ragserver.embed.openai_embeddings_manager import OpenAIEmbeddingsManager
+from ragserver.embed.clip_embedding_manager import HuggingFaceEmbeddingsManager
+from ragserver.embed.cohere_embedding_manager import CohereEmbeddingManager
+from ragserver.embed.embedding_manager import EmbeddingManager
+from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
+from ragserver.embed.openai_embedding_manager import OpenAIEmbeddingManager
 from ragserver.ingest import ingest
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.html_loader import HTMLLoader
@@ -122,7 +122,7 @@ def _create_store(name: Optional[str] = None) -> VectorStoreManager:
 _store = _create_store()
 
 
-def _create_embed(name: Optional[str] = None) -> EmbeddingsManager:
+def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
     """埋め込み管理インスタンスを生成する。
 
     Args:
@@ -145,18 +145,18 @@ def _create_embed(name: Optional[str] = None) -> EmbeddingsManager:
 
     match cfg.emped_provider:
         case names.OPENAI_EMBED_NAME:
-            return OpenAIEmbeddingsManager(
+            return OpenAIEmbeddingManager(
                 model_text=cfg.openai_embed_model_text,
                 base_url=cfg.openai_base_url,
                 api_key=cfg.openai_api_key,
             )
         case names.COHERE_EMBED_NAME:
-            return CohereEmbeddingsManager(
+            return CohereEmbeddingManager(
                 model_text=cfg.cohere_embed_model_text,
                 model_image=cfg.cohere_embed_model_image,
             )
-        case names.HFCLIP_EMBED_NAME:
-            return HFCLIPEmbeddingsManager(
+        case names.CLIP_EMBED_NAME:
+            return HuggingFaceEmbeddingsManager(
                 model_text=cfg.hfclip_embed_model_text,
                 model_image=cfg.hfclip_embed_model_image,
                 base_url=cfg.hfclip_embed_base_url,
@@ -417,7 +417,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    if not isinstance(_embed, MultimodalEmbeddingsManager):
+    if not isinstance(_embed, MultiModalEmbeddingManager):
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
@@ -465,7 +465,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    if not isinstance(_embed, MultimodalEmbeddingsManager):
+    if not isinstance(_embed, MultiModalEmbeddingManager):
         traceback.print_exc()
         raise HTTPException(
             status_code=500,

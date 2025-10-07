@@ -5,8 +5,8 @@ from typing import Optional
 from langchain_core.documents import Document
 
 from ragserver.core.metadata import META_KEYS as MK
-from ragserver.embed.embeddings_manager import EmbeddingsManager
-from ragserver.embed.multimodal_embeddings_manager import MultimodalEmbeddingsManager
+from ragserver.embed.embedding_manager import EmbeddingManager
+from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.store.vector_store_manager import VectorStoreManager
@@ -42,7 +42,7 @@ def _review_page_content(
 def query_text(
     query: str,
     store: VectorStoreManager,
-    embed: EmbeddingsManager,
+    embed: EmbeddingManager,
     topk: int = 10,
     rerank: Optional[RerankManager] = None,
     topk_rerank_scale: int = 5,
@@ -63,7 +63,7 @@ def query_text(
     logger.debug("trace")
 
     space_key = embed.space_key_text()
-    store.load_store_by_space_key(space_key, embed.get_embeddings())
+    store.load_store_by_space_key(space_key, embed.get_embedding())
 
     qvec = embed.embed_query(query)
     topk_scaled = topk * max(1, topk_rerank_scale)
@@ -86,7 +86,7 @@ def query_text(
 def query_text_multi(
     query: str,
     store: VectorStoreManager,
-    embed: MultimodalEmbeddingsManager,
+    embed: MultiModalEmbeddingManager,
     topk: int = 10,
     rerank: Optional[RerankManager] = None,
     topk_rerank_scale: int = 5,
@@ -107,7 +107,7 @@ def query_text_multi(
     logger.debug("trace")
 
     space_key_multi = embed.space_key_multi()
-    store.load_store_by_space_key(space_key_multi, embed.get_embeddings())
+    store.load_store_by_space_key(space_key_multi, embed.get_embedding())
 
     qvec = embed.embed_text_for_image_query(query)
     topk_scaled = topk * max(1, topk_rerank_scale)
@@ -135,7 +135,7 @@ def query_text_multi(
 def query_image(
     path: str,
     store: VectorStoreManager,
-    embed: MultimodalEmbeddingsManager,
+    embed: MultiModalEmbeddingManager,
     topk: int = 10,
 ) -> list[Document]:
     """クエリ画像によるマルチモーダルドキュメント検索。
@@ -156,7 +156,7 @@ def query_image(
 
     space_key_multi = embed.space_key_multi()
     try:
-        store.load_store_by_space_key(space_key_multi, embed.get_embeddings())
+        store.load_store_by_space_key(space_key_multi, embed.get_embedding())
     except Exception as e:
         raise RuntimeError("failed to load store for multimodal space") from e
 

@@ -8,10 +8,10 @@ from dotenv import load_dotenv
 
 from ragserver.core.names import (
     CHROMA_STORE_NAME,
+    CLIP_EMBED_NAME,
     COHERE_EMBED_NAME,
     COHERE_RERANK_NAME,
     HF_RERANK_NAME,
-    HFCLIP_EMBED_NAME,
     OPENAI_EMBED_NAME,
     PGVECTOR_STORE_NAME,
     PROJECT_NAME,
@@ -44,7 +44,7 @@ class Config:
     pg_password: str
 
     # Embeddings
-    emped_provider: str  # hfclip|openai|cohere
+    embed_provider: str  # hfclip|openai|cohere
     openai_embed_model_text: str
     openai_api_key: str
     openai_base_url: str | None
@@ -166,8 +166,8 @@ def _validate_config(cfg: Config) -> Config:
     if cfg.vector_store not in allowed_stores:
         raise ValueError("vector_store must be chroma or pgvector")
 
-    allowed_embeds = {HFCLIP_EMBED_NAME, OPENAI_EMBED_NAME, COHERE_EMBED_NAME}
-    if cfg.emped_provider not in allowed_embeds:
+    allowed_embeds = {CLIP_EMBED_NAME, OPENAI_EMBED_NAME, COHERE_EMBED_NAME}
+    if cfg.embed_provider not in allowed_embeds:
         raise ValueError("unsupported embed provider")
 
     allowed_rerank = {HF_RERANK_NAME, COHERE_RERANK_NAME, "none"}
@@ -202,7 +202,7 @@ def _validate_config(cfg: Config) -> Config:
             if not value:
                 raise ValueError(f"{key} must not be empty")
 
-    if cfg.emped_provider == HFCLIP_EMBED_NAME and not cfg.hfclip_embed_base_url:
+    if cfg.embed_provider == CLIP_EMBED_NAME and not cfg.hfclip_embed_base_url:
         raise ValueError("hfclip_embed_base_url must not be empty")
 
     if cfg.rerank_provider == HF_RERANK_NAME and not cfg.hf_rerank_base_url:
@@ -250,7 +250,7 @@ def get_config() -> Config:
         pg_user=os.getenv("PG_USER", PROJECT_NAME),
         pg_password=os.getenv("PG_PASSWORD", PROJECT_NAME),
         # Embeddings
-        emped_provider=os.getenv("EMBED_PROVIDER", HFCLIP_EMBED_NAME),
+        embed_provider=os.getenv("EMBED_PROVIDER", CLIP_EMBED_NAME),
         openai_embed_model_text=os.getenv(
             "OPENAI_EMBED_MODEL_TEXT", "text-embedding-3-small"
         ),
@@ -259,12 +259,8 @@ def get_config() -> Config:
         cohere_embed_model_text=os.getenv("COHERE_EMBED_MODEL_TEXT", "embed-v4.0"),
         cohere_embed_model_image=os.getenv("COHERE_EMBED_MODEL_IMAGE", "embed-v4.0"),
         cohere_api_key=os.getenv("COHERE_API_KEY"),
-        hfclip_embed_model_text=os.getenv(
-            "HFCLIP_EMBED_MODEL_TEXT", "openai/clip-vit-base-patch32"
-        ),
-        hfclip_embed_model_image=os.getenv(
-            "HFCLIP_EMBED_MODEL_IMAGE", "openai/clip-vit-base-patch32"
-        ),
+        hfclip_embed_model_text=os.getenv("HFCLIP_EMBED_MODEL_TEXT", "ViT-B/32"),
+        hfclip_embed_model_image=os.getenv("HFCLIP_EMBED_MODEL_IMAGE", "ViT-B/32"),
         hfclip_embed_base_url=os.getenv(
             "HFCLIP_EMBED_BASE_URL", "http://localhost:8001/v1"
         ),

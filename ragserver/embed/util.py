@@ -1,15 +1,8 @@
 from __future__ import annotations
 
-import base64
-import math
-import mimetypes
-import numbers
-import os
-from typing import Optional, Sequence
-
 from ragserver.logger import logger
 
-__all__ = ["generate_space_key", "l2_normalize", "image_to_data_uri"]
+__all__ = ["generate_space_key"]
 
 
 def _sanitize_space_key(space_key: str) -> str:
@@ -88,75 +81,3 @@ def generate_space_key(embed_name: str, model_name: str, embed_type: str) -> str
     logger.info(f"space_key [{space_key}] generated")
 
     return space_key
-
-
-def l2_normalize(
-    vecs: Sequence[Sequence[float]], eps: float = 1e-12
-) -> list[list[float]]:
-    """embed 済みベクトルに対する L2 正規化用。
-
-    Args:
-        vecs (Sequence[Sequence[float]]): embed 系関数の戻りベクトル
-        eps (float, optional): 誤差。 Defaults to 1e-12.
-
-    Returns:
-        list[list[float]]: L2 正規化済みのベクトル
-    """
-    logger.debug("trace")
-
-    out: list[list[float]] = []
-    for row in vecs:
-        # 量子化（int8等）や非数値の行は素通し
-        if not row or not isinstance(row[0], numbers.Real):
-            out.append(list(row))
-            continue
-
-        s = math.fsum(x * x for x in row)
-        n = math.sqrt(s)
-        if n < eps:
-            out.append(list(row))  # そのまま返す（全部0など）
-        else:
-            inv = 1.0 / n
-            out.append([x * inv for x in row])
-
-    return out
-
-
-def image_to_data_uri(path: str, max_bytes: int = 10 * 1024 * 1024) -> Optional[str]:
-    """画像を Data URI 形式に変換する。
-
-    Args:
-        path (str): 画像のパス
-        max_bytes (int): 画像のサイズ上限
-
-    Returns:
-        Optional[str]: Data URI 文字列
-    """
-    # logger.debug("trace")
-
-    # path は file_loader 側で正規化されている想定
-
-    try:
-        if os.path.getsize(path) > max_bytes:
-            logger.warning(f"File too large: {path}")
-            return None
-
-        with open(path, "rb") as f:
-            b = f.read()
-    except (FileNotFoundError, PermissionError, OSError) as e:
-        logger.exception(e)
-        return None
-
-    # WebP 等の一部の形式に対応するため strict=False を使用
-    mime, _ = mimetypes.guess_type(path, strict=False)
-    if mime is None:
-        mime = "image/png"
-
-    # 画像MIMEタイプの検証
-    if not mime.startswith("image/"):
-        logger.warning(f"Non-image MIME type detected: {mime}")
-        return None
-
-    b64 = base64.b64encode(b).decode("utf-8")
-
-    return f"data:{mime};base64,{b64}"
