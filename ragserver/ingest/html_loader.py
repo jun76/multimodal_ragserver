@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import os
 import tempfile
-from dataclasses import asdict
 from typing import Optional, Set
 from urllib.parse import urljoin, urlparse
 
@@ -12,15 +12,8 @@ from llama_index.core.schema import Document
 from llama_index.readers.web.simple_web.base import SimpleWebPageReader
 from llama_index.readers.web.sitemap.base import SitemapReader
 
-from ragserver.core.metadata import EMBTYPE_TEXT
 from ragserver.core.metadata import META_KEYS as MK
-from ragserver.core.metadata import (
-    WebTextMetaData,
-    assert_required_keys,
-    stable_id_from,
-)
 from ragserver.core.names import PROJECT_NAME
-from ragserver.core.util import cool_down
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.loader import Exts, Loader
 from ragserver.logger import logger
@@ -64,8 +57,8 @@ class HTMLLoader(Loader):
         self._user_agent = user_agent
         self._same_origin = same_origin
 
-    def _request_get(self, url: str) -> requests.Response:
-        """request.get() のラッパー。
+    async def _request_get(self, url: str) -> requests.Response:
+        """HTTP GET を実行する非同期ラッパー。
 
         Args:
             url (str): 対象 URL
@@ -79,16 +72,18 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
-        # TODO: 非同期関数化
+        headers = {
+            "User-Agent": self._user_agent,
+            "Sec-Fetch-Site": "same-origin" if self._same_origin else "none",
+        }
+        res: Optional[requests.Response] = None
+
         try:
-            # 追加のヘッダあればここ
-            res = requests.get(
+            res = await asyncio.to_thread(
+                requests.get,
                 url,
                 timeout=self._timeout,
-                headers={
-                    "User-Agent": self._user_agent,
-                    "Sec-Fetch-Site": "same-origin" if self._same_origin else "none",
-                },
+                headers=headers,
             )
             res.raise_for_status()
         except requests.HTTPError as e:
@@ -97,11 +92,11 @@ class HTMLLoader(Loader):
         except requests.RequestException as e:
             raise RuntimeError("failed to fetch url") from e
         finally:
-            cool_down(1 / self._req_per_sec)
+            await asyncio.sleep(1 / self._req_per_sec)
 
         return res
 
-    def _fetch_text(
+    async def _fetch_text(
         self,
         url: str,
     ) -> str:
@@ -116,7 +111,7 @@ class HTMLLoader(Loader):
         logger.debug("trace")
 
         try:
-            res = self._request_get(url)
+            res = await self._request_get(url)
         except Exception as e:
             logger.exception(e)
             return ""
@@ -207,7 +202,7 @@ class HTMLLoader(Loader):
 
         return out[: max(0, int(limit))]
 
-    def _download_direct_linked_file(
+    async def _download_direct_linked_file(
         self, url: str, max_asset_bytes: int = 100 * 1024 * 1024
     ) -> Optional[str]:
         """直リンクのファイルをダウンロードし、ローカルの一時ファイルパスを返す。
@@ -222,7 +217,7 @@ class HTMLLoader(Loader):
         logger.debug("trace")
 
         try:
-            res = self._request_get(url)
+            res = await self._request_get(url)
         except Exception as e:
             logger.exception(e)
             return None
@@ -263,12 +258,13 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
-        path = self._download_direct_linked_file(url)
+        path = await self._download_direct_linked_file(url)
         if path is None:
             logger.warning("downloading file failure")
             return []
 
         try:
+            # TODO: メタ整理
             fl = FileLoader(
                 chunk_size=self._chunk_size, chunk_overlap=self._chunk_overlap
             )
@@ -279,7 +275,7 @@ class HTMLLoader(Loader):
 
         return docs
 
-    def _load_html_text(
+    async def _load_html_text(
         self, url: str, base_url: Optional[str] = None
     ) -> list[Document]:
         """HTML を読み込み、テキスト部分からドキュメントを生成する。
@@ -296,9 +292,9 @@ class HTMLLoader(Loader):
         # TODO: メタ整理
         reader = SimpleWebPageReader(html_to_text=True)
 
-        return reader.load_data([url])
+        return await reader.aload_data([url])
 
-    def _load_html_asset_files(
+    async def _load_html_asset_files(
         self,
         base_url: str,
     ) -> list[Document]:
@@ -312,14 +308,14 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
-        html = self._fetch_text(base_url)
+        html = await self._fetch_text(base_url)
         urls = self._gather_asset_links(
             html=html, base_url=base_url, allowed_exts=Exts.SUPPORTED_EXTS
         )
 
         docs = []
         for url in urls:
-            temp = self._load_direct_linked_file(
+            temp = await self._load_direct_linked_file(
                 url=url,
                 base_url=base_url,
             )
@@ -327,7 +323,7 @@ class HTMLLoader(Loader):
 
         return docs
 
-    def _load_from_site(
+    async def _load_from_site(
         self,
         url: str,
     ) -> list[Document]:
@@ -350,22 +346,22 @@ class HTMLLoader(Loader):
             return []
 
         if self._is_file_url(url):
-            return self._load_direct_linked_file(
+            return await self._load_direct_linked_file(
                 url=url,
                 base_url=url,
             )
 
-        docs = self._load_html_text(url)
+        docs = await self._load_html_text(url)
 
         if self._load_asset:
-            temp = self._load_html_asset_files(base_url=url)
+            temp = await self._load_html_asset_files(base_url=url)
             docs.extend(temp)
 
         logger.info(f"loaded {len(docs)} docs from {url}")
 
         return docs
 
-    def load_from_url(
+    async def load_from_url(
         self,
         url: str,
     ) -> list[Document]:
@@ -382,7 +378,7 @@ class HTMLLoader(Loader):
 
         # .xml 以外は単一のサイトとして読み込み
         if not url.endswith(".xml"):
-            return self._load_from_site(url)
+            return await self._load_from_site(url)
 
         # 以下、サイトマップの解析と読み込み
         try:
@@ -394,12 +390,12 @@ class HTMLLoader(Loader):
 
         docs = []
         for url in urls:
-            temp = self._load_from_site(url)
+            temp = await self._load_from_site(url)
             docs.extend(temp)
 
         return docs
 
-    def load_from_url_list(
+    async def load_from_url_list(
         self,
         list_path: str,
     ) -> list[Document]:
@@ -417,7 +413,7 @@ class HTMLLoader(Loader):
 
         docs = []
         for url in urls:
-            temp = self.load_from_url(url)
+            temp = await self.load_from_url(url)
             docs.extend(temp)
 
         return docs
