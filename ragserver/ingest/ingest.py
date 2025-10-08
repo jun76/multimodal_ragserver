@@ -24,8 +24,8 @@ async def ingest_from_path(
     """
     logger.debug("trace")
 
-    docs = await file_loader.load_from_path(path)
-    await store.upsert_docs(docs)
+    nodes = await file_loader.load_from_path(path)
+    await store.upsert_nodes(docs)
 
 
 async def ingest_from_path_list(
@@ -46,7 +46,7 @@ async def ingest_from_path_list(
     logger.debug("trace")
 
     docs = await file_loader.load_from_path_list(list_path)
-    await store.upsert_docs(docs)
+    await store.upsert_nodes(docs)
 
 
 async def ingest_from_url(
@@ -68,7 +68,7 @@ async def ingest_from_url(
     logger.debug("trace")
 
     docs = await html_loader.load_from_url(url)
-    await store.upsert_docs(docs)
+    await store.upsert_nodes(docs)
 
 
 async def ingest_from_url_list(
@@ -89,4 +89,4 @@ async def ingest_from_url_list(
     logger.debug("trace")
 
     docs = await html_loader.load_from_url_list(list_path)
-    await store.upsert_docs(docs)
+    await store.upsert_nodes(docs)

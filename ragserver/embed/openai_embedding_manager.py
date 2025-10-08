@@ -5,10 +5,9 @@ from typing import Optional
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.embeddings.openai.base import OpenAIEmbedding
 
-from ragserver.core.metadata import EMBTYPE_TEXT
 from ragserver.core.names import OPENAI_EMBED_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
-from ragserver.embed.util import generate_space_key
+from ragserver.embed.util import EMBTYPE_TEXT, generate_space_key
 from ragserver.logger import logger
 
 

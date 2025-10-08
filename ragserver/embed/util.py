@@ -4,6 +4,11 @@ from ragserver.logger import logger
 
 __all__ = ["generate_space_key"]
 
+# 埋め込み種別
+# ! 変更すると空間キーの字列が変わって別空間（ingest やり直し）になるので注意 !
+EMBTYPE_TEXT = "text"
+EMBTYPE_IMAGE = "image"
+
 
 def _sanitize_space_key(space_key: str) -> str:
     """Chroma の制約にマッチするよう space_key 文字列を整形する。

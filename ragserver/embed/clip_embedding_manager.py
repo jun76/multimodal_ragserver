@@ -4,10 +4,9 @@ from llama_index.core.base.embeddings.base import BaseEmbedding
 from llama_index.core.embeddings.multi_modal_base import MultiModalEmbedding
 from llama_index.embeddings.clip import ClipEmbedding
 
-from ragserver.core.metadata import EMBTYPE_IMAGE, EMBTYPE_TEXT
 from ragserver.core.names import CLIP_EMBED_NAME
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
-from ragserver.embed.util import generate_space_key
+from ragserver.embed.util import EMBTYPE_IMAGE, EMBTYPE_TEXT, generate_space_key
 from ragserver.logger import logger
 
 

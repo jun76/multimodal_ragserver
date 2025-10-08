@@ -8,11 +8,13 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
-from llama_index.core.schema import Document
+from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.schema import TextNode
 from llama_index.readers.web.simple_web.base import SimpleWebPageReader
 from llama_index.readers.web.sitemap.base import SitemapReader
 
-from ragserver.core.metadata import META_KEYS as MK
+from ragserver.core.metadata import META_KEYS_FROM as MKF
+from ragserver.core.metadata import BasicMetaData
 from ragserver.core.names import PROJECT_NAME
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.loader import Exts, Loader
@@ -33,7 +35,7 @@ class HTMLLoader(Loader):
         user_agent: str = PROJECT_NAME,
         same_origin: bool = True,
     ):
-        """HTML を読み込み、ドキュメントを生成するためのクラス。
+        """HTML を読み込み、テキストノードを生成するためのクラス。
 
         Args:
             chunk_size (int): チャンクサイズ
@@ -242,69 +244,60 @@ class HTMLLoader(Loader):
 
         return path
 
-    async def _load_direct_linked_file(
-        self,
-        url: str,
-        base_url: Optional[str] = None,
-    ) -> list[Document]:
-        """ファイルへの直リンクからドキュメントを生成する。
+    async def _load_html_text(
+        self, url: str, base_url: Optional[str] = None
+    ) -> list[TextNode]:
+        """HTML を読み込み、テキスト部分からテキストノードを生成する。
 
         Args:
             url (str): 対象 URL
             base_url (Optional[str], optional): source の取得元を指定する場合。 Defaults to None.
 
         Returns:
-            list[Document]: ドキュメント（テキスト、画像混在）
+            list[TextNode]: 生成したテキストノードリスト
         """
         logger.debug("trace")
 
-        path = await self._download_direct_linked_file(url)
-        if path is None:
-            logger.warning("downloading file failure")
-            return []
-
         try:
-            # TODO: メタ整理
-            fl = FileLoader(
-                chunk_size=self._chunk_size, chunk_overlap=self._chunk_overlap
+            reader = SimpleWebPageReader(html_to_text=True)
+            docs = await reader.aload_data([url])
+
+            # ここで取れるのはテキストノードのみ。後段で画像をフェッチする際に
+            # 画像ノードに分化
+            splitter = SentenceSplitter(
+                chunk_size=self._chunk_size,
+                chunk_overlap=self._chunk_overlap,
+                include_metadata=True,
             )
-            docs = await fl.load_from_path(path)
+            nodes = splitter.get_nodes_from_documents(docs)
+            nodes = [
+                TextNode(
+                    text=node.get_content(),
+                    metadata=BasicMetaData(
+                        url=url,
+                        chunk_no=node.metadata.get(MKF.CHUNK_INDEX) or "",
+                        base_source=base_url or "",
+                    ).to_dict(),
+                )
+                for node in nodes
+            ]
         except Exception as e:
             logger.exception(e)
             return []
 
-        return docs
-
-    async def _load_html_text(
-        self, url: str, base_url: Optional[str] = None
-    ) -> list[Document]:
-        """HTML を読み込み、テキスト部分からドキュメントを生成する。
-
-        Args:
-            url (str): 対象 URL
-            base_url (Optional[str], optional): source の取得元を指定する場合。 Defaults to None.
-
-        Returns:
-            list[Document]: 生成したドキュメントリスト
-        """
-        logger.debug("trace")
-
-        # TODO: メタ整理
-        reader = SimpleWebPageReader(html_to_text=True)
-
-        return await reader.aload_data([url])
+        return nodes
 
     async def _load_html_asset_files(
         self,
         base_url: str,
-    ) -> list[Document]:
-        """HTML を読み込み、アセットファイルからドキュメントを生成する。
+    ) -> list[TextNode]:
+        """HTML を読み込み、アセットファイルからテキストノードを生成する。
 
         Args:
             base_url (str): 対象 URL
 
         Returns:
-            list[Document]: ドキュメント（テキスト、画像混在）
+            list[TextNode]: テキストノード（画像 URL 含む）
         """
         logger.debug("trace")
 
@@ -315,25 +308,26 @@ class HTMLLoader(Loader):
 
         docs = []
         for url in urls:
-            temp = await self._load_direct_linked_file(
-                url=url,
-                base_url=base_url,
+            # ingest 側で URL だけ格納しておいて、後段で実際のアセットをフェッチする
+            doc = TextNode(
+                text=url,
+                metadata=BasicMetaData(url=url, base_source=base_url).to_dict(),
             )
-            docs.extend(temp)
+            docs.append(doc)
 
         return docs
 
     async def _load_from_site(
         self,
         url: str,
-    ) -> list[Document]:
-        """単一サイトからコンテンツを取得し、ドキュメントを生成する。
+    ) -> list[TextNode]:
+        """単一サイトからコンテンツを取得し、テキストノードを生成する。
 
         Args:
             url (str): 対象 URL
 
         Returns:
-            list[Document]: ドキュメント（テキスト、画像混在）
+            list[TextNode]: テキストノード（画像 URL 含む）
         """
         logger.debug("trace")
 
@@ -346,10 +340,9 @@ class HTMLLoader(Loader):
             return []
 
         if self._is_file_url(url):
-            return await self._load_direct_linked_file(
-                url=url,
-                base_url=url,
-            )
+            # ingest 側で URL だけ格納しておいて、後段で実際のアセットをフェッチする
+            doc = TextNode(text=url, metadata=BasicMetaData(url=url).to_dict())
+            return [doc]
 
         docs = await self._load_html_text(url)
 
@@ -364,15 +357,15 @@ class HTMLLoader(Loader):
     async def load_from_url(
         self,
         url: str,
-    ) -> list[Document]:
-        """URL からコンテンツを取得し、ドキュメントを生成する。
+    ) -> list[TextNode]:
+        """URL からコンテンツを取得し、テキストノードを生成する。
         サイトマップ（.xml）の場合はツリーを下りながら複数サイトから取り込む。
 
         Args:
             url (str): 対象 URL
 
         Returns:
-            list[Document]: ドキュメント（テキスト、画像混在）
+            list[TextNode]: テキストノード（画像 URL 含む）
         """
         logger.debug("trace")
 
@@ -398,14 +391,14 @@ class HTMLLoader(Loader):
     async def load_from_url_list(
         self,
         list_path: str,
-    ) -> list[Document]:
-        """URL リストに記載の複数サイトからコンテンツを取得し、ドキュメントを生成する。
+    ) -> list[TextNode]:
+        """URL リストに記載の複数サイトからコンテンツを取得し、テキストノードを生成する。
 
         Args:
             list_path (str): URL リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
 
         Returns:
-            list[Document]: ドキュメント（テキスト、画像混在）
+            list[TextNode]: テキストノード（画像 URL 含む）
         """
         logger.debug("trace")
 

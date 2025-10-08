@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import os
 from abc import ABC
 from typing import Optional
 
 from llama_index.core import StorageContext
 from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
-from llama_index.core.schema import Document, ImageNode, TextNode
+from llama_index.core.schema import ImageNode, TextNode
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 
 from ragserver.core.metadata import META_KEYS as MK
@@ -32,50 +33,55 @@ class VectorStoreManager(ABC):
         self._image_store: Optional[BasePydanticVectorStore] = None
         self._index: Optional[MultiModalVectorStoreIndex] = None
 
-    def _split_docs_modality(
-        self, docs: list[Document]
-    ) -> tuple[list[Document], list[Document]]:
-        """ドキュメントをテキスト用と画像用に分ける。
+    def _split_nodes_modality(
+        self, nodes: list[TextNode]
+    ) -> tuple[list[TextNode], list[ImageNode]]:
+        """ノードをテキスト用と画像用に分ける。
 
         Args:
-            docs (list[Document]): ドキュメント（テキスト、画像混在）
+            nodes (list[TextNode]): テキストノード（画像パス、URL 含む）
 
         Returns:
-            tuple[list[Document], list[Document]]: テキスト用、画像用ドキュメント
+            tuple[list[TextNode], list[ImageNode]]: テキストノード、画像ノード
         """
         logger.debug("trace")
 
-        text_docs = []
-        image_docs = []
-        for doc in docs:
-            if self._is_image_doc(doc):
-                image_docs.append(doc)
+        text_nodes = []
+        image_nodes = []
+        for node in nodes:
+            if self._has_image_source(node):
+                image_nodes.append(ImageNode(text=node.text, metadata=node.metadata))
             else:
-                text_docs.append(doc)
+                text_nodes.append(node)
 
-        return text_docs, image_docs
+        return text_nodes, image_nodes
 
-    def _is_image_doc(self, doc: Document) -> bool:
-        """ドキュメントは画像用か。
+    def _has_image_source(self, node: TextNode) -> bool:
+        """ノードが画像のファイルパスや URL を持っているか。
 
         Args:
-            doc (Document): 対象ドキュメント
+            node (TextNode): 対象ノード
 
         Returns:
-            bool: 画像用なら True
+            bool: 持っていれば True
         """
         logger.debug("trace")
 
-        # TODO: メタ整理
-        path = (doc.metadata.get("file_path") or doc.metadata.get("url") or "").lower()
+        meta = node.metadata
+        path = (
+            meta.get(MK.FILE_PATH)
+            or meta.get(MK.TEMP_FILE_PATH)
+            or meta.get(MK.URL)
+            or ""
+        ).lower()
 
         return any(path.endswith(ext) for ext in Exts.IMAGE_FILE_EXTS)
 
-    async def _upsert_text(self, docs: list[Document]) -> None:
+    async def upsert_text(self, nodes: list[TextNode]) -> None:
         """テキストを埋め込み、ストアに格納する。
 
         Args:
-            docs (list[Document]): 対象ドキュメント
+            nodes (list[TextNode]): 対象ノード
         """
         logger.debug("trace")
 
@@ -83,13 +89,10 @@ class VectorStoreManager(ABC):
             logger.warning("text store is not initialized")
             return
 
-        # TODO: メタ整理
         nodes = []
         vecs = []
-        for doc in docs:
-            node = TextNode(content=doc.text, metadata=doc.metadata)
-            vec = await self._embed.embed_text(text=doc.text)
-
+        for node in nodes:
+            vec = await self._embed.embed_text(node.text)
             nodes.append(node)
             vecs.append(vec)
 
@@ -98,11 +101,11 @@ class VectorStoreManager(ABC):
             embeddings=vecs,
         )
 
-    async def _upsert_image(self, docs: list[Document]) -> None:
+    async def upsert_image(self, nodes: list[ImageNode]) -> None:
         """画像を埋め込み、ストアに格納する。
 
         Args:
-            docs (list[Document]): 対象ドキュメント
+            nodes (list[ImageNode]): 対象ノード
         """
         logger.debug("trace")
 
@@ -114,20 +117,24 @@ class VectorStoreManager(ABC):
             logger.warning("image store is not initialized")
             return
 
-        # TODO: メタ整理
         nodes = []
         vecs = []
-        for doc in docs:
-            # 画像のパス or 一時保存したローカルパスを作る
-            path = doc.metadata.get("file_path")
-            if not path and doc.metadata.get("url"):
-                path = download_to_tmp(doc.text)
+        for node in nodes:
+            meta = node.metadata
 
-            if path is None:
-                continue
-
-            node = ImageNode(content=doc.text, metadata=doc.metadata)
-            vec = await self._embed.embed_image(path)
+            file_path = meta.get(MK.FILE_PATH)
+            if file_path:
+                # ローカルファイル
+                vec = await self._embed.embed_image(file_path)
+            else:
+                temp_file_path = meta.get(MK.TEMP_FILE_PATH)
+                if temp_file_path:
+                    # フェッチした一時ファイル
+                    vec = await self._embed.embed_image(temp_file_path)
+                    os.remove(temp_file_path)
+                else:
+                    logger.warning("image is not found, skipped")
+                    continue
 
             nodes.append(node)
             vecs.append(vec)
@@ -161,31 +168,18 @@ class VectorStoreManager(ABC):
             storage_context=storage_context,
         )
 
-    async def upsert_index(self, docs: list[Document] = []) -> None:
+    async def upsert_index(self, nodes: list[TextNode] = []) -> None:
         """インデックスを追加する。
 
         Args:
-            docs (list[Document], optional): ドキュメントのリスト。 Defaults to [].
+            nodes (list[TextNode], optional): ノードのリスト。 Defaults to [].
         """
         logger.debug("trace")
 
         if self._index is None:
             self._index = self.create_index()
 
-        for doc in docs:
-            await self._index.ainsert(document=doc)
-
-    async def upsert_docs(self, docs: list[Document]) -> None:
-        """ドキュメント（テキスト、画像混在）を埋め込み、ストアに格納する。
-
-        Args:
-            docs (list[Document]): 対象ドキュメント
-        """
-        logger.debug("trace")
-
-        text_docs, image_docs = self._split_docs_modality(docs)
-        await self._upsert_text(text_docs)
-        await self._upsert_image(image_docs)
+        await self._index.ainsert_nodes(nodes)
 
     def skip_update(self, source: str) -> bool:
         """ソースが登録済みであり、更新処理が不要か。
