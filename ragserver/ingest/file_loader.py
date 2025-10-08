@@ -51,9 +51,7 @@ class FileLoader(Loader):
                 input_files=[root] if path.is_file() else None,
                 recursive=True,
             )
-
             docs = await run_in_threadpool(reader.load_data)
-            logger.info(f"Ingested {len(docs)} docs from {path}")
 
             # ここで取れるのはテキストノードのみ。後段で画像をフェッチする際に
             # 画像ノードに分化
@@ -63,26 +61,32 @@ class FileLoader(Loader):
                 include_metadata=True,
             )
             nodes = splitter.get_nodes_from_documents(docs)
-            nodes = [
-                TextNode(
+
+            text_nodes = []
+            for i, node in enumerate(nodes):
+                meta = node.metadata
+                file_path = meta.get(MKF.FILE_PATH) or ""
+
+                text_node = TextNode(
                     text=node.get_content(),
                     metadata=BasicMetaData(
-                        file_path=node.metadata.get(MKF.FILE_PATH) or "",
-                        file_type=node.metadata.get(MKF.FILE_TYPE) or "",
-                        file_size=node.metadata.get(MKF.FILE_SIZE) or "",
-                        creation_date=node.metadata.get(MKF.CREATION_DATE) or "",
-                        last_modified_date=node.metadata.get(MKF.LAST_MODIFIED_DATE)
-                        or "",
-                        chunk_no=node.metadata.get(MKF.CHUNK_INDEX) or "",
+                        file_path=file_path,
+                        file_type=meta.get(MKF.FILE_TYPE) or "",
+                        file_size=meta.get(MKF.FILE_SIZE) or "",
+                        creation_date=meta.get(MKF.CREATION_DATE) or "",
+                        last_modified_date=meta.get(MKF.LAST_MODIFIED_DATE) or "",
+                        ref_doc_id=file_path,
+                        chunk_no=str(i),
                     ).to_dict(),
                 )
-                for node in nodes
-            ]
+                text_nodes.append(text_node)
         except Exception as e:
             logger.exception(e)
             return []
 
-        return nodes
+        logger.info(f"Ingested {len(text_nodes)} text nodes from {root}")
+
+        return text_nodes
 
     async def load_from_path_list(
         self,

@@ -12,7 +12,6 @@ from llama_index.core.vector_stores.types import BasePydanticVectorStore
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
-from ragserver.ingest.loader import Exts
 from ragserver.logger import logger
 
 
@@ -32,50 +31,6 @@ class VectorStoreManager(ABC):
         self._text_store: Optional[BasePydanticVectorStore] = None
         self._image_store: Optional[BasePydanticVectorStore] = None
         self._index: Optional[MultiModalVectorStoreIndex] = None
-
-    def _split_nodes_modality(
-        self, nodes: list[TextNode]
-    ) -> tuple[list[TextNode], list[ImageNode]]:
-        """ノードをテキスト用と画像用に分ける。
-
-        Args:
-            nodes (list[TextNode]): テキストノード（画像パス、URL 含む）
-
-        Returns:
-            tuple[list[TextNode], list[ImageNode]]: テキストノード、画像ノード
-        """
-        logger.debug("trace")
-
-        text_nodes = []
-        image_nodes = []
-        for node in nodes:
-            if self._has_image_source(node):
-                image_nodes.append(ImageNode(text=node.text, metadata=node.metadata))
-            else:
-                text_nodes.append(node)
-
-        return text_nodes, image_nodes
-
-    def _has_image_source(self, node: TextNode) -> bool:
-        """ノードが画像のファイルパスや URL を持っているか。
-
-        Args:
-            node (TextNode): 対象ノード
-
-        Returns:
-            bool: 持っていれば True
-        """
-        logger.debug("trace")
-
-        meta = node.metadata
-        path = (
-            meta.get(MK.FILE_PATH)
-            or meta.get(MK.TEMP_FILE_PATH)
-            or meta.get(MK.URL)
-            or ""
-        ).lower()
-
-        return any(path.endswith(ext) for ext in Exts.IMAGE_FILE_EXTS)
 
     async def upsert_text(self, nodes: list[TextNode]) -> None:
         """テキストを埋め込み、ストアに格納する。

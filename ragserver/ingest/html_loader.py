@@ -270,22 +270,26 @@ class HTMLLoader(Loader):
                 include_metadata=True,
             )
             nodes = splitter.get_nodes_from_documents(docs)
-            nodes = [
-                TextNode(
+
+            text_nodes = []
+            for i, node in enumerate(nodes):
+                text_node = TextNode(
                     text=node.get_content(),
                     metadata=BasicMetaData(
                         url=url,
-                        chunk_no=node.metadata.get(MKF.CHUNK_INDEX) or "",
+                        ref_doc_id=url,
+                        chunk_no=str(i),
                         base_source=base_url or "",
                     ).to_dict(),
                 )
-                for node in nodes
-            ]
+                text_nodes.append(text_node)
         except Exception as e:
             logger.exception(e)
             return []
 
-        return nodes
+        logger.info(f"Ingested {len(text_nodes)} text nodes from {url}")
+
+        return text_nodes
 
     async def _load_html_asset_files(
         self,
@@ -339,16 +343,16 @@ class HTMLLoader(Loader):
             logger.info(f"skip loading: source exists ({url})")
             return []
 
+        docs = []
         if self._is_file_url(url):
             # ingest 側で URL だけ格納しておいて、後段で実際のアセットをフェッチする
             doc = TextNode(text=url, metadata=BasicMetaData(url=url).to_dict())
-            return [doc]
+            docs.append(doc)
+        else:
+            docs.extend(await self._load_html_text(url))
 
-        docs = await self._load_html_text(url)
-
-        if self._load_asset:
-            temp = await self._load_html_asset_files(base_url=url)
-            docs.extend(temp)
+            if self._load_asset:
+                docs.extend(await self._load_html_asset_files(base_url=url))
 
         logger.info(f"loaded {len(docs)} docs from {url}")
 

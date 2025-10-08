@@ -10,7 +10,7 @@ from ragserver.logger import logger
 
 
 class META_KEYS_FROM:
-    # 自動付与されるラベル
+    # ライブラリ側定義ラベル（字列変更不可）
 
     # SimpleDirectoryReader
     FILE_PATH = "file_path"
@@ -22,8 +22,8 @@ class META_KEYS_FROM:
     # PDFReader
     PAGE_LABEL = "page_label"
 
-    # SentenceSplitter
-    CHUNK_INDEX = "chunk_index"
+    # BaseNode
+    REF_DOC_ID = "ref_doc_id"
 
 
 class META_KEYS:
@@ -35,6 +35,7 @@ class META_KEYS:
     FILE_SIZE = "file_size"
     CREATION_DATE = "creation_date"
     LAST_MODIFIED_DATE = "last_modified_date"
+    REF_DOC_ID = "ref_doc_id"
     CHUNK_NO = "chunk_no"
     PAGE_NO = "page_no"
     URL = "url"
@@ -85,6 +86,7 @@ class BasicMetaData:
     file_size: str = ""  # ファイルサイズ
     creation_date: str = ""  # ファイル作成日時
     last_modified_date: str = ""  # 最終更新日時
+    ref_doc_id: str = ""  # 親ノード（split 前に保存しておく）
     chunk_no: str = ""  # テキストのチャンク番号
     page_no: str = ""  # 複数ページファイルのページ番号
     url: str = ""  # 取得元 URL
@@ -120,6 +122,7 @@ class BasicMetaData:
             f"{META_KEYS.FILE_PATH}:{self.file_path}_"
             + f"{META_KEYS.FILE_SIZE}:{self.file_size}_"
             + f"{META_KEYS.LAST_MODIFIED_DATE}:{self.last_modified_date}_"
+            + f"{META_KEYS.REF_DOC_ID}:{self.ref_doc_id}_"
             + f"{META_KEYS.CHUNK_NO}:{self.chunk_no}_"
             + f"{META_KEYS.PAGE_NO}:{self.page_no}_"
             + f"{META_KEYS.URL}:{self.url}"
