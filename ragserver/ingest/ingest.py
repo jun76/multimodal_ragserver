@@ -1,22 +1,27 @@
 from __future__ import annotations
 
-from llama_index.core.schema import ImageNode, TextNode
+from llama_index.core.schema import BaseNode, ImageNode, TextNode
 
-from ragserver.core.metadata import META_KEYS as MK
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.html_loader import HTMLLoader
-from ragserver.ingest.loader import Exts
 from ragserver.logger import logger
 from ragserver.store.vector_store_manager import VectorStoreManager
 
+__all__ = [
+    "ingest_from_path",
+    "ingest_from_path_list",
+    "ingest_from_url",
+    "ingest_from_url_list",
+]
+
 
 def _split_nodes_modality(
-    nodes: list[TextNode],
+    nodes: list[BaseNode],
 ) -> tuple[list[TextNode], list[ImageNode]]:
     """ノードをテキスト用と画像用に分ける。
 
     Args:
-        nodes (list[TextNode]): テキストノード（画像パス、URL 含む）
+        nodes (list[BaseNode]): テキストノードまたは画像ノード
 
     Returns:
         tuple[list[TextNode], list[ImageNode]]: テキストノード、画像ノード
@@ -26,31 +31,14 @@ def _split_nodes_modality(
     text_nodes = []
     image_nodes = []
     for node in nodes:
-        if _has_image_source(node):
-            image_nodes.append(ImageNode(text=node.text, metadata=node.metadata))
-        else:
+        if isinstance(node, TextNode):
             text_nodes.append(node)
+        elif isinstance(node, ImageNode):
+            image_nodes.append(node)
+        else:
+            logger.warning(f"unexpected node type {type(node)}, skipped")
 
     return text_nodes, image_nodes
-
-
-def _has_image_source(node: TextNode) -> bool:
-    """ノードが画像のファイルパスや URL を持っているか。
-
-    Args:
-        node (TextNode): 対象ノード
-
-    Returns:
-        bool: 持っていれば True
-    """
-    logger.debug("trace")
-
-    meta = node.metadata
-    path = (
-        meta.get(MK.FILE_PATH) or meta.get(MK.TEMP_FILE_PATH) or meta.get(MK.URL) or ""
-    ).lower()
-
-    return any(path.endswith(ext) for ext in Exts.IMAGE_FILE_EXTS)
 
 
 async def ingest_from_path(
@@ -65,14 +53,13 @@ async def ingest_from_path(
         path (str): 対象パス
         store (VectorStoreManager): ベクトルストア
         file_loader (FileLoader): ファイル読み込み用
-
-    Raises:
-        RuntimeError: ストアの初期化またはドキュメント登録に失敗した場合
     """
     logger.debug("trace")
 
     nodes = await file_loader.load_from_path(path)
-    await store.upsert_nodes(docs)
+    text_nodes, image_nodes = _split_nodes_modality(nodes)
+    await store.upsert_text(text_nodes)
+    await store.upsert_image(image_nodes)
 
 
 async def ingest_from_path_list(
@@ -86,14 +73,13 @@ async def ingest_from_path_list(
         list_path (str): path リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
         store (VectorStoreManager): ベクトルストア
         file_loader (FileLoader): ファイル読み込み用
-
-    Raises:
-        RuntimeError: ストアの初期化またはドキュメント登録に失敗した場合
     """
     logger.debug("trace")
 
-    docs = await file_loader.load_from_path_list(list_path)
-    await store.upsert_nodes(docs)
+    nodes = await file_loader.load_from_path_list(list_path)
+    text_nodes, image_nodes = _split_nodes_modality(nodes)
+    await store.upsert_text(text_nodes)
+    await store.upsert_image(image_nodes)
 
 
 async def ingest_from_url(
@@ -108,14 +94,13 @@ async def ingest_from_url(
         url (str): 対象 URL
         store (VectorStoreManager): ベクトルストア
         html_loader (HTMLLoader): HTML 読み込み用
-
-    Raises:
-        RuntimeError: ストアの初期化またはドキュメント登録に失敗した場合
     """
     logger.debug("trace")
 
-    docs = await html_loader.load_from_url(url)
-    await store.upsert_nodes(docs)
+    nodes = await html_loader.load_from_url(url)
+    text_nodes, image_nodes = _split_nodes_modality(nodes)
+    await store.upsert_text(text_nodes)
+    await store.upsert_image(image_nodes)
 
 
 async def ingest_from_url_list(
@@ -129,11 +114,10 @@ async def ingest_from_url_list(
         list_path (str): URL リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
         store (VectorStoreManager): ベクトルストア
         html_loader (HTMLLoader): HTML 読み込み用
-
-    Raises:
-        RuntimeError: ストアの初期化またはドキュメント登録に失敗した場合
     """
     logger.debug("trace")
 
-    docs = await html_loader.load_from_url_list(list_path)
-    await store.upsert_nodes(docs)
+    nodes = await html_loader.load_from_url_list(list_path)
+    text_nodes, image_nodes = _split_nodes_modality(nodes)
+    await store.upsert_text(text_nodes)
+    await store.upsert_image(image_nodes)

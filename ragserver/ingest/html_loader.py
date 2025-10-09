@@ -9,11 +9,10 @@ from urllib.parse import urljoin, urlparse
 import requests
 from bs4 import BeautifulSoup
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core.schema import TextNode
+from llama_index.core.schema import BaseNode, ImageNode, TextNode
 from llama_index.readers.web.simple_web.base import SimpleWebPageReader
 from llama_index.readers.web.sitemap.base import SitemapReader
 
-from ragserver.core.metadata import META_KEYS_FROM as MKF
 from ragserver.core.metadata import BasicMetaData
 from ragserver.core.names import PROJECT_NAME
 from ragserver.ingest.file_loader import FileLoader
@@ -35,7 +34,7 @@ class HTMLLoader(Loader):
         user_agent: str = PROJECT_NAME,
         same_origin: bool = True,
     ):
-        """HTML を読み込み、テキストノードを生成するためのクラス。
+        """HTML を読み込み、ノードを生成するためのクラス。
 
         Args:
             chunk_size (int): チャンクサイズ
@@ -244,64 +243,90 @@ class HTMLLoader(Loader):
 
         return path
 
-    async def _load_html_text(
+    async def _create_direct_linked_file_node(
         self, url: str, base_url: Optional[str] = None
-    ) -> list[TextNode]:
-        """HTML を読み込み、テキスト部分からテキストノードを生成する。
+    ) -> Optional[BaseNode]:
+        """直リンクのファイルからノードを作成する。
 
         Args:
             url (str): 対象 URL
             base_url (Optional[str], optional): source の取得元を指定する場合。 Defaults to None.
 
         Returns:
-            list[TextNode]: 生成したテキストノードリスト
+            Optional[BaseNode]: テキストノードまたは画像ノード
+        """
+        logger.debug("trace")
+
+        temp_file_path = await self._download_direct_linked_file(url)
+
+        if temp_file_path is None:
+            return None
+
+        if self._is_image_file(temp_file_path):
+            node = ImageNode()
+        else:
+            node = TextNode()
+
+        node.text = url
+        node.metadata = BasicMetaData(
+            file_path=temp_file_path,  # MultiModalVectorStoreIndex 参照用
+            url=url,
+            base_source=base_url or "",
+            temp_file_path=temp_file_path,  # 削除用
+        ).to_dict()
+
+        return node
+
+    async def _load_html_text(
+        self, url: str, base_url: Optional[str] = None
+    ) -> list[BaseNode]:
+        """HTML を読み込み、テキスト部分からノードを生成する。
+
+        Args:
+            url (str): 対象 URL
+            base_url (Optional[str], optional): source の取得元を指定する場合。 Defaults to None.
+
+        Returns:
+            list[BaseNode]: テキストノード
         """
         logger.debug("trace")
 
         try:
             reader = SimpleWebPageReader(html_to_text=True)
-            docs = await reader.aload_data([url])
+            doc = await reader.aload_data([url])
 
-            # ここで取れるのはテキストノードのみ。後段で画像をフェッチする際に
-            # 画像ノードに分化
             splitter = SentenceSplitter(
                 chunk_size=self._chunk_size,
                 chunk_overlap=self._chunk_overlap,
                 include_metadata=True,
             )
-            nodes = splitter.get_nodes_from_documents(docs)
+            nodes = splitter.get_nodes_from_documents(doc)
 
-            text_nodes = []
             for i, node in enumerate(nodes):
-                text_node = TextNode(
-                    text=node.get_content(),
-                    metadata=BasicMetaData(
-                        url=url,
-                        ref_doc_id=url,
-                        chunk_no=str(i),
-                        base_source=base_url or "",
-                    ).to_dict(),
-                )
-                text_nodes.append(text_node)
+                node.metadata = BasicMetaData(
+                    chunk_no=str(i),
+                    url=url,
+                    base_source=base_url or "",
+                ).to_dict()
         except Exception as e:
             logger.exception(e)
             return []
 
-        logger.info(f"Ingested {len(text_nodes)} text nodes from {url}")
+        logger.info(f"Ingested {len(nodes)} nodes from {url}")
 
-        return text_nodes
+        return nodes
 
     async def _load_html_asset_files(
         self,
         base_url: str,
-    ) -> list[TextNode]:
-        """HTML を読み込み、アセットファイルからテキストノードを生成する。
+    ) -> list[BaseNode]:
+        """HTML を読み込み、アセットファイルからノードを生成する。
 
         Args:
             base_url (str): 対象 URL
 
         Returns:
-            list[TextNode]: テキストノード（画像 URL 含む）
+            list[BaseNode]: テキストノードまたは画像ノード
         """
         logger.debug("trace")
 
@@ -310,28 +335,30 @@ class HTMLLoader(Loader):
             html=html, base_url=base_url, allowed_exts=Exts.SUPPORTED_EXTS
         )
 
-        docs = []
+        nodes = []
         for url in urls:
-            # ingest 側で URL だけ格納しておいて、後段で実際のアセットをフェッチする
-            doc = TextNode(
-                text=url,
-                metadata=BasicMetaData(url=url, base_source=base_url).to_dict(),
+            node = await self._create_direct_linked_file_node(
+                url=url, base_url=base_url
             )
-            docs.append(doc)
+            if node is None:
+                logger.warning(f"failed to fetch from {url}, skipped")
+                continue
 
-        return docs
+            nodes.append(node)
+
+        return nodes
 
     async def _load_from_site(
         self,
         url: str,
-    ) -> list[TextNode]:
-        """単一サイトからコンテンツを取得し、テキストノードを生成する。
+    ) -> list[BaseNode]:
+        """単一サイトからコンテンツを取得し、ノードを生成する。
 
         Args:
             url (str): 対象 URL
 
         Returns:
-            list[TextNode]: テキストノード（画像 URL 含む）
+            list[BaseNode]: テキストノードまたは画像ノード
         """
         logger.debug("trace")
 
@@ -343,33 +370,38 @@ class HTMLLoader(Loader):
             logger.info(f"skip loading: source exists ({url})")
             return []
 
-        docs = []
+        nodes = []
         if self._is_file_url(url):
-            # ingest 側で URL だけ格納しておいて、後段で実際のアセットをフェッチする
-            doc = TextNode(text=url, metadata=BasicMetaData(url=url).to_dict())
-            docs.append(doc)
+            # 直リンクファイル
+            node = await self._create_direct_linked_file_node(url)
+            if node is None:
+                logger.warning(f"failed to fetch from {url}, skipped")
+            else:
+                nodes.append(node)
         else:
-            docs.extend(await self._load_html_text(url))
+            # 本文テキスト
+            nodes.extend(await self._load_html_text(url))
 
             if self._load_asset:
-                docs.extend(await self._load_html_asset_files(base_url=url))
+                # アセットファイル
+                nodes.extend(await self._load_html_asset_files(base_url=url))
 
-        logger.info(f"loaded {len(docs)} docs from {url}")
+        logger.info(f"loaded {len(nodes)} nodes from {url}")
 
-        return docs
+        return nodes
 
     async def load_from_url(
         self,
         url: str,
-    ) -> list[TextNode]:
-        """URL からコンテンツを取得し、テキストノードを生成する。
+    ) -> list[BaseNode]:
+        """URL からコンテンツを取得し、ノードを生成する。
         サイトマップ（.xml）の場合はツリーを下りながら複数サイトから取り込む。
 
         Args:
             url (str): 対象 URL
 
         Returns:
-            list[TextNode]: テキストノード（画像 URL 含む）
+            list[BaseNode]: テキストノードまたは画像ノード
         """
         logger.debug("trace")
 
@@ -385,32 +417,32 @@ class HTMLLoader(Loader):
             logger.exception(e)
             return []
 
-        docs = []
+        nodes = []
         for url in urls:
             temp = await self._load_from_site(url)
-            docs.extend(temp)
+            nodes.extend(temp)
 
-        return docs
+        return nodes
 
     async def load_from_url_list(
         self,
         list_path: str,
-    ) -> list[TextNode]:
-        """URL リストに記載の複数サイトからコンテンツを取得し、テキストノードを生成する。
+    ) -> list[BaseNode]:
+        """URL リストに記載の複数サイトからコンテンツを取得し、ノードを生成する。
 
         Args:
             list_path (str): URL リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
 
         Returns:
-            list[TextNode]: テキストノード（画像 URL 含む）
+            list[BaseNode]: テキストノードまたは画像ノード
         """
         logger.debug("trace")
 
         urls = self._read_sources_from_file(list_path)
 
-        docs = []
+        nodes = []
         for url in urls:
             temp = await self.load_from_url(url)
-            docs.extend(temp)
+            nodes.extend(temp)
 
-        return docs
+        return nodes

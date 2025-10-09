@@ -19,25 +19,16 @@ class META_KEYS_FROM:
     CREATION_DATE = "creation_date"
     LAST_MODIFIED_DATE = "last_modified_date"
 
-    # PDFReader
-    PAGE_LABEL = "page_label"
-
-    # BaseNode
-    REF_DOC_ID = "ref_doc_id"
-
 
 class META_KEYS:
     # 正規化し、アプリ側で付与するラベル
 
-    ID = "id"
     FILE_PATH = "file_path"
     FILE_TYPE = "file_type"
     FILE_SIZE = "file_size"
     CREATION_DATE = "creation_date"
     LAST_MODIFIED_DATE = "last_modified_date"
-    REF_DOC_ID = "ref_doc_id"
     CHUNK_NO = "chunk_no"
-    PAGE_NO = "page_no"
     URL = "url"
     BASE_SOURCE = "base_source"
     TEMP_FILE_PATH = "temp_file_path"
@@ -80,35 +71,32 @@ class BasicMetaData:
         等
     """
 
-    id: str = ""  # Document 固有の ID
     file_path: str = ""  # 取得元ファイルパス
     file_type: str = ""  # ファイル種別（mimetype）
     file_size: str = ""  # ファイルサイズ
     creation_date: str = ""  # ファイル作成日時
     last_modified_date: str = ""  # 最終更新日時
-    ref_doc_id: str = ""  # 親ノード（split 前に保存しておく）
     chunk_no: str = ""  # テキストのチャンク番号
-    page_no: str = ""  # 複数ページファイルのページ番号
     url: str = ""  # 取得元 URL
     base_source: str = ""  # 出典情報（直リンク画像の親ページ等）
     temp_file_path: str = ""  # ダウンロード画像等の一時ファイルパス
 
-    def _stable_id_from(self, key: str) -> str:
-        """key から一意な UUIDv5 を生成する。
+    # def _stable_id_from(self, key: str) -> str:
+    #     """key から一意な UUIDv5 を生成する。
 
-        Args:
-            key (str): UUIDv5 生成用文字列
+    #     Args:
+    #         key (str): UUIDv5 生成用文字列
 
-        Returns:
-            str: 文字列化された UUIDv5
-        """
-        # logger.debug("trace")
+    #     Returns:
+    #         str: 文字列化された UUIDv5
+    #     """
+    #     # logger.debug("trace")
 
-        namespace = uuid.uuid5(uuid.NAMESPACE_URL, f"https://{PROJECT_NAME}/namespace")
+    #     namespace = uuid.uuid5(uuid.NAMESPACE_URL, f"https://{PROJECT_NAME}/namespace")
 
-        return str(uuid.uuid5(namespace, key))
+    #     return str(uuid.uuid5(namespace, key))
 
-    def _get_lazy_fingerprint(self) -> str:
+    def get_lazy_fingerprint(self) -> str:
         """ファイル更新スキップ用。
         スキップできなくても再 ingest されるだけなので、厳密な fingerprint は取らない。
 
@@ -122,17 +110,15 @@ class BasicMetaData:
             f"{META_KEYS.FILE_PATH}:{self.file_path}_"
             + f"{META_KEYS.FILE_SIZE}:{self.file_size}_"
             + f"{META_KEYS.LAST_MODIFIED_DATE}:{self.last_modified_date}_"
-            + f"{META_KEYS.REF_DOC_ID}:{self.ref_doc_id}_"
             + f"{META_KEYS.CHUNK_NO}:{self.chunk_no}_"
-            + f"{META_KEYS.PAGE_NO}:{self.page_no}_"
             + f"{META_KEYS.URL}:{self.url}"
         )
 
-    def fix_id(self) -> None:
-        """現状のメタデータから一意な ID を割り当てる。"""
-        # logger.debug("trace")
+    # def fix_id(self) -> None:
+    #     """現状のメタデータから一意な ID を割り当てる。"""
+    #     # logger.debug("trace")
 
-        self.id = self._stable_id_from(self._get_lazy_fingerprint())
+    #     self.id = self._stable_id_from(self.get_lazy_fingerprint())
 
     # def to_json(self) -> str:
     #     """メタデータの json を返す。
@@ -167,6 +153,30 @@ class BasicMetaData:
         """
         # logger.debug("trace")
 
-        self.fix_id()
+        # self.fix_id()
 
         return asdict(self)
+
+
+# def node_id(doc_id: str, suffix: str) -> str:
+#     """ノードの id_ に格納する一意な文字列を作成する。
+
+#     Reader(doc_id: 自動付与, ref_doc_id: don't care)
+#       |
+#       V
+#     Document: doc_id, (ref_doc_id)
+#       |
+#     split(node_id: 自動付与, id_: = node_id, ref_doc_id: 親ドキュメントの doc_id を伝搬)
+#       V
+#     BaseNode: node_id, id_, ref_doc_id
+
+#     Args:
+#         doc_id (str): 親ドキュメントの doc_id
+#         suffix (str): チャンク番号等
+
+#     Returns:
+#         str: id_ 文字列
+#     """
+#     # logger.debug("trace")
+
+#     return f"{doc_id}_{suffix}"

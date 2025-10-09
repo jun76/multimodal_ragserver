@@ -52,3 +52,16 @@ class Loader:
                 ]
         except OSError as e:
             raise RuntimeError("failed to read source list") from e
+
+    def _is_image_file(self, uri: str) -> bool:
+        """ファイルパスまたは URL が指すのは画像ファイルか。
+
+        Args:
+            uri (str): ファイルパスまたは URL
+
+        Returns:
+            bool: 画像ファイルなら True
+        """
+        logger.debug("trace")
+
+        return any(uri.endswith(ext) for ext in Exts.IMAGE_FILE_EXTS)
