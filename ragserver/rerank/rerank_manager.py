@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
 
-from langchain_core.documents import Document
-from langchain_core.documents.compressor import BaseDocumentCompressor
+from llama_index.core.postprocessor.types import BaseNodePostprocessor
+from llama_index.core.schema import NodeWithScore
 
 from ragserver.logger import logger
 
 
 class RerankManager(ABC):
-    def __init__(self, name: str) -> None:
+    def __init__(self) -> None:
         """リランカー管理の抽象インタフェース
 
         現状、画像のキャプション（テキスト）をつけることで langchain のリランカが
@@ -21,29 +21,30 @@ class RerankManager(ABC):
         """
         logger.debug("trace")
 
-        self._name = name
-        self._rerank: BaseDocumentCompressor
+        self._rerank: BaseNodePostprocessor
 
-    def get_name(self) -> str:
-        """プロバイダ名を取得する。
-        クライアント側での状態確認用途を想定。
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        """プロバイダ名。
 
         Returns:
             str: プロバイダ名
         """
         logger.debug("trace")
+        ...
 
-        return self._name
-
-    def rerank(self, docs: list[Document], query: str) -> list[Document]:
+    async def rerank(
+        self, nodes: list[NodeWithScore], query: str
+    ) -> list[NodeWithScore]:
         """クエリに基づきリランカーで結果を並べ替える。
 
         Args:
-            docs (list[Document]): 並べ替え対象ドキュメント
+            nodes (list[NodeWithScore]): 並べ替え対象ノード
             query (str): クエリ文字列
 
         Returns:
-            list[Document]: 並べ替え済みのドキュメント
+            list[NodeWithScore]: 並べ替え済みのノード
 
         Raises:
             RuntimeError: リランカーが処理に失敗した場合
@@ -52,6 +53,6 @@ class RerankManager(ABC):
         logger.info("start reranking...")
 
         try:
-            return list(self._rerank.compress_documents(documents=docs, query=query))
+            return await self._rerank.apostprocess_nodes(nodes=nodes, query_str=query)
         except Exception as e:
             raise RuntimeError("failed to rerank documents") from e

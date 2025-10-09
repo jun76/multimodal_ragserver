@@ -32,8 +32,20 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
         self._embed_text = CohereEmbedding(model_name=model_text)
         self._embed_image = CohereEmbedding(model_name=model_image)
 
-    def get_embedding(self) -> BaseEmbedding:
-        """埋め込みモデルを返す。
+    @property
+    def name(self) -> str:
+        """プロバイダ名。
+
+        Returns:
+            str: プロバイダ名
+        """
+        logger.debug("trace")
+
+        return COHERE_EMBED_NAME
+
+    @property
+    def embedding(self) -> BaseEmbedding:
+        """埋め込みモデル。
 
         Returns:
             BaseEmbedding: 埋め込みモデル
@@ -42,8 +54,9 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
 
         return self._embed_text
 
-    def get_embedding_multi(self) -> MultiModalEmbedding:
-        """マルチモーダル対応の埋め込みモデルを返す。
+    @property
+    def embedding_multi(self) -> MultiModalEmbedding:
+        """マルチモーダル対応の埋め込みモデル。
 
         Returns:
             MultiModalEmbedding: 埋め込みモデル
@@ -52,6 +65,7 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
 
         return self._embed_image
 
+    @property
     def space_key_text(self) -> str:
         """Cohere テキストベクトルの空間キー。
 
@@ -62,6 +76,7 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
 
         return generate_space_key(COHERE_EMBED_NAME, self._model_text, EMBTYPE_TEXT)
 
+    @property
     def space_key_multi(self) -> str:
         """Cohere 画像ベクトルの空間キー。
 

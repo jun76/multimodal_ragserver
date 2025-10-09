@@ -11,7 +11,7 @@ from ragserver.core.names import (
     CLIP_EMBED_NAME,
     COHERE_EMBED_NAME,
     COHERE_RERANK_NAME,
-    HF_RERANK_NAME,
+    FLAGEMBEDDING_RERANK_NAME,
     OPENAI_EMBED_NAME,
     PGVECTOR_STORE_NAME,
     PROJECT_NAME,
@@ -66,7 +66,6 @@ class Config:
     hf_rerank_base_url: str
     cohere_rerank_model: str
     topk: int
-    topk_rerank_scale: int
     upload_dir: str
 
 
@@ -170,7 +169,7 @@ def _validate_config(cfg: Config) -> Config:
     if cfg.embed_provider not in allowed_embeds:
         raise ValueError("unsupported embed provider")
 
-    allowed_rerank = {HF_RERANK_NAME, COHERE_RERANK_NAME, "none"}
+    allowed_rerank = {FLAGEMBEDDING_RERANK_NAME, COHERE_RERANK_NAME, "none"}
     if cfg.rerank_provider not in allowed_rerank:
         raise ValueError("unsupported rerank provider")
 
@@ -189,9 +188,6 @@ def _validate_config(cfg: Config) -> Config:
     if cfg.topk <= 0:
         raise ValueError("topk must be positive")
 
-    if cfg.topk_rerank_scale <= 0:
-        raise ValueError("topk_rerank_scale must be positive")
-
     if cfg.vector_store == PGVECTOR_STORE_NAME:
         for key, value in {
             "pg_host": cfg.pg_host,
@@ -205,7 +201,7 @@ def _validate_config(cfg: Config) -> Config:
     if cfg.embed_provider == CLIP_EMBED_NAME and not cfg.hfclip_embed_base_url:
         raise ValueError("hfclip_embed_base_url must not be empty")
 
-    if cfg.rerank_provider == HF_RERANK_NAME and not cfg.hf_rerank_base_url:
+    if cfg.rerank_provider == FLAGEMBEDDING_RERANK_NAME and not cfg.hf_rerank_base_url:
         raise ValueError("hf_rerank_base_url must not be empty")
 
     if cfg.user_agent.strip() == "":
@@ -269,14 +265,13 @@ def get_config() -> Config:
         chunk_overlap=_to_int("CHUNK_OVERLAP", 50),
         user_agent=os.getenv("USER_AGENT", PROJECT_NAME),
         # Retrieval/Rerank
-        rerank_provider=os.getenv("RERANK_PROVIDER", HF_RERANK_NAME),
+        rerank_provider=os.getenv("RERANK_PROVIDER", FLAGEMBEDDING_RERANK_NAME),
         hf_rerank_model=os.getenv("HF_RERANK_MODEL", "BAAI/bge-reranker-v2-m3"),
         hf_rerank_base_url=os.getenv("HF_RERANK_BASE_URL", "http://localhost:8002/v1"),
         cohere_rerank_model=os.getenv(
             "COHERE_RERANK_MODEL", "rerank-multilingual-v3.0"
         ),
         topk=_to_int("TOPK", 10),
-        topk_rerank_scale=_to_int("TOPK_RERANK_SCALE", 5),
         upload_dir=os.getenv("UPLOAD_DIR", "upload"),
     )
 

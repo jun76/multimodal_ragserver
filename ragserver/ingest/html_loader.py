@@ -40,12 +40,12 @@ class HTMLLoader(Loader):
             chunk_size (int): チャンクサイズ
             chunk_overlap (int): チャンク重複語数
             file_loader (FileLoader): ファイル読み込み用
-            load_asset (bool, optional): アセットを読み込むか。 Defaults to True.
+            load_asset (bool, optional): アセットを読み込むか。Defaults to True.
             req_per_sec (int): 秒間リクエスト数。Defaults to 2.
             store (Optional[VectorStoreManager], opitonal): 登録済みソースの判定に使用。Defaults to None.
-            timeout (int, optional): タイムアウト秒。 Defaults to 30.
-            user_agent (str, optional): GET リクエスト時の user agent。 Defaults to PROJECT_NAME.
-            same_origin (bool, optional): True なら同一オリジンのみ対象。 Defaults to True.
+            timeout (int, optional): タイムアウト秒。Defaults to 30.
+            user_agent (str, optional): GET リクエスト時の user agent。Defaults to PROJECT_NAME.
+            same_origin (bool, optional): True なら同一オリジンのみ対象。Defaults to True.
         """
         logger.debug("trace")
 
@@ -153,7 +153,7 @@ class HTMLLoader(Loader):
             html (str): HTML 文字列
             base_url (str): 相対 URL 解決用の基準 URL
             allowed_exts (Set[str]): 許可される拡張子集合（ドット付き小文字）
-            limit (int, optional): 返却する最大件数. Defaults to 20.
+            limit (int, optional): 返却する最大件数.Defaults to 20.
 
         Returns:
             list[str]: 収集した絶対 URL
@@ -210,7 +210,7 @@ class HTMLLoader(Loader):
 
         Args:
             url (str): 対象 URL
-            max_asset_bytes (int, optional): データサイズ上限。 Defaults to 100*1024*1024.
+            max_asset_bytes (int, optional): データサイズ上限。Defaults to 100*1024*1024.
 
         Returns:
             Optional[str]: ローカルの一時ファイルパス
@@ -243,14 +243,14 @@ class HTMLLoader(Loader):
 
         return path
 
-    async def _create_direct_linked_file_node(
+    async def _load_direct_linked_file(
         self, url: str, base_url: Optional[str] = None
     ) -> Optional[BaseNode]:
         """直リンクのファイルからノードを作成する。
 
         Args:
             url (str): 対象 URL
-            base_url (Optional[str], optional): source の取得元を指定する場合。 Defaults to None.
+            base_url (Optional[str], optional): source の取得元を指定する場合。Defaults to None.
 
         Returns:
             Optional[BaseNode]: テキストノードまたは画像ノード
@@ -284,7 +284,7 @@ class HTMLLoader(Loader):
 
         Args:
             url (str): 対象 URL
-            base_url (Optional[str], optional): source の取得元を指定する場合。 Defaults to None.
+            base_url (Optional[str], optional): source の取得元を指定する場合。Defaults to None.
 
         Returns:
             list[BaseNode]: テキストノード
@@ -335,16 +335,22 @@ class HTMLLoader(Loader):
             html=html, base_url=base_url, allowed_exts=Exts.SUPPORTED_EXTS
         )
 
+        # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
+        # ここでは _source_cache.clear() しないこと。
         nodes = []
         for url in urls:
-            node = await self._create_direct_linked_file_node(
-                url=url, base_url=base_url
-            )
+            if url in self._source_cache:
+                continue
+
+            node = await self._load_direct_linked_file(url=url, base_url=base_url)
             if node is None:
                 logger.warning(f"failed to fetch from {url}, skipped")
                 continue
 
             nodes.append(node)
+
+            # 取得済みキャッシュに追加
+            self._source_cache.add(url)
 
         return nodes
 
@@ -373,7 +379,7 @@ class HTMLLoader(Loader):
         nodes = []
         if self._is_file_url(url):
             # 直リンクファイル
-            node = await self._create_direct_linked_file_node(url)
+            node = await self._load_direct_linked_file(url)
             if node is None:
                 logger.warning(f"failed to fetch from {url}, skipped")
             else:
@@ -417,6 +423,8 @@ class HTMLLoader(Loader):
             logger.exception(e)
             return []
 
+        # 最上位ループの一つ。キャッシュを空にしてから使う。
+        self._source_cache.clear()
         nodes = []
         for url in urls:
             temp = await self._load_from_site(url)
@@ -440,6 +448,8 @@ class HTMLLoader(Loader):
 
         urls = self._read_sources_from_file(list_path)
 
+        # 最上位ループの一つ。キャッシュを空にしてから使う。
+        self._source_cache.clear()
         nodes = []
         for url in urls:
             temp = await self.load_from_url(url)

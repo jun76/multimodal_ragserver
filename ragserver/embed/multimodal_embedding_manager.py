@@ -25,9 +25,10 @@ class MultiModalEmbeddingManager(EmbeddingManager):
         EmbeddingManager.__init__(self, model_text=model_text)
         self._model_image = model_image
 
+    @property
     @abstractmethod
-    def get_embedding_multi(self) -> MultiModalEmbedding:
-        """マルチモーダル対応の埋め込みモデルを返す。
+    def embedding_multi(self) -> MultiModalEmbedding:
+        """マルチモーダル対応の埋め込みモデル。
 
         Returns:
             MultiModalEmbedding: 埋め込みモデル
@@ -35,6 +36,7 @@ class MultiModalEmbeddingManager(EmbeddingManager):
         logger.debug("trace")
         ...
 
+    @property
     @abstractmethod
     def space_key_multi(self) -> str:
         """画像（インデックス用）ベクトルの空間キー。
@@ -56,4 +58,4 @@ class MultiModalEmbeddingManager(EmbeddingManager):
         """
         logger.debug("trace")
 
-        return self.get_embedding_multi().aget_image_embedding(img_file_path=path)
+        return self.embedding_multi.aget_image_embedding(img_file_path=path)

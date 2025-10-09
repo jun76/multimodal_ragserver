@@ -13,5 +13,5 @@ OPENAI_EMBED_NAME = "openai"
 COHERE_EMBED_NAME = "cohere"
 
 # rerank
-HF_RERANK_NAME = "hf"
+FLAGEMBEDDING_RERANK_NAME = "flagembedding"
 COHERE_RERANK_NAME = "cohere"

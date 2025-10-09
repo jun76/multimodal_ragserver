@@ -9,13 +9,13 @@ from typing import Any, Optional
 import aiofiles
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi_mcp.server import FastApiMCP
-from langchain_core.documents import Document
+from llama_index.core.schema import NodeWithScore
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ragserver.config import get_config
 from ragserver.core import names
-from ragserver.embed.clip_embedding_manager import HuggingFaceEmbeddingsManager
+from ragserver.embed.clip_embedding_manager import ClipEmbeddingManager
 from ragserver.embed.cohere_embedding_manager import CohereEmbeddingManager
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
@@ -25,7 +25,7 @@ from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.html_loader import HTMLLoader
 from ragserver.logger import logger
 from ragserver.rerank.cohere_rerank_manager import CohereRerankManager
-from ragserver.rerank.hf_rerank_manager import HFRerankManager
+from ragserver.rerank.flagembedding_rerank_manager import FlagEmbeddingRerankManager
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.retrieval import retriever
 from ragserver.store.chroma_manager import ChromaManager
@@ -70,11 +70,55 @@ class URLRequest(BaseModel):
 app = FastAPI(title=names.PROJECT_NAME, version="1.0")
 
 
+def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
+    """埋め込み管理インスタンスを生成する。
+
+    Args:
+        name (Optional[str], optional): 埋め込み管理名。Defaults to None.
+
+    Returns:
+        EmbeddingsManager: 生成された埋め込み管理
+
+    Raises:
+        RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
+    """
+    try:
+        cfg = get_config()
+    except Exception as e:
+        traceback.print_exc()
+        raise RuntimeError(f"failed to load configuration: {e}") from e
+
+    if name:
+        cfg.embed_provider = name
+
+    match cfg.embed_provider:
+        case names.OPENAI_EMBED_NAME:
+            return OpenAIEmbeddingManager(
+                model_text=cfg.openai_embed_model_text,
+                base_url=cfg.openai_base_url,
+            )
+        case names.COHERE_EMBED_NAME:
+            return CohereEmbeddingManager(
+                model_text=cfg.cohere_embed_model_text,
+                model_image=cfg.cohere_embed_model_image,
+            )
+        case names.CLIP_EMBED_NAME:
+            return ClipEmbeddingManager(
+                model_text=cfg.hfclip_embed_model_text,
+                model_image=cfg.hfclip_embed_model_image,
+            )
+        case _:
+            raise RuntimeError(f"failed to create store")
+
+
+_embed = _create_embed()
+
+
 def _create_store(name: Optional[str] = None) -> VectorStoreManager:
     """ベクトルストアのインスタンスを新規生成する。
 
     Args:
-        name (Optional[str], optional): ベクトルストア名。 Defaults to None.
+        name (Optional[str], optional): ベクトルストア名。Defaults to None.
 
     Returns:
         VectorStoreManager: 新しいインスタンス
@@ -93,6 +137,7 @@ def _create_store(name: Optional[str] = None) -> VectorStoreManager:
     if name:
         cfg.vector_store = name
 
+    global _embed
     match cfg.vector_store:
         case names.PGVECTOR_STORE_NAME:
             return PgVectorManager(
@@ -101,7 +146,7 @@ def _create_store(name: Optional[str] = None) -> VectorStoreManager:
                 dbname=cfg.pg_database,
                 user=cfg.pg_user,
                 password=cfg.pg_password,
-                load_limit=cfg.load_limit,
+                embed=_embed,
                 check_update=cfg.check_update,
             )
         case names.CHROMA_STORE_NAME:
@@ -109,10 +154,7 @@ def _create_store(name: Optional[str] = None) -> VectorStoreManager:
                 persist_directory=cfg.chroma_persist_dir,
                 host=cfg.chroma_host,
                 port=cfg.chroma_port,
-                api_key=cfg.chroma_api_key,
-                tenant=cfg.chroma_tenant,
-                database=cfg.chroma_database,
-                load_limit=cfg.load_limit,
+                embed=_embed,
                 check_update=cfg.check_update,
             )
         case _:
@@ -122,58 +164,11 @@ def _create_store(name: Optional[str] = None) -> VectorStoreManager:
 _store = _create_store()
 
 
-def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
-    """埋め込み管理インスタンスを生成する。
-
-    Args:
-        name (Optional[str], optional): 埋め込み管理名。 Defaults to None.
-
-    Returns:
-        EmbeddingsManager: 生成された埋め込み管理
-
-    Raises:
-        RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
-    """
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise RuntimeError(f"failed to load configuration: {e}") from e
-
-    if name:
-        cfg.emped_provider = name
-
-    match cfg.emped_provider:
-        case names.OPENAI_EMBED_NAME:
-            return OpenAIEmbeddingManager(
-                model_text=cfg.openai_embed_model_text,
-                base_url=cfg.openai_base_url,
-                api_key=cfg.openai_api_key,
-            )
-        case names.COHERE_EMBED_NAME:
-            return CohereEmbeddingManager(
-                model_text=cfg.cohere_embed_model_text,
-                model_image=cfg.cohere_embed_model_image,
-            )
-        case names.CLIP_EMBED_NAME:
-            return HuggingFaceEmbeddingsManager(
-                model_text=cfg.hfclip_embed_model_text,
-                model_image=cfg.hfclip_embed_model_image,
-                base_url=cfg.hfclip_embed_base_url,
-                api_key=cfg.openai_api_key,
-            )
-        case _:
-            raise RuntimeError(f"failed to create store")
-
-
-_embed = _create_embed()
-
-
 def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
     """リランク管理インスタンスを生成する。
 
     Args:
-        name (Optional[str], optional): リランク管理名。 Defaults to None.
+        name (Optional[str], optional): リランク管理名。Defaults to None.
 
     Returns:
         Optional[RerankManager]: 生成されたリランク管理
@@ -191,13 +186,10 @@ def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
         cfg.rerank_provider = name
 
     match cfg.rerank_provider:
-        case names.HF_RERANK_NAME:
-            return HFRerankManager(
-                model=cfg.hf_rerank_model,
-                base_url=cfg.hf_rerank_base_url,
-            )
+        case names.FLAGEMBEDDING_RERANK_NAME:
+            return FlagEmbeddingRerankManager(model=cfg.hf_rerank_model, topk=cfg.topk)
         case names.COHERE_RERANK_NAME:
-            return CohereRerankManager(cfg.cohere_rerank_model)
+            return CohereRerankManager(cfg.cohere_rerank_model, topk=cfg.topk)
         case _:
             return None
 
@@ -208,11 +200,11 @@ _rerank = _create_rerank()
 _request_lock = threading.Lock()
 
 
-def _documents_to_response(docs: list[Document]) -> list[dict[str, Any]]:
-    """Document リストを JSON 返却可能な辞書リストへ変換する。
+def _nodes_to_response(nodes: list[NodeWithScore]) -> list[dict[str, Any]]:
+    """NodeWithScore リストを JSON 返却可能な辞書リストへ変換する。
 
     Args:
-        docs (list[Document]): 変換対象ドキュメント
+        nodes (list[NodeWithScore]): 変換対象ドキュメント
 
     Returns:
         list[dict[str, Any]]: JSON 変換済みドキュメントリスト
@@ -221,10 +213,10 @@ def _documents_to_response(docs: list[Document]) -> list[dict[str, Any]]:
 
     return [
         {
-            "page_content": doc.page_content,
-            "metadata": doc.metadata,
+            "text": node.text,
+            "metadata": node.metadata,
         }
-        for doc in docs
+        for node in nodes
     ]
 
 
@@ -237,21 +229,11 @@ async def health() -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    global _store
-    global _embed
-    global _rerank
-    try:
-        store_name = _store.get_name()
-        embed_name = _embed.get_name()
-        rerank_name = _rerank.get_name() if _rerank else "none"
-    except Exception as e:
-        return {"status": f"{e}"}
-
     return {
         "status": "ok",
-        "store": store_name,
-        "embed": embed_name,
-        "rerank": rerank_name,
+        "store": _store.name,
+        "embed": _embed.name,
+        "rerank": _rerank.name if _rerank else "none",
     }
 
 
@@ -302,7 +284,7 @@ async def upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
     """ファイルを（クライアントから）アップロードする。
 
     Args:
-        files (list[UploadFile], optional): ファイル群。 Defaults to File(...).
+        files (list[UploadFile], optional): ファイル群。Defaults to File(...).
 
     Raises:
         HTTPException(500): 初期化やファイル作成に失敗した場合
@@ -384,14 +366,11 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            docs = await run_in_threadpool(
-                func=retriever.query_text,
+            docs = await retriever.query_text(
                 query=payload.query,
                 store=_store,
-                embed=_embed,
                 topk=payload.topk or cfg.topk,
                 rerank=_rerank,
-                topk_rerank_scale=cfg.topk_rerank_scale,
             )
         except Exception as e:
             traceback.print_exc()
@@ -399,7 +378,7 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     finally:
         _request_lock.release()
 
-    return {"documents": _documents_to_response(docs)}
+    return {"documents": _nodes_to_response(docs)}
 
 
 @app.post("/v1/query/text_multi", operation_id="query_text_multi")
@@ -435,14 +414,11 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            docs = await run_in_threadpool(
-                func=retriever.query_text_multi,
+            docs = await retriever.query_text_multi(
                 query=payload.query,
                 store=_store,
-                embed=_embed,
                 topk=payload.topk or cfg.topk,
                 rerank=_rerank,
-                topk_rerank_scale=cfg.topk_rerank_scale,
             )
         except Exception as e:
             traceback.print_exc()
@@ -450,7 +426,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     finally:
         _request_lock.release()
 
-    return {"documents": _documents_to_response(docs)}
+    return {"documents": _nodes_to_response(docs)}
 
 
 @app.post("/v1/query/image", operation_id="query_image")
@@ -483,11 +459,9 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            docs = await run_in_threadpool(
-                func=retriever.query_image,
+            docs = await retriever.query_image(
                 path=payload.path,
                 store=_store,
-                embed=_embed,
                 topk=payload.topk or cfg.topk,
             )
         except Exception as e:
@@ -496,7 +470,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     finally:
         _request_lock.release()
 
-    return {"documents": _documents_to_response(docs)}
+    return {"documents": _nodes_to_response(docs)}
 
 
 @app.post("/v1/ingest/path", operation_id="ingest_path")
@@ -520,17 +494,13 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
             status_code=500, detail=f"failed to load config: {e}"
         ) from e
 
-    file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_store
-    )
+    file_loader = FileLoader(chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap)
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await run_in_threadpool(
-            func=ingest.ingest_from_path,
+        await ingest.ingest_from_path(
             path=payload.path,
             store=_store,
-            embed=_embed,
             file_loader=file_loader,
         )
     except Exception as e:
@@ -562,17 +532,13 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
             status_code=500, detail=f"failed to load config: {e}"
         ) from e
 
-    file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_store
-    )
+    file_loader = FileLoader(chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap)
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await run_in_threadpool(
-            func=ingest.ingest_from_path_list,
+        await ingest.ingest_from_path_list(
             list_path=payload.path,
             store=_store,
-            embed=_embed,
             file_loader=file_loader,
         )
     except Exception as e:
@@ -605,9 +571,7 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
             status_code=500, detail=f"failed to load config: {e}"
         ) from e
 
-    file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_store
-    )
+    file_loader = FileLoader(chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap)
     html_loader = HTMLLoader(
         chunk_size=cfg.chunk_size,
         chunk_overlap=cfg.chunk_overlap,
@@ -618,11 +582,9 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await run_in_threadpool(
-            func=ingest.ingest_from_url,
+        await ingest.ingest_from_url(
             url=payload.url,
             store=_store,
-            embed=_embed,
             html_loader=html_loader,
         )
     except Exception as e:
@@ -654,9 +616,7 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
             status_code=500, detail=f"failed to load config: {e}"
         ) from e
 
-    file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_store
-    )
+    file_loader = FileLoader(chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap)
     html_loader = HTMLLoader(
         chunk_size=cfg.chunk_size,
         chunk_overlap=cfg.chunk_overlap,
@@ -667,11 +627,9 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await run_in_threadpool(
-            func=ingest.ingest_from_url_list,
+        await ingest.ingest_from_url_list(
             list_path=payload.path,
             store=_store,
-            embed=_embed,
             html_loader=html_loader,
         )
     except Exception as e:

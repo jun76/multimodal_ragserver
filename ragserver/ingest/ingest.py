@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from llama_index.core.schema import BaseNode, ImageNode, TextNode
-
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.html_loader import HTMLLoader
 from ragserver.logger import logger
@@ -13,32 +11,6 @@ __all__ = [
     "ingest_from_url",
     "ingest_from_url_list",
 ]
-
-
-def _split_nodes_modality(
-    nodes: list[BaseNode],
-) -> tuple[list[TextNode], list[ImageNode]]:
-    """ノードをテキスト用と画像用に分ける。
-
-    Args:
-        nodes (list[BaseNode]): テキストノードまたは画像ノード
-
-    Returns:
-        tuple[list[TextNode], list[ImageNode]]: テキストノード、画像ノード
-    """
-    logger.debug("trace")
-
-    text_nodes = []
-    image_nodes = []
-    for node in nodes:
-        if isinstance(node, TextNode):
-            text_nodes.append(node)
-        elif isinstance(node, ImageNode):
-            image_nodes.append(node)
-        else:
-            logger.warning(f"unexpected node type {type(node)}, skipped")
-
-    return text_nodes, image_nodes
 
 
 async def ingest_from_path(
@@ -57,9 +29,7 @@ async def ingest_from_path(
     logger.debug("trace")
 
     nodes = await file_loader.load_from_path(path)
-    text_nodes, image_nodes = _split_nodes_modality(nodes)
-    await store.upsert_text(text_nodes)
-    await store.upsert_image(image_nodes)
+    await store.upsert_nodes(nodes)
 
 
 async def ingest_from_path_list(
@@ -77,9 +47,7 @@ async def ingest_from_path_list(
     logger.debug("trace")
 
     nodes = await file_loader.load_from_path_list(list_path)
-    text_nodes, image_nodes = _split_nodes_modality(nodes)
-    await store.upsert_text(text_nodes)
-    await store.upsert_image(image_nodes)
+    await store.upsert_nodes(nodes)
 
 
 async def ingest_from_url(
@@ -98,9 +66,7 @@ async def ingest_from_url(
     logger.debug("trace")
 
     nodes = await html_loader.load_from_url(url)
-    text_nodes, image_nodes = _split_nodes_modality(nodes)
-    await store.upsert_text(text_nodes)
-    await store.upsert_image(image_nodes)
+    await store.upsert_nodes(nodes)
 
 
 async def ingest_from_url_list(
@@ -118,6 +84,4 @@ async def ingest_from_url_list(
     logger.debug("trace")
 
     nodes = await html_loader.load_from_url_list(list_path)
-    text_nodes, image_nodes = _split_nodes_modality(nodes)
-    await store.upsert_text(text_nodes)
-    await store.upsert_image(image_nodes)
+    await store.upsert_nodes(nodes)

@@ -21,7 +21,7 @@ class OpenAIEmbeddingManager(EmbeddingManager):
 
         Args:
             model_text (str, optional): テキスト埋め込みモデル名
-            base_url (Optional[str], optional): ローカルモデルのエンドポイント。 Defaults to None.
+            base_url (Optional[str], optional): ローカルモデルのエンドポイント。Defaults to None.
         """
         logger.debug("trace")
 
@@ -31,8 +31,20 @@ class OpenAIEmbeddingManager(EmbeddingManager):
             api_base=base_url,
         )
 
-    def get_embedding(self) -> BaseEmbedding:
-        """埋め込みモデルを返す。
+    @property
+    def name(self) -> str:
+        """プロバイダ名。
+
+        Returns:
+            str: プロバイダ名
+        """
+        logger.debug("trace")
+
+        return OPENAI_EMBED_NAME
+
+    @property
+    def embedding(self) -> BaseEmbedding:
+        """埋め込みモデル。
 
         Returns:
             BaseEmbedding: 埋め込みモデル
@@ -41,6 +53,7 @@ class OpenAIEmbeddingManager(EmbeddingManager):
 
         return self._embed
 
+    @property
     def space_key_text(self) -> str:
         """OpenAI テキストベクトルの空間キー。
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Set
 
 from ragserver.logger import logger
 
@@ -28,6 +29,11 @@ class Loader:
 
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
+
+        # 最上位の load_from_*_list() がループを回している間は一度もストアに書き出されないので
+        # 同一ソースに対して何度もフェッチがかかる場合がある。それを避けるため、
+        # Loader クラス内にも独自のキャッシュを持つ。
+        self._source_cache: Set[str] = set()
 
     def _read_sources_from_file(self, path: str) -> list[str]:
         """空行・コメントを除外して source リストを読み込む。

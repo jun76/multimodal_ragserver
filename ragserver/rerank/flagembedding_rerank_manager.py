@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from llama_index.postprocessor.cohere_rerank import CohereRerank
+from llama_index.postprocessor.flag_embedding_reranker import FlagEmbeddingReranker
 
-from ragserver.core.names import COHERE_RERANK_NAME
+from ragserver.core.names import FLAGEMBEDDING_RERANK_NAME
 from ragserver.logger import logger
 from ragserver.rerank.rerank_manager import RerankManager
 
 
-class CohereRerankManager(RerankManager):
-    """Cohere の提供するリランカーの管理クラス"""
+class FlagEmbeddingRerankManager(RerankManager):
+    """FlagEmbedding の提供するリランカーの管理クラス"""
 
     def __init__(self, model: str, topk: int = 10) -> None:
         """コンストラクタ
@@ -20,7 +20,7 @@ class CohereRerankManager(RerankManager):
         logger.debug("trace")
 
         RerankManager.__init__(self)
-        self._rerank = CohereRerank(model=model, top_n=topk)
+        self._rerank = FlagEmbeddingReranker(model=model, top_n=topk)
 
     @property
     def name(self) -> str:
@@ -31,4 +31,4 @@ class CohereRerankManager(RerankManager):
         """
         logger.debug("trace")
 
-        return COHERE_RERANK_NAME
+        return FLAGEMBEDDING_RERANK_NAME

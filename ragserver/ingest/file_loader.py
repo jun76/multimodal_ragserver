@@ -52,6 +52,7 @@ class FileLoader(Loader):
             reader = SimpleDirectoryReader(
                 input_dir=root if path.is_dir() else None,
                 input_files=[root] if path.is_file() else None,
+                exclude=list(self._source_cache),
                 recursive=True,
             )
             docs = await reader.aload_data(show_progress=True)
@@ -61,19 +62,26 @@ class FileLoader(Loader):
                 chunk_overlap=self._chunk_overlap,
                 include_metadata=True,
             )
+
+            # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
+            # ここでは _source_cache.clear() しないこと。
             for doc in docs:
                 nodes = splitter.get_nodes_from_documents([doc])
 
                 for i, node in enumerate(nodes):
                     meta = node.metadata
+                    file_path = meta.get(MKF.FILE_PATH) or ""
                     node.metadata = BasicMetaData(
-                        file_path=meta.get(MKF.FILE_PATH) or "",
+                        file_path=file_path,
                         file_type=meta.get(MKF.FILE_TYPE) or "",
                         file_size=meta.get(MKF.FILE_SIZE) or "",
                         creation_date=meta.get(MKF.CREATION_DATE) or "",
                         last_modified_date=meta.get(MKF.LAST_MODIFIED_DATE) or "",
                         chunk_no=str(i),
                     ).to_dict()
+
+                    # 取得済みキャッシュに追加
+                    self._source_cache.add(file_path)
         except Exception as e:
             logger.exception(e)
             return []
@@ -98,6 +106,8 @@ class FileLoader(Loader):
 
         paths = self._read_sources_from_file(list_path)
 
+        # 最上位ループ。キャッシュを空にしてから使う。
+        self._source_cache.clear()
         docs = []
         for path in paths:
             try:

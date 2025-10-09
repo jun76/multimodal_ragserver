@@ -21,9 +21,21 @@ class EmbeddingManager(ABC):
 
         self._model_text = model_text
 
+    @property
     @abstractmethod
-    def get_embedding(self) -> BaseEmbedding:
-        """埋め込みモデルを返す。
+    def name(self) -> str:
+        """プロバイダ名。
+
+        Returns:
+            str: プロバイダ名
+        """
+        logger.debug("trace")
+        ...
+
+    @property
+    @abstractmethod
+    def embedding(self) -> BaseEmbedding:
+        """埋め込みモデル。
 
         Returns:
             BaseEmbedding: 埋め込みモデル
@@ -31,6 +43,7 @@ class EmbeddingManager(ABC):
         logger.debug("trace")
         ...
 
+    @property
     @abstractmethod
     def space_key_text(self) -> str:
         """テキスト文書（インデックス用）ベクトルの空間キー。
@@ -52,4 +65,4 @@ class EmbeddingManager(ABC):
         """
         logger.debug("trace")
 
-        return self.get_embedding().aget_text_embedding(text)
+        return self.embedding.aget_text_embedding(text)
