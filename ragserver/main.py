@@ -114,10 +114,13 @@ def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
 _embed = _create_embed()
 
 
-def _create_store(name: Optional[str] = None) -> VectorStoreManager:
+def _create_store(
+    embed: EmbeddingManager, name: Optional[str] = None
+) -> VectorStoreManager:
     """ベクトルストアのインスタンスを新規生成する。
 
     Args:
+        embed (EmbeddingManager): 埋め込み管理
         name (Optional[str], optional): ベクトルストア名。Defaults to None.
 
     Returns:
@@ -137,7 +140,6 @@ def _create_store(name: Optional[str] = None) -> VectorStoreManager:
     if name:
         cfg.vector_store = name
 
-    global _embed
     match cfg.vector_store:
         case names.PGVECTOR_STORE_NAME:
             return PgVectorManager(
@@ -146,7 +148,7 @@ def _create_store(name: Optional[str] = None) -> VectorStoreManager:
                 dbname=cfg.pg_database,
                 user=cfg.pg_user,
                 password=cfg.pg_password,
-                embed=_embed,
+                embed=embed,
                 check_update=cfg.check_update,
             )
         case names.CHROMA_STORE_NAME:
@@ -154,14 +156,14 @@ def _create_store(name: Optional[str] = None) -> VectorStoreManager:
                 persist_directory=cfg.chroma_persist_dir,
                 host=cfg.chroma_host,
                 port=cfg.chroma_port,
-                embed=_embed,
+                embed=embed,
                 check_update=cfg.check_update,
             )
         case _:
             raise RuntimeError(f"failed to create store")
 
 
-_store = _create_store()
+_store = _create_store(_embed)
 
 
 def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
@@ -260,7 +262,7 @@ async def reload(payload: ReloadRequest) -> dict[str, Any]:
         try:
             match payload.target:
                 case "store":
-                    _store = _create_store(payload.name)
+                    _store = _create_store(embed=_embed, name=payload.name)
                 case "embed":
                     _embed = _create_embed(payload.name)
                 case "rerank":

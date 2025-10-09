@@ -19,7 +19,7 @@ class FlagEmbeddingRerankManager(RerankManager):
         """
         logger.debug("trace")
 
-        RerankManager.__init__(self)
+        super().__init__()
         self._rerank = FlagEmbeddingReranker(model=model, top_n=topk)
 
     @property
@@ -29,6 +29,4 @@ class FlagEmbeddingRerankManager(RerankManager):
         Returns:
             str: プロバイダ名
         """
-        logger.debug("trace")
-
         return FLAGEMBEDDING_RERANK_NAME

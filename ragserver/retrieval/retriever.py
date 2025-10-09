@@ -43,10 +43,9 @@ async def query_text(
         return []
 
     if rerank is None:
-        return nwss[: min(topk, len(nwss))]
+        return nwss
 
     nwss = await rerank.rerank(nodes=nwss, query=query)
-    nwss = nwss[:topk]
     logger.info(f"reranked {len(nwss)} nodes")
 
     return nwss
@@ -89,10 +88,9 @@ async def query_text_multi(
         return []
 
     if rerank is None:
-        return nwss[: min(topk, len(nwss))]
+        return nwss
 
     nwss = await rerank.rerank(nodes=nwss, query=query)
-    nwss = nwss[:topk]
     logger.info(f"reranked {len(nwss)} nodes")
 
     return nwss

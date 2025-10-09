@@ -70,4 +70,4 @@ class Loader:
         """
         logger.debug("trace")
 
-        return any(uri.endswith(ext) for ext in Exts.IMAGE_FILE_EXTS)
+        return any(uri.lower().endswith(ext) for ext in Exts.IMAGE_FILE_EXTS)

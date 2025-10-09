@@ -65,6 +65,7 @@ class FileLoader(Loader):
 
             # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
             # ここでは _source_cache.clear() しないこと。
+            all_nodes = []
             for doc in docs:
                 nodes = splitter.get_nodes_from_documents([doc])
 
@@ -82,13 +83,15 @@ class FileLoader(Loader):
 
                     # 取得済みキャッシュに追加
                     self._source_cache.add(file_path)
+
+                all_nodes.extend(nodes)
         except Exception as e:
             logger.exception(e)
             return []
 
-        logger.info(f"Ingested {len(nodes)} nodes from {root}")
+        logger.info(f"Ingested {len(all_nodes)} nodes from {root}")
 
-        return nodes
+        return all_nodes
 
     async def load_from_path_list(
         self,
@@ -108,13 +111,13 @@ class FileLoader(Loader):
 
         # 最上位ループ。キャッシュを空にしてから使う。
         self._source_cache.clear()
-        docs = []
+        nodes = []
         for path in paths:
             try:
-                temp, _ = await self.load_from_path(path)
-                docs.extend(temp)
+                temp = await self.load_from_path(path)
+                nodes.extend(temp)
             except Exception as e:
                 logger.exception(e)
                 continue
 
-        return docs
+        return nodes

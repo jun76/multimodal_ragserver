@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ragserver.logger import logger
 
-__all__ = ["generate_space_key"]
+__all__ = ["EMBTYPE_TEXT", "EMBTYPE_IMAGE", "generate_space_key"]
 
 # 埋め込み種別
 # ! 変更すると空間キーの字列が変わって別空間（ingest やり直し）になるので注意 !
@@ -57,16 +57,6 @@ def _sanitize_space_key(space_key: str) -> str:
         chars.append("0")
 
     return "".join(chars)
-
-
-# バリデーション用の正規表現（要件の最終形）
-# _VALID_RE: Final[re.Pattern] = re.compile(
-#     r"^[A-Za-z0-9][A-Za-z0-9._-]{1,510}[A-Za-z0-9]$"
-# )
-
-# def _is_valid_space_key(s: str) -> bool:
-#     """上記の制約に適合しているか（参考用の検証関数）。"""
-#     return bool(_VALID_RE.match(s))
 
 
 def generate_space_key(embed_name: str, model_name: str, embed_type: str) -> str:

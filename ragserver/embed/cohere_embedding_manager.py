@@ -24,8 +24,7 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
         """
         logger.debug("trace")
 
-        MultiModalEmbeddingManager.__init__(
-            self,
+        super().__init__(
             model_text=model_text,
             model_image=model_image,
         )
@@ -39,8 +38,6 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             str: プロバイダ名
         """
-        logger.debug("trace")
-
         return COHERE_EMBED_NAME
 
     @property
@@ -50,8 +47,6 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             BaseEmbedding: 埋め込みモデル
         """
-        logger.debug("trace")
-
         return self._embed_text
 
     @property
@@ -61,8 +56,6 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             MultiModalEmbedding: 埋め込みモデル
         """
-        logger.debug("trace")
-
         return self._embed_image
 
     @property
@@ -72,8 +65,6 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             str: 空間キー
         """
-        logger.debug("trace")
-
         return generate_space_key(COHERE_EMBED_NAME, self._model_text, EMBTYPE_TEXT)
 
     @property
@@ -83,6 +74,4 @@ class CohereEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             str: 空間キー
         """
-        logger.debug("trace")
-
         return generate_space_key(COHERE_EMBED_NAME, self._model_image, EMBTYPE_IMAGE)

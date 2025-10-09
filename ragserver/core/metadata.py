@@ -17,14 +17,9 @@ class META_KEYS_FROM:
     LAST_MODIFIED_DATE = "last_modified_date"
 
 
-class META_KEYS:
+class META_KEYS(META_KEYS_FROM):
     # 正規化し、アプリ側で付与するラベル
 
-    FILE_PATH = "file_path"
-    FILE_TYPE = "file_type"
-    FILE_SIZE = "file_size"
-    CREATION_DATE = "creation_date"
-    LAST_MODIFIED_DATE = "last_modified_date"
     CHUNK_NO = "chunk_no"
     URL = "url"
     BASE_SOURCE = "base_source"

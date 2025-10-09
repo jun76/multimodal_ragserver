@@ -25,7 +25,7 @@ class OpenAIEmbeddingManager(EmbeddingManager):
         """
         logger.debug("trace")
 
-        EmbeddingManager.__init__(self, model_text=model_text)
+        super().__init__(model_text)
         self._embed = OpenAIEmbedding(
             model=model_text,
             api_base=base_url,

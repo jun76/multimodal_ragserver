@@ -4,7 +4,7 @@
     "--max-line-length=88"
   ],
   "flake8.severity": {
-    "undefined-variable": "Warning",
+    "undefined-variable": "Warning"
   },
   "mypy-type-checker.args": [
     "--ignore-missing-imports",

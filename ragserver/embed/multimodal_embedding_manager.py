@@ -33,8 +33,6 @@ class MultiModalEmbeddingManager(EmbeddingManager):
         Returns:
             MultiModalEmbedding: 埋め込みモデル
         """
-        logger.debug("trace")
-        ...
 
     @property
     @abstractmethod
@@ -44,18 +42,18 @@ class MultiModalEmbeddingManager(EmbeddingManager):
         Returns:
             str: この埋め込み実装が生成する画像用ベクトルの空間キー
         """
-        logger.debug("trace")
-        ...
 
-    async def embed_image(self, path: ImageType) -> CoroutineType[Any, Any, Embedding]:
+    async def embed_image(self, paths: list[ImageType]) -> list[Embedding]:
         """画像の埋め込みベクトルを取得する。
 
         Args:
-            path (ImageType): 画像のパス（または base64 画像の直渡しでも OK）
+            paths (list[Embedding]): 画像のパス（または base64 画像の直渡しでも OK）
 
         Returns:
             Embedding: 埋め込みベクトル
         """
         logger.debug("trace")
 
-        return self.embedding_multi.aget_image_embedding(img_file_path=path)
+        return await self.embedding_multi.aget_image_embedding_batch(
+            img_file_paths=paths
+        )

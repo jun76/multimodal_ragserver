@@ -31,8 +31,6 @@ class RerankManager(ABC):
         Returns:
             str: プロバイダ名
         """
-        logger.debug("trace")
-        ...
 
     async def rerank(
         self, nodes: list[NodeWithScore], query: str

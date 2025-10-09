@@ -262,20 +262,17 @@ class HTMLLoader(Loader):
         if temp_file_path is None:
             return None
 
-        if self._is_image_file(temp_file_path):
-            node = ImageNode()
-        else:
-            node = TextNode()
-
-        node.text = url
-        node.metadata = BasicMetaData(
+        meta = BasicMetaData(
             file_path=temp_file_path,  # MultiModalVectorStoreIndex 参照用
             url=url,
             base_source=base_url or "",
             temp_file_path=temp_file_path,  # 削除用
         ).to_dict()
 
-        return node
+        if self._is_image_file(temp_file_path):
+            return ImageNode(text=url, metadata=meta)
+
+        return TextNode(text=url, metadata=meta)
 
     async def _load_html_text(
         self, url: str, base_url: Optional[str] = None

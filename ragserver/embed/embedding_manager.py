@@ -14,7 +14,6 @@ class EmbeddingManager(ABC):
         """埋め込み管理の抽象インターフェース（テキスト）
 
         Args:
-            name (str): プロバイダ名
             model_text (str): テキスト埋め込みモデル名
         """
         logger.debug("trace")
@@ -29,8 +28,6 @@ class EmbeddingManager(ABC):
         Returns:
             str: プロバイダ名
         """
-        logger.debug("trace")
-        ...
 
     @property
     @abstractmethod
@@ -40,8 +37,6 @@ class EmbeddingManager(ABC):
         Returns:
             BaseEmbedding: 埋め込みモデル
         """
-        logger.debug("trace")
-        ...
 
     @property
     @abstractmethod
@@ -51,18 +46,16 @@ class EmbeddingManager(ABC):
         Returns:
             str: この埋め込み実装が生成する文書用ベクトルの空間キー
         """
-        logger.debug("trace")
-        ...
 
-    async def embed_text(self, text: str) -> CoroutineType[Any, Any, Embedding]:
+    async def embed_text(self, texts: list[str]) -> list[Embedding]:
         """テキストの埋め込みベクトルを取得する。
 
         Args:
-            text (str): テキスト
+            texts (list[str]): テキスト
 
         Returns:
-            Embedding: 埋め込みベクトル
+            list[Embedding]: 埋め込みベクトル
         """
         logger.debug("trace")
 
-        return self.embedding.aget_text_embedding(text)
+        return await self.embedding.aget_text_embedding_batch(texts)

@@ -43,8 +43,6 @@ class VectorStoreManager(ABC):
         Returns:
             str: プロバイダ名
         """
-        logger.debug("trace")
-        ...
 
     @property
     def index(self) -> Optional[VectorStoreIndex]:
@@ -93,18 +91,21 @@ class VectorStoreManager(ABC):
             logger.warning("text store is not initialized")
             return
 
-        vecs = []
+        node_texts = []
         node_ids = []
         for node in nodes:
-            vec = await self._embed.embed_text(node.text)
-            vecs.append(vec)
+            node_texts.append(node.text)
             node_ids.append(node.node_id)
 
-        self._text_store.delete_nodes(node_ids)
-        self._text_store.add(
-            nodes=nodes,
-            embeddings=vecs,
-        )
+        try:
+            vecs = await self._embed.embed_text(node_texts)
+            self._text_store.delete_nodes(node_ids)
+            self._text_store.add(
+                nodes=nodes,
+                embeddings=vecs,
+            )
+        except Exception as e:
+            logger.exception(e)
 
     async def _upsert_image(self, nodes: list[ImageNode]) -> None:
         """画像を埋め込み、ストアに格納する。
@@ -122,7 +123,8 @@ class VectorStoreManager(ABC):
             logger.warning("image store is not initialized")
             return
 
-        vecs = []
+        file_paths = []
+        temp_file_paths = []
         node_ids = []
         for node in nodes:
             meta = node.metadata
@@ -130,26 +132,32 @@ class VectorStoreManager(ABC):
             temp_file_path = meta.get(MK.TEMP_FILE_PATH)
             if temp_file_path and temp_file_path != "":
                 # フェッチした一時ファイル
-                vec = await self._embed.embed_image(temp_file_path)
-                os.remove(temp_file_path)
+                file_paths.append(temp_file_path)
+                temp_file_paths.append(temp_file_path)
                 meta[MK.TEMP_FILE_PATH] = ""
             else:
                 file_path = meta.get(MK.FILE_PATH)
                 if file_path:
                     # ローカルファイル
-                    vec = await self._embed.embed_image(file_path)
+                    file_paths.append(file_path)
                 else:
                     logger.warning("image is not found, skipped")
                     continue
 
-            vecs.append(vec)
             node_ids.append(node.node_id)
 
-        self._image_store.delete_nodes(node_ids)
-        self._image_store.add(
-            nodes=nodes,
-            embeddings=vecs,
-        )
+        try:
+            vecs = await self._embed.embed_image(file_paths)
+            self._image_store.delete_nodes(node_ids)
+            self._image_store.add(
+                nodes=nodes,
+                embeddings=vecs,
+            )
+        except Exception as e:
+            logger.exception(e)
+        finally:
+            for path in temp_file_paths:
+                os.remove(path)
 
     def _create_index(
         self,
