@@ -14,7 +14,7 @@ from ragserver.logger import logger
 
 class MultiModalEmbeddingManager(EmbeddingManager):
     def __init__(self, model_text: str, model_image: str) -> None:
-        """埋め込み管理の抽象インターフェース（マルチモーダル）
+        """埋め込み管理の抽象（マルチモーダル）
 
         Args:
             model_text (str): テキスト埋め込みモデル名

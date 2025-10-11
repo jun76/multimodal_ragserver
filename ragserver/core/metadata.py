@@ -13,8 +13,8 @@ class META_KEYS_FROM:
     FILE_PATH = "file_path"
     FILE_TYPE = "file_type"
     FILE_SIZE = "file_size"
-    CREATION_DATE = "creation_date"
-    LAST_MODIFIED_DATE = "last_modified_date"
+    FILE_CREATED_AT = "creation_date"
+    FILE_LASTMOD_AT = "last_modified_date"
 
 
 class META_KEYS(META_KEYS_FROM):
@@ -24,6 +24,7 @@ class META_KEYS(META_KEYS_FROM):
     URL = "url"
     BASE_SOURCE = "base_source"
     TEMP_FILE_PATH = "temp_file_path"
+    NODE_LASTMOD_AT = "node_last_modified_date"
 
 
 @dataclass
@@ -63,15 +64,20 @@ class BasicMetaData:
         等
     """
 
+    # メタデータの中身
+    # 追加・削除する場合、ノードのインスタンスを作成する loader 系の実装と
+    # メタ情報を管理する structured_store 系の実装とも整合させること
+    #
     file_path: str = ""  # 取得元ファイルパス
     file_type: str = ""  # ファイル種別（mimetype）
-    file_size: str = ""  # ファイルサイズ
-    creation_date: str = ""  # ファイル作成日時
-    last_modified_date: str = ""  # 最終更新日時
-    chunk_no: str = ""  # テキストのチャンク番号
+    file_size: int = 0  # ファイルサイズ
+    file_created_at: str = ""  # ファイル作成日時
+    file_lastmod_at: str = ""  # 最終更新日時
+    chunk_no: int = 0  # テキストのチャンク番号
     url: str = ""  # 取得元 URL
     base_source: str = ""  # 出典情報（直リンク画像の親ページ等）
     temp_file_path: str = ""  # ダウンロード画像等の一時ファイルパス
+    node_lastmod_at: float = 0  # ノードの最終更新日時
 
     def to_dict(self) -> dict[str, Any]:
         """メタデータの dict を返す。

@@ -38,8 +38,6 @@ class OpenAIEmbeddingManager(EmbeddingManager):
         Returns:
             str: プロバイダ名
         """
-        logger.debug("trace")
-
         return OPENAI_EMBED_NAME
 
     @property
@@ -49,8 +47,6 @@ class OpenAIEmbeddingManager(EmbeddingManager):
         Returns:
             BaseEmbedding: 埋め込みモデル
         """
-        logger.debug("trace")
-
         return self._embed
 
     @property
@@ -60,6 +56,4 @@ class OpenAIEmbeddingManager(EmbeddingManager):
         Returns:
             str: 空間キー
         """
-        logger.debug("trace")
-
         return generate_space_key(OPENAI_EMBED_NAME, self._model_text, EMBTYPE_TEXT)

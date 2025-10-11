@@ -28,9 +28,9 @@ from ragserver.rerank.cohere_rerank_manager import CohereRerankManager
 from ragserver.rerank.flagembedding_rerank_manager import FlagEmbeddingRerankManager
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.retrieval import retriever
-from ragserver.store.chroma_manager import ChromaManager
-from ragserver.store.pgvector_manager import PgVectorManager
-from ragserver.store.vector_store_manager import VectorStoreManager
+from ragserver.vector_store.chroma_manager import ChromaManager
+from ragserver.vector_store.pgvector_manager import PgVectorManager
+from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 __all__ = ["app"]
 
@@ -142,25 +142,32 @@ def _create_store(
 
     match cfg.vector_store:
         case names.PGVECTOR_STORE_NAME:
-            return PgVectorManager(
+            store = PgVectorManager(
                 host=cfg.pg_host,
                 port=cfg.pg_port,
                 dbname=cfg.pg_database,
                 user=cfg.pg_user,
                 password=cfg.pg_password,
-                embed=embed,
                 check_update=cfg.check_update,
             )
         case names.CHROMA_STORE_NAME:
-            return ChromaManager(
+            store = ChromaManager(
                 persist_directory=cfg.chroma_persist_dir,
                 host=cfg.chroma_host,
                 port=cfg.chroma_port,
-                embed=embed,
                 check_update=cfg.check_update,
             )
         case _:
+            traceback.print_exc()
             raise RuntimeError(f"failed to create store")
+
+    try:
+        store.activate_with(embed)
+    except Exception as e:
+        traceback.print_exc()
+        raise RuntimeError(f"failed to activate store: {e}") from e
+
+    return store
 
 
 _store = _create_store(_embed)
@@ -265,6 +272,7 @@ async def reload(payload: ReloadRequest) -> dict[str, Any]:
                     _store = _create_store(embed=_embed, name=payload.name)
                 case "embed":
                     _embed = _create_embed(payload.name)
+                    _store.activate_with(_embed)
                 case "rerank":
                     _rerank = _create_rerank(payload.name)
                 case _:

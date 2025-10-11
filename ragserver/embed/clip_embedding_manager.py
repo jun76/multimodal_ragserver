@@ -39,8 +39,6 @@ class ClipEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             str: プロバイダ名
         """
-        logger.debug("trace")
-
         return CLIP_EMBED_NAME
 
     @property
@@ -50,8 +48,6 @@ class ClipEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             BaseEmbedding: 埋め込みモデル
         """
-        logger.debug("trace")
-
         return self._embed_text
 
     @property
@@ -61,8 +57,6 @@ class ClipEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             MultiModalEmbedding: 埋め込みモデル
         """
-        logger.debug("trace")
-
         return self._embed_image
 
     @property
@@ -72,8 +66,6 @@ class ClipEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             str: 空間キー
         """
-        logger.debug("trace")
-
         return generate_space_key(CLIP_EMBED_NAME, self._model_text, EMBTYPE_TEXT)
 
     @property
@@ -83,6 +75,4 @@ class ClipEmbeddingManager(MultiModalEmbeddingManager):
         Returns:
             str: 空間キー
         """
-        logger.debug("trace")
-
         return generate_space_key(CLIP_EMBED_NAME, self._model_image, EMBTYPE_IMAGE)

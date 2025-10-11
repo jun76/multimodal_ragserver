@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import tempfile
+import time
 from typing import Optional, Set
 from urllib.parse import urljoin, urlparse
 
@@ -18,7 +19,7 @@ from ragserver.core.names import PROJECT_NAME
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.loader import Exts, Loader
 from ragserver.logger import logger
-from ragserver.store.vector_store_manager import VectorStoreManager
+from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 
 class HTMLLoader(Loader):
@@ -267,6 +268,7 @@ class HTMLLoader(Loader):
             url=url,
             base_source=base_url or "",
             temp_file_path=temp_file_path,  # 削除用
+            node_lastmod_at=time.time(),
         ).to_dict()
 
         if self._is_image_file(temp_file_path):
@@ -301,9 +303,10 @@ class HTMLLoader(Loader):
 
             for i, node in enumerate(nodes):
                 node.metadata = BasicMetaData(
-                    chunk_no=str(i),
+                    chunk_no=i,
                     url=url,
                     base_source=base_url or "",
+                    node_lastmod_at=time.time(),
                 ).to_dict()
         except Exception as e:
             logger.exception(e)

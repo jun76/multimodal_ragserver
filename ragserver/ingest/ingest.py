@@ -3,7 +3,7 @@ from __future__ import annotations
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.html_loader import HTMLLoader
 from ragserver.logger import logger
-from ragserver.store.vector_store_manager import VectorStoreManager
+from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 __all__ = [
     "ingest_from_path",

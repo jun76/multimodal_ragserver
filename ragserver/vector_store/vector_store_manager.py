@@ -16,21 +16,22 @@ from ragserver.logger import logger
 
 
 class VectorStoreManager(ABC):
-    def __init__(self, embed: EmbeddingManager, check_update: bool = True) -> None:
-        """ベクトルストア管理クラスの抽象クラス
+    def __init__(self, check_update: bool = True) -> None:
+        """ベクトルストア管理クラスの抽象
+
+        空間キーごとにテーブルを一つ割り当て、ノードを管理する想定。
 
         Args:
-            embed (EmbeddingManager): 埋め込み管理
             check_update (bool, optional): ファイルの更新チェック要否。Defaults to True.
         """
         logger.debug("trace")
 
-        self._embed = embed
         self._check_update = check_update
 
         self._text_store: Optional[BasePydanticVectorStore] = None
         self._image_store: Optional[BasePydanticVectorStore] = None
         self._index: Optional[VectorStoreIndex] = None
+        self._embed: Optional[EmbeddingManager] = None
 
         # 各ストア（空間キー毎）の初期化時に同期し、以降は fingerprint チェックの度に追加
         self._fp_cache: dict[str, str] = {}
@@ -52,6 +53,17 @@ class VectorStoreManager(ABC):
             Optional[VectorStoreIndex]: インデックス
         """
         return self._index
+
+    @abstractmethod
+    def activate_with(self, embed: EmbeddingManager):
+        """埋め込み管理に合わせてストアを初期化する。
+
+        Args:
+            embed (EmbeddingManager): 埋め込み管理
+
+        Raises:
+            RuntimeError: ストア初期化失敗
+        """
 
     def _split_nodes_modality(
         self,
@@ -91,6 +103,10 @@ class VectorStoreManager(ABC):
             logger.warning("text store is not initialized")
             return
 
+        if self._embed is None:
+            logger.warning("embedding is not set")
+            return
+
         node_texts = []
         node_ids = []
         for node in nodes:
@@ -99,8 +115,8 @@ class VectorStoreManager(ABC):
 
         try:
             vecs = await self._embed.embed_text(node_texts)
-            self._text_store.delete_nodes(node_ids)
-            self._text_store.add(
+            await self._text_store.adelete_nodes(node_ids)
+            await self._text_store.async_add(
                 nodes=nodes,
                 embeddings=vecs,
             )
@@ -148,8 +164,8 @@ class VectorStoreManager(ABC):
 
         try:
             vecs = await self._embed.embed_image(file_paths)
-            self._image_store.delete_nodes(node_ids)
-            self._image_store.add(
+            await self._image_store.adelete_nodes(node_ids)
+            await self._image_store.async_add(
                 nodes=nodes,
                 embeddings=vecs,
             )
@@ -163,34 +179,37 @@ class VectorStoreManager(ABC):
         self,
         text_store: BasePydanticVectorStore,
         image_store: Optional[BasePydanticVectorStore] = None,
-    ) -> None:
+    ) -> Optional[VectorStoreIndex]:
         """インデックスを作成する。
-
-        Raises:
-            RuntimeError: テキスト埋め込み管理に対してマルチモーダルストアの要求
 
         Args:
             text_store (BasePydanticVectorStore): テキストストア
             image_store (Optional[BasePydanticVectorStore], optional): 画像ストア。Defaults to None.
+
+        Raises:
+            RuntimeError: テキスト埋め込み管理に対してマルチモーダルストアの要求
+
+        Returns:
+            Optional[VectorStoreIndex]: _description_
         """
         logger.debug("trace")
 
-        self._text_store = text_store
-        self._image_store = image_store
+        if self._embed is None:
+            logger.warning("embedding is not set")
+            return
 
         if image_store:
             if not isinstance(self._embed, MultiModalEmbeddingManager):
                 raise RuntimeError("multimodal embed model is required")
 
-            self._index = MultiModalVectorStoreIndex.from_vector_store(
+            return MultiModalVectorStoreIndex.from_vector_store(
                 vector_store=text_store,
                 embed_model=self._embed.embedding,
                 image_vector_store=image_store,
                 image_embed_model=self._embed.embedding_multi,
             )
-            return
 
-        self._index = VectorStoreIndex.from_vector_store(
+        return VectorStoreIndex.from_vector_store(
             vector_store=text_store,
             embed_model=self._embed.embedding,
         )
@@ -233,7 +252,7 @@ class VectorStoreManager(ABC):
         return (
             f"{MK.FILE_PATH}:{meta.get(MK.FILE_PATH) or ""}_"
             + f"{MK.FILE_SIZE}:{meta.get(MK.FILE_SIZE) or ""}_"
-            + f"{MK.LAST_MODIFIED_DATE}:{meta.get(MK.LAST_MODIFIED_DATE) or ""}_"
+            + f"{MK.FILE_LASTMOD_AT}:{meta.get(MK.FILE_LASTMOD_AT) or ""}_"
             + f"{MK.CHUNK_NO}:{meta.get(MK.CHUNK_NO) or ""}_"
             + f"{MK.URL}:{meta.get(MK.URL) or ""}"
         )

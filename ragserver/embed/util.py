@@ -11,11 +11,15 @@ EMBTYPE_IMAGE = "image"
 
 
 def _sanitize_space_key(space_key: str) -> str:
-    """Chroma の制約にマッチするよう space_key 文字列を整形する。
+    """制約にマッチするよう space_key 文字列を整形する。
 
     制約：
-        containing 3-512 characters from [a-zA-Z0-9._-],
-        starting and ending with a character in [a-zA-Z0-9]
+        Chroma
+            containing 3-512 characters from [a-zA-Z0-9._-],
+            starting and ending with a character in [a-zA-Z0-9]
+
+        SQLite
+            念のため英数とアンダースコア以外は '_'
 
     Args:
         space_key (str): 整形前の space_key
@@ -30,7 +34,7 @@ def _sanitize_space_key(space_key: str) -> str:
         return "000"
 
     allowed = set(
-        "abcdefghijklmnopqrstuvwxyz" "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "0123456789" "._-"
+        "abcdefghijklmnopqrstuvwxyz" "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "0123456789" "_"
     )
 
     # 許可されない文字は '_' に置換

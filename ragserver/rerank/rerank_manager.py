@@ -10,7 +10,7 @@ from ragserver.logger import logger
 
 class RerankManager(ABC):
     def __init__(self) -> None:
-        """リランカー管理の抽象インタフェース
+        """リランカー管理の抽象
 
         現状、画像のキャプション（テキスト）をつけることで langchain のリランカが
         そのまま使えるため MultimodalRerankManager は不要だが、マルチモーダル対応の

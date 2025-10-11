@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from llama_index.core import SimpleDirectoryReader
@@ -75,10 +76,11 @@ class FileLoader(Loader):
                     node.metadata = BasicMetaData(
                         file_path=file_path,
                         file_type=meta.get(MKF.FILE_TYPE) or "",
-                        file_size=meta.get(MKF.FILE_SIZE) or "",
-                        creation_date=meta.get(MKF.CREATION_DATE) or "",
-                        last_modified_date=meta.get(MKF.LAST_MODIFIED_DATE) or "",
-                        chunk_no=str(i),
+                        file_size=int(meta.get(MKF.FILE_SIZE) or ""),
+                        file_created_at=meta.get(MKF.FILE_CREATED_AT) or "",
+                        file_lastmod_at=meta.get(MKF.FILE_LASTMOD_AT) or "",
+                        chunk_no=i,
+                        node_lastmod_at=time.time(),
                     ).to_dict()
 
                     # 取得済みキャッシュに追加

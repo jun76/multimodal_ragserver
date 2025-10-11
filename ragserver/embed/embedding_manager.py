@@ -11,7 +11,7 @@ from ragserver.logger import logger
 
 class EmbeddingManager(ABC):
     def __init__(self, model_text: str) -> None:
-        """埋め込み管理の抽象インターフェース（テキスト）
+        """埋め込み管理の抽象（テキスト）
 
         Args:
             model_text (str): テキスト埋め込みモデル名

@@ -29,6 +29,4 @@ class CohereRerankManager(RerankManager):
         Returns:
             str: プロバイダ名
         """
-        logger.debug("trace")
-
         return COHERE_RERANK_NAME

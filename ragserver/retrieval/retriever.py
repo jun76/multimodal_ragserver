@@ -7,7 +7,7 @@ from llama_index.core.schema import NodeWithScore
 
 from ragserver.logger import logger
 from ragserver.rerank.rerank_manager import RerankManager
-from ragserver.store.vector_store_manager import VectorStoreManager
+from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 __all__ = ["query_text", "query_text_multi", "query_image"]
 
