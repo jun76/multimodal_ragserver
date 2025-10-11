@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from llama_index.vector_stores.postgres import PGVectorStore
 
+from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.names import PGVECTOR_STORE_NAME, PROJECT_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
+from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 
@@ -56,15 +58,23 @@ class PgVectorManager(VectorStoreManager):
         """
         return PGVECTOR_STORE_NAME
 
-    def activate_with(self, embed: EmbeddingManager):
+    def prepare_with(
+        self, embed: EmbeddingManager, meta_store: StructuredStoreManager, limit: int
+    ):
         """埋め込み管理に合わせてストアを初期化する。
 
         Args:
             embed (EmbeddingManager): 埋め込み管理
+            meta_store (StructuredStoreManager): メタデータ管理
+            limit (int): メタデータ読み込み件数上限
+
+        Raises:
+            RuntimeError: ストア初期化失敗
         """
         logger.debug("trace")
 
         self._embed = embed
+        self._meta_store = meta_store
 
         try:
             self._text_store = PGVectorStore.from_params(
@@ -91,7 +101,17 @@ class PgVectorManager(VectorStoreManager):
                     text_store=self._text_store,
                     image_store=self._image_store,
                 )
+                self._meta_store.prepare_with(
+                    space_key_text=embed.space_key_text,
+                    space_key_multi=embed.space_key_multi,
+                )
             else:
                 self._index = self._create_index(text_store=self._text_store)
+                self._meta_store.prepare_with(
+                    space_key_text=embed.space_key_text,
+                )
+
+            # メタデータ専用ストアから fingerprint キャッシュを復元
+            self._fp_cache = meta_store.select(cols=[MK.FINGERPRINT], limit=limit)
         except Exception as e:
             raise RuntimeError("failed to initialize stores") from e

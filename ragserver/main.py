@@ -28,6 +28,8 @@ from ragserver.rerank.cohere_rerank_manager import CohereRerankManager
 from ragserver.rerank.flagembedding_rerank_manager import FlagEmbeddingRerankManager
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.retrieval import retriever
+from ragserver.stractured_store.sqlite_manager import SQLiteManager
+from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
 from ragserver.vector_store.chroma_manager import ChromaManager
 from ragserver.vector_store.pgvector_manager import PgVectorManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
@@ -71,16 +73,16 @@ app = FastAPI(title=names.PROJECT_NAME, version="1.0")
 
 
 def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
-    """埋め込み管理インスタンスを生成する。
+    """埋め込み管理インスタンスを作成する。
 
     Args:
         name (Optional[str], optional): 埋め込み管理名。Defaults to None.
 
-    Returns:
-        EmbeddingsManager: 生成された埋め込み管理
-
     Raises:
         RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
+
+    Returns:
+        EmbeddingsManager: 生成された埋め込み管理
     """
     try:
         cfg = get_config()
@@ -104,8 +106,8 @@ def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
             )
         case names.CLIP_EMBED_NAME:
             return ClipEmbeddingManager(
-                model_text=cfg.hfclip_embed_model_text,
-                model_image=cfg.hfclip_embed_model_image,
+                model_text=cfg.clip_embed_model_text,
+                model_image=cfg.clip_embed_model_image,
             )
         case _:
             raise RuntimeError(f"failed to create store")
@@ -114,20 +116,47 @@ def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
 _embed = _create_embed()
 
 
-def _create_store(
+def _create_meta_store() -> StructuredStoreManager:
+    """メタデータ専用ストアのインスタンスを作成する。
+
+    Raises:
+        RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
+
+    Returns:
+        StructuredStoreManager: 構造化ストア管理
+    """
+    logger.debug("trace")
+
+    try:
+        cfg = get_config()
+    except Exception as e:
+        traceback.print_exc()
+        raise RuntimeError(f"failed to load configuration: {e}") from e
+
+    try:
+        return SQLiteManager(knowledgebase_name=cfg.knowledgebase_name)
+    except Exception as e:
+        traceback.print_exc()
+        raise RuntimeError(f"failed to prepare metadata store: {e}") from e
+
+
+_meta_store = _create_meta_store()
+
+
+def _create_vector_store(
     embed: EmbeddingManager, name: Optional[str] = None
 ) -> VectorStoreManager:
-    """ベクトルストアのインスタンスを新規生成する。
+    """ベクトルストアのインスタンスを作成する。
 
     Args:
         embed (EmbeddingManager): 埋め込み管理
         name (Optional[str], optional): ベクトルストア名。Defaults to None.
 
-    Returns:
-        VectorStoreManager: 新しいインスタンス
-
     Raises:
         RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
+
+    Returns:
+        VectorStoreManager: 新しいインスタンス
     """
     logger.debug("trace")
 
@@ -142,48 +171,53 @@ def _create_store(
 
     match cfg.vector_store:
         case names.PGVECTOR_STORE_NAME:
-            store = PgVectorManager(
+            vector_store = PgVectorManager(
                 host=cfg.pg_host,
                 port=cfg.pg_port,
                 dbname=cfg.pg_database,
                 user=cfg.pg_user,
                 password=cfg.pg_password,
                 check_update=cfg.check_update,
+                knowledgebase_name=cfg.knowledgebase_name,
             )
         case names.CHROMA_STORE_NAME:
-            store = ChromaManager(
+            vector_store = ChromaManager(
                 persist_directory=cfg.chroma_persist_dir,
                 host=cfg.chroma_host,
                 port=cfg.chroma_port,
                 check_update=cfg.check_update,
+                knowledgebase_name=cfg.knowledgebase_name,
             )
         case _:
             traceback.print_exc()
             raise RuntimeError(f"failed to create store")
 
     try:
-        store.activate_with(embed)
+        global _meta_store
+        vector_store.prepare_with(
+            embed=embed, meta_store=_meta_store, limit=cfg.load_limit
+        )
     except Exception as e:
         traceback.print_exc()
-        raise RuntimeError(f"failed to activate store: {e}") from e
+        raise RuntimeError(f"failed to prepare vector store: {e}") from e
 
-    return store
+    return vector_store
 
 
-_store = _create_store(_embed)
+_vector_store = _create_vector_store(_embed)
 
 
 def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
-    """リランク管理インスタンスを生成する。
+    """リランク管理インスタンスを作成する。
 
     Args:
         name (Optional[str], optional): リランク管理名。Defaults to None.
 
-    Returns:
-        Optional[RerankManager]: 生成されたリランク管理
-
     Raises:
         RuntimeError: 設定の読み込みに失敗した場合
+
+    Returns:
+        Optional[RerankManager]: 生成されたリランク管理
     """
     try:
         cfg = get_config()
@@ -196,7 +230,9 @@ def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
 
     match cfg.rerank_provider:
         case names.FLAGEMBEDDING_RERANK_NAME:
-            return FlagEmbeddingRerankManager(model=cfg.hf_rerank_model, topk=cfg.topk)
+            return FlagEmbeddingRerankManager(
+                model=cfg.flagembedding_rerank_model, topk=cfg.topk
+            )
         case names.COHERE_RERANK_NAME:
             return CohereRerankManager(cfg.cohere_rerank_model, topk=cfg.topk)
         case _:
@@ -240,7 +276,7 @@ async def health() -> dict[str, Any]:
 
     return {
         "status": "ok",
-        "store": _store.name,
+        "store": _vector_store.name,
         "embed": _embed.name,
         "rerank": _rerank.name if _rerank else "none",
     }
@@ -256,12 +292,13 @@ async def reload(payload: ReloadRequest) -> dict[str, Any]:
     Raises:
         HTTPException(500): 初期化やファイル作成に失敗した場合
 
-            Returns:
+    Returns:
         dict[str, Any]: 結果
     """
     logger.debug("trace")
 
-    global _store
+    global _meta_store
+    global _vector_store
     global _embed
     global _rerank
     await run_in_threadpool(_request_lock.acquire)
@@ -269,10 +306,25 @@ async def reload(payload: ReloadRequest) -> dict[str, Any]:
         try:
             match payload.target:
                 case "store":
-                    _store = _create_store(embed=_embed, name=payload.name)
+                    _vector_store = _create_vector_store(
+                        embed=_embed, name=payload.name
+                    )
                 case "embed":
                     _embed = _create_embed(payload.name)
-                    _store.activate_with(_embed)
+                    if isinstance(_embed, MultiModalEmbeddingManager):
+                        _meta_store.prepare_with(
+                            space_key_text=_embed.space_key_text,
+                            space_key_multi=_embed.space_key_multi,
+                        )
+                    else:
+                        _meta_store.prepare_with(
+                            space_key_text=_embed.space_key_text,
+                        )
+
+                    cfg = get_config()
+                    _vector_store.prepare_with(
+                        embed=_embed, meta_store=_meta_store, limit=cfg.load_limit
+                    )
                 case "rerank":
                     _rerank = _create_rerank(payload.name)
                 case _:
@@ -357,11 +409,11 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     Args:
         payload (QueryTextRequest): クエリ内容
 
-    Returns:
-        dict[str, Any]: 検索結果
-
     Raises:
         HTTPException: 設定の読み込みに失敗した場合
+
+    Returns:
+        dict[str, Any]: 検索結果
     """
     logger.debug("trace")
 
@@ -378,7 +430,7 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
         try:
             docs = await retriever.query_text(
                 query=payload.query,
-                store=_store,
+                store=_vector_store,
                 topk=payload.topk or cfg.topk,
                 rerank=_rerank,
             )
@@ -398,11 +450,11 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     Args:
         payload (QueryTextRequest): クエリ内容
 
-    Returns:
-        dict[str, Any]: 検索結果
-
     Raises:
         HTTPException: 設定の読み込みに失敗、または検索処理に失敗した場合
+
+    Returns:
+        dict[str, Any]: 検索結果
     """
     logger.debug("trace")
 
@@ -426,7 +478,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
         try:
             docs = await retriever.query_text_multi(
                 query=payload.query,
-                store=_store,
+                store=_vector_store,
                 topk=payload.topk or cfg.topk,
                 rerank=_rerank,
             )
@@ -471,7 +523,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
         try:
             docs = await retriever.query_image(
                 path=payload.path,
-                store=_store,
+                store=_vector_store,
                 topk=payload.topk or cfg.topk,
             )
         except Exception as e:
@@ -510,7 +562,7 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
     try:
         await ingest.ingest_from_path(
             path=payload.path,
-            store=_store,
+            store=_vector_store,
             file_loader=file_loader,
         )
     except Exception as e:
@@ -548,7 +600,7 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
     try:
         await ingest.ingest_from_path_list(
             list_path=payload.path,
-            store=_store,
+            store=_vector_store,
             file_loader=file_loader,
         )
     except Exception as e:
@@ -586,7 +638,7 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
         chunk_size=cfg.chunk_size,
         chunk_overlap=cfg.chunk_overlap,
         file_loader=file_loader,
-        store=_store,
+        store=_vector_store,
         user_agent=cfg.user_agent,
     )
 
@@ -594,7 +646,7 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
     try:
         await ingest.ingest_from_url(
             url=payload.url,
-            store=_store,
+            store=_vector_store,
             html_loader=html_loader,
         )
     except Exception as e:
@@ -631,7 +683,7 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
         chunk_size=cfg.chunk_size,
         chunk_overlap=cfg.chunk_overlap,
         file_loader=file_loader,
-        store=_store,
+        store=_vector_store,
         user_agent=cfg.user_agent,
     )
 
@@ -639,7 +691,7 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
     try:
         await ingest.ingest_from_url_list(
             list_path=payload.path,
-            store=_store,
+            store=_vector_store,
             html_loader=html_loader,
         )
     except Exception as e:

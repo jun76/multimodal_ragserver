@@ -8,8 +8,7 @@ from ragserver.logger import logger
 
 class META_KEYS_FROM:
     # ライブラリ側定義ラベル（字列変更不可）
-
-    # SimpleDirectoryReader
+    ## SimpleDirectoryReader
     FILE_PATH = "file_path"
     FILE_TYPE = "file_type"
     FILE_SIZE = "file_size"
@@ -19,12 +18,14 @@ class META_KEYS_FROM:
 
 class META_KEYS(META_KEYS_FROM):
     # 正規化し、アプリ側で付与するラベル
-
+    ## ノード内に保持する（＝BasicMetaData に含まれる）メタデータ
     CHUNK_NO = "chunk_no"
     URL = "url"
     BASE_SOURCE = "base_source"
     TEMP_FILE_PATH = "temp_file_path"
     NODE_LASTMOD_AT = "node_last_modified_date"
+    ## ノードの同一性確認用メタデータ
+    FINGERPRINT = "fingerprint"
 
 
 @dataclass
@@ -77,7 +78,7 @@ class BasicMetaData:
     url: str = ""  # 取得元 URL
     base_source: str = ""  # 出典情報（直リンク画像の親ページ等）
     temp_file_path: str = ""  # ダウンロード画像等の一時ファイルパス
-    node_lastmod_at: float = 0  # ノードの最終更新日時
+    node_lastmod_at: float = 0  # ノードの最終更新時刻（epoch 秒）
 
     def to_dict(self) -> dict[str, Any]:
         """メタデータの dict を返す。

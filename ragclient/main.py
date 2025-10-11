@@ -38,8 +38,8 @@ def _init_services() -> tuple[RagServerClient, str, str, str]:
     cfg = get_config()
     client = RagServerClient(cfg.ragserver_base_url)
     ragserver_health = cfg.ragserver_base_url.rstrip("/") + "/health"
-    embed_health = cfg.hfclip_embed_base_url.rstrip("/") + "/health"
-    rerank_health = cfg.hf_rerank_base_url.rstrip("/") + "/health"
+    embed_health = cfg.clip_embed_base_url.rstrip("/") + "/health"
+    rerank_health = cfg.flagembedding_rerank_base_url.rstrip("/") + "/health"
     return client, ragserver_health, embed_health, rerank_health
 
 

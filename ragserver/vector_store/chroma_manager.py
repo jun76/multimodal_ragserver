@@ -5,10 +5,12 @@ from typing import Optional
 import chromadb
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
+from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.names import CHROMA_STORE_NAME, PROJECT_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
+from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 
@@ -23,15 +25,15 @@ class ChromaManager(VectorStoreManager):
     ) -> None:
         """Chroma 管理クラス
 
-        Raises:
-            RuntimeError: Chroma クライアント生成失敗
-
         Args:
             persist_directory (Optional[str], optional): ローカル利用時の保存先ディレクトリ。Defaults to None.
             host (Optional[str], optional): リモートサーバ利用時のホスト。Defaults to None.
             port (Optional[int], optional): リモートサーバ利用時のポート番号。Defaults to None.
             check_update (bool, optional): ファイルの更新チェック要否。Defaults to True.
             knowledgebase_name (str, optional): ナレッジベース（用途）名。Defaults to "default".
+
+        Raises:
+            RuntimeError: Chroma クライアント生成失敗
         """
         logger.debug("trace")
 
@@ -67,11 +69,15 @@ class ChromaManager(VectorStoreManager):
         """
         return CHROMA_STORE_NAME
 
-    def activate_with(self, embed: EmbeddingManager):
+    def prepare_with(
+        self, embed: EmbeddingManager, meta_store: StructuredStoreManager, limit: int
+    ):
         """埋め込み管理に合わせてストアを初期化する。
 
         Args:
             embed (EmbeddingManager): 埋め込み管理
+            meta_store (StructuredStoreManager): メタデータ管理
+            limit (int): メタデータ読み込み件数上限
 
         Raises:
             RuntimeError: ストア初期化失敗
@@ -79,6 +85,7 @@ class ChromaManager(VectorStoreManager):
         logger.debug("trace")
 
         self._embed = embed
+        self._meta_store = meta_store
 
         try:
             text_collection = self._client.get_or_create_collection(
@@ -99,7 +106,17 @@ class ChromaManager(VectorStoreManager):
                     text_store=self._text_store,
                     image_store=self._image_store,
                 )
+                self._meta_store.prepare_with(
+                    space_key_text=embed.space_key_text,
+                    space_key_multi=embed.space_key_multi,
+                )
             else:
                 self._index = self._create_index(text_store=self._text_store)
+                self._meta_store.prepare_with(
+                    space_key_text=embed.space_key_text,
+                )
+
+            # メタデータ専用ストアから fingerprint キャッシュを復元
+            self._fp_cache = meta_store.select(cols=[MK.FINGERPRINT], limit=limit)
         except Exception as e:
             raise RuntimeError("failed to initialize stores") from e

@@ -39,14 +39,14 @@ terminate_service() {
 
 terminate_service "ragserver" 8000
 terminate_service "hf rerank server" 8002
-terminate_service "hfclip embed server" 8001
+terminate_service "clip embed server" 8001
 terminate_service "chroma server" 8003
 
 wait || true
 
 terminate_service "ragserver" 8000
 terminate_service "hf rerank server" 8002
-terminate_service "hfclip embed server" 8001
+terminate_service "clip embed server" 8001
 terminate_service "chroma server" 8003
 
 echo "all services stopped."

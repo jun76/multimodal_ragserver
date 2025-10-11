@@ -179,10 +179,12 @@ def render_admin_view(client: RagServerClient) -> None:
     st.caption("ragserver へリロード要求を送信します")
     st.multiselect("ベクトルストア", options=["chroma", "pgvector"], key="admin_vs")
     st.multiselect(
-        "埋め込みプロバイダ", options=["hfclip", "openai", "cohere"], key="admin_embed"
+        "埋め込みプロバイダ", options=["clip", "openai", "cohere"], key="admin_embed"
     )
     st.multiselect(
-        "リランクプロバイダ", options=["hf", "cohere", "none"], key="admin_rerank"
+        "リランクプロバイダ",
+        options=["flagembedding", "cohere", "none"],
+        key="admin_rerank",
     )
     st.button(
         "🔁 サーバをリロード",

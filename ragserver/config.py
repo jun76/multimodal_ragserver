@@ -27,6 +27,7 @@ class Config:
     vector_store: str
     load_limit: int
     check_update: bool
+    knowledgebase_name: str
 
     # Chroma
     chroma_persist_dir: str
@@ -44,16 +45,15 @@ class Config:
     pg_password: str
 
     # Embeddings
-    embed_provider: str  # hfclip|openai|cohere
+    embed_provider: str  # clip|openai|cohere
     openai_embed_model_text: str
     openai_api_key: str
     openai_base_url: str | None
     cohere_embed_model_text: str
     cohere_embed_model_image: str
     cohere_api_key: str | None
-    hfclip_embed_model_text: str
-    hfclip_embed_model_image: str
-    hfclip_embed_base_url: str
+    clip_embed_model_text: str
+    clip_embed_model_image: str
 
     # Ingestion
     chunk_size: int
@@ -62,8 +62,7 @@ class Config:
 
     # Retrieval/Rerank
     rerank_provider: str  # hf|cohere|none
-    hf_rerank_model: str
-    hf_rerank_base_url: str
+    flagembedding_rerank_model: str
     cohere_rerank_model: str
     topk: int
     upload_dir: str
@@ -198,12 +197,6 @@ def _validate_config(cfg: Config) -> Config:
             if not value:
                 raise ValueError(f"{key} must not be empty")
 
-    if cfg.embed_provider == CLIP_EMBED_NAME and not cfg.hfclip_embed_base_url:
-        raise ValueError("hfclip_embed_base_url must not be empty")
-
-    if cfg.rerank_provider == FLAGEMBEDDING_RERANK_NAME and not cfg.hf_rerank_base_url:
-        raise ValueError("hf_rerank_base_url must not be empty")
-
     if cfg.user_agent.strip() == "":
         raise ValueError("user_agent must not be empty")
 
@@ -232,6 +225,7 @@ def get_config() -> Config:
         vector_store=os.getenv("VECTOR_STORE", CHROMA_STORE_NAME),
         load_limit=_to_int("LOAD_LIMIT", 10000),
         check_update=_to_bool("CHECK_UPDATE", False),
+        knowledgebase_name=os.getenv("KNOWLEDGEBASE_NAME", "default"),
         # Chroma
         chroma_persist_dir=os.getenv("CHROMA_PERSIST_DIR", "chroma_db"),
         chroma_host=os.getenv("CHROMA_HOST"),
@@ -255,19 +249,17 @@ def get_config() -> Config:
         cohere_embed_model_text=os.getenv("COHERE_EMBED_MODEL_TEXT", "embed-v4.0"),
         cohere_embed_model_image=os.getenv("COHERE_EMBED_MODEL_IMAGE", "embed-v4.0"),
         cohere_api_key=os.getenv("COHERE_API_KEY"),
-        hfclip_embed_model_text=os.getenv("HFCLIP_EMBED_MODEL_TEXT", "ViT-B/32"),
-        hfclip_embed_model_image=os.getenv("HFCLIP_EMBED_MODEL_IMAGE", "ViT-B/32"),
-        hfclip_embed_base_url=os.getenv(
-            "HFCLIP_EMBED_BASE_URL", "http://localhost:8001/v1"
-        ),
+        clip_embed_model_text=os.getenv("CLIP_EMBED_MODEL_TEXT", "ViT-B/32"),
+        clip_embed_model_image=os.getenv("CLIP_EMBED_MODEL_IMAGE", "ViT-B/32"),
         # Ingestion
         chunk_size=_to_int("CHUNK_SIZE", 500),
         chunk_overlap=_to_int("CHUNK_OVERLAP", 50),
         user_agent=os.getenv("USER_AGENT", PROJECT_NAME),
         # Retrieval/Rerank
         rerank_provider=os.getenv("RERANK_PROVIDER", FLAGEMBEDDING_RERANK_NAME),
-        hf_rerank_model=os.getenv("HF_RERANK_MODEL", "BAAI/bge-reranker-v2-m3"),
-        hf_rerank_base_url=os.getenv("HF_RERANK_BASE_URL", "http://localhost:8002/v1"),
+        flagembedding_rerank_model=os.getenv(
+            "FLAGEMBEDDING_RERANK_MODEL", "BAAI/bge-reranker-v2-m3"
+        ),
         cohere_rerank_model=os.getenv(
             "COHERE_RERANK_MODEL", "rerank-multilingual-v3.0"
         ),

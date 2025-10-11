@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+# TODO: aiosqlite による非同期対応
 import sqlite3
+from typing import Any, Iterable, Optional, Sequence
 
 from ragserver.core.metadata import META_KEYS as MK
+from ragserver.core.metadata import BasicMetaData
 from ragserver.core.names import PROJECT_NAME
 from ragserver.logger import logger
 from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
 
-# DDL（{table_name} を format で埋める）
-DDL_METADATA = """
+# メタデータ管理テーブルの create 用
+DDL_CREATE_METADATA = """
 CREATE TABLE IF NOT EXISTS {table_name} (
   {file_path}        TEXT    NOT NULL DEFAULT '',   -- 取得元ファイルパス
   {file_type}        TEXT    NOT NULL DEFAULT '',   -- mimetype 等
@@ -18,18 +21,44 @@ CREATE TABLE IF NOT EXISTS {table_name} (
   {chunk_no}         INTEGER NOT NULL DEFAULT 0,    -- テキストのチャンク番号
   {url}              TEXT    NOT NULL DEFAULT '',   -- 取得元 URL（無ければ空）
   {base_source}      TEXT    NOT NULL DEFAULT '',   -- 出典（直リンク画像の親ページ等）
-  {node_lastmod_at}  REAL    NOT NULL DEFAULT 0,    -- ノードの最終更新（epoch秒 推奨）
+  {node_lastmod_at}  REAL    NOT NULL DEFAULT 0,    -- ノードの最終更新時刻（epoch 秒）
+  {fingerprint}      TEXT    NOT NULL DEFAULT '',   -- fingerprint 文字列
   PRIMARY KEY ({file_path}, {url}, {chunk_no})
 );
 """
 
+# 同じソース塊（ファイル x URL x チャンク）を常に 1 行に保つ
+# 内容が変われば同じ行を上書き（fingerprint も更新）
+DDL_IDX_FINGERPRINT = "CREATE UNIQUE INDEX IF NOT EXISTS idx_{table_name}_fingerprint ON {table_name}({fingerprint});"
+
 # システム起動時の fingerprint キャッシュロード時に効く
-DDL_IDX_NODE_LASTMOD_AT = "CREATE INDEX IF NOT EXISTS idx_{table}_node_lastmod_at ON {table}({node_lastmod_at} DESC);"
+DDL_IDX_NODE_LASTMOD_AT = "CREATE INDEX IF NOT EXISTS idx_{table_name}_{node_lastmod_at} ON {table_name}({node_lastmod_at} DESC);"
 
 # DELETE FROM table WHERE base_source = ?; 等に効く
-DDL_IDX_BASE_SOURCE = (
-    "CREATE INDEX IF NOT EXISTS idx_{table}_base_source ON {table}({base_source});"
-)
+DDL_IDX_BASE_SOURCE = "CREATE INDEX IF NOT EXISTS idx_{table_name}_{base_source} ON {table_name}({base_source});"
+
+# メタデータ管理テーブルの upsert 用
+DML_UPSERT_METADATA = """
+INSERT INTO {table_name} (
+  {file_path},
+  {file_type},
+  {file_size},
+  {file_created_at},
+  {file_lastmod_at},
+  {chunk_no},
+  {url},
+  {base_source},
+  {node_lastmod_at},
+  {fingerprint}
+) VALUES (?,?,?,?,?,?,?,?,?,?)
+ON CONFLICT({file_path},{url},{chunk_no}) DO UPDATE SET
+  {file_type}       = excluded.{file_type},
+  {file_size}       = excluded.{file_size},
+  {file_lastmod_at} = excluded.{file_lastmod_at},
+  {base_source}     = excluded.{base_source},
+  {node_lastmod_at} = excluded.{node_lastmod_at},
+  {fingerprint}     = excluded.{fingerprint}
+"""
 
 
 class SQLiteManager(StructuredStoreManager):
@@ -50,7 +79,7 @@ class SQLiteManager(StructuredStoreManager):
         super().__init__(knowledgebase_name)
 
         try:
-            self._db = sqlite3.connect(f"{PROJECT_NAME}")
+            self._db = sqlite3.connect(f"{PROJECT_NAME}.db")
         except Exception as e:
             raise RuntimeError("failed to initialize") from e
 
@@ -60,12 +89,15 @@ class SQLiteManager(StructuredStoreManager):
 
         self._db.close()
 
-    def _exec_query(self, query: str, params: list[str]) -> dict[str, str]:
+    def _exec_query(self, query: str, params: list[Any]) -> dict[str, str]:
         """クエリを実行する。
 
         Args:
             query (str): クエリ
-            params (list[str]): パラメータのリスト
+            params (list[Any]): パラメータのリスト
+
+        Raises:
+            RuntimeError: クエリ実行失敗
 
         Returns:
             dict[str, str]: 取得したレコード群
@@ -84,7 +116,7 @@ class SQLiteManager(StructuredStoreManager):
 
         return res
 
-    def activate_with(self, space_key: str):
+    def _prepare_with(self, space_key: str) -> None:
         """空間キーに合わせてストアを初期化する。
 
         Args:
@@ -95,22 +127,32 @@ class SQLiteManager(StructuredStoreManager):
         """
         logger.debug("trace")
 
-        table_name = f"{PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
-        query = DDL_METADATA.format(
-            table_name=table_name,
-            file_path=MK.FILE_PATH,
-            file_type=MK.FILE_TYPE,
-            file_size=MK.FILE_SIZE,
-            file_created_at=MK.FILE_CREATED_AT,
-            file_lastmod_at=MK.FILE_LASTMOD_AT,
-            chunk_no=MK.CHUNK_NO,
-            url=MK.URL,
-            base_source=MK.BASE_SOURCE,
-            node_lastmod_at=MK.NODE_LASTMOD_AT,
-        )
+        self._space_key = space_key
 
+        table_name = f"{PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
         try:
-            self._exec_query(query, [])
+            self._exec_query(
+                DDL_CREATE_METADATA.format(
+                    table_name=table_name,
+                    file_path=MK.FILE_PATH,
+                    file_type=MK.FILE_TYPE,
+                    file_size=MK.FILE_SIZE,
+                    file_created_at=MK.FILE_CREATED_AT,
+                    file_lastmod_at=MK.FILE_LASTMOD_AT,
+                    chunk_no=MK.CHUNK_NO,
+                    url=MK.URL,
+                    base_source=MK.BASE_SOURCE,
+                    node_lastmod_at=MK.NODE_LASTMOD_AT,
+                    fingerprint=MK.FINGERPRINT,
+                ),
+                [],
+            )
+            self._exec_query(
+                DDL_IDX_FINGERPRINT.format(
+                    table=table_name, fingerprint=MK.FINGERPRINT
+                ),
+                [],
+            )
             self._exec_query(
                 DDL_IDX_NODE_LASTMOD_AT.format(
                     table=table_name, node_lastmod_at=MK.NODE_LASTMOD_AT
@@ -125,4 +167,145 @@ class SQLiteManager(StructuredStoreManager):
                 [],
             )
         except Exception as e:
-            raise RuntimeError("failed to exec DDL query") from e
+            raise RuntimeError("failed to exec DDL queries") from e
+
+    def prepare_with(
+        self, space_key_text: str, space_key_multi: Optional[str] = None
+    ) -> None:
+        """空間キーに合わせてストアを初期化する。
+
+        Args:
+            space_key_text (str): テキストベクトルの空間キー
+            space_key_multi (Optional[str], optional): 画像ベクトルの空間キー。Defaults to None.
+
+        Raises:
+            RuntimeError: ストア初期化失敗
+        """
+        logger.debug("trace")
+
+        self._prepare_with(space_key_text)
+
+        if space_key_multi:
+            self._prepare_with(space_key_multi)
+
+    def _upsert_metadata_batch(
+        self,
+        table_name: str,
+        rows: Iterable[Sequence[Any]],  # パラメタ順は下に記載
+        chunk_size: int = 1000,
+    ) -> None:
+        """メタデータのバッチ upsert。
+
+        Args:
+            table_name (str): テーブル名
+            rows (Iterable[Sequence[Any]]): メタデータ（複数レコード）
+            chunk_size (int): バッチ数が多すぎる場合の分割用
+
+        Raises:
+            RuntimeError: upsert 失敗
+        """
+        logger.debug("trace")
+
+        sql = DML_UPSERT_METADATA.format(
+            table_name=table_name,
+            file_path=MK.FILE_PATH,
+            file_type=MK.FILE_TYPE,
+            file_size=MK.FILE_SIZE,
+            file_created_at=MK.FILE_CREATED_AT,
+            file_lastmod_at=MK.FILE_LASTMOD_AT,
+            chunk_no=MK.CHUNK_NO,
+            url=MK.URL,
+            base_source=MK.BASE_SOURCE,
+            node_lastmod_at=MK.NODE_LASTMOD_AT,
+            fingerprint=MK.FINGERPRINT,
+        )
+
+        cur = self._db.cursor()
+        try:
+            self._db.execute("BEGIN")
+            batch = []
+            for row in rows:
+                batch.append(row)
+                if len(batch) >= chunk_size:
+                    cur.executemany(sql, batch)
+                    batch.clear()
+
+            if batch:
+                cur.executemany(sql, batch)
+
+            self._db.commit()
+        except Exception as e:
+            self._db.rollback()
+            cur.close()
+            raise RuntimeError("failed to upsert batch") from e
+        finally:
+            cur.close()
+
+    def _upsert(
+        self, metas: list[BasicMetaData], fingerprints: list[str], space_key: str
+    ) -> None:
+        """メタデータをストアに格納する。
+
+        Args:
+            metas (list[BasicMetaData]): メタデータ
+            fingerprints (list[str]): fingerprint 文字列
+            space_key (str): 空間キー
+        """
+        logger.debug("trace")
+
+        rows = []
+        for i, meta in enumerate(metas):
+            row = (
+                meta.file_path,
+                meta.file_type,
+                meta.file_size,
+                meta.file_created_at,
+                meta.file_lastmod_at,
+                meta.chunk_no,
+                meta.url,
+                meta.base_source,
+                meta.node_lastmod_at,
+                fingerprints[i],
+            )
+            rows.append(row)
+
+        table_name = f"{PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
+        self._upsert_metadata_batch(table_name=table_name, rows=rows)
+
+    def upsert_text_metas(
+        self, metas: list[BasicMetaData], fingerprints: list[str]
+    ) -> None:
+        """テキストノードのメタデータをストアに格納する。
+
+        Args:
+            metas (list[BasicMetaData]): メタデータ
+            fingerprints (list[str]): fingerprint 文字列
+        """
+        logger.debug("trace")
+
+        if self._space_key_text is None:
+            logger.warning("space key(text) is not initialized")
+            return
+
+        self._upsert(
+            metas=metas, fingerprints=fingerprints, space_key=self._space_key_text
+        )
+
+    def upsert_image_metas(
+        self, metas: list[BasicMetaData], fingerprints: list[str]
+    ) -> None:
+        """画像ノードのメタデータをストアに格納する。
+
+        Args:
+            metas (list[BasicMetaData]): メタデータ
+            fingerprints (list[str]): fingerprint 文字列
+        """
+        logger.debug("trace")
+
+        if self._space_key_multi is None:
+            logger.warning("space key(multi) is not initialized")
+            return
+
+        self._upsert(
+            metas=metas, fingerprints=fingerprints, space_key=self._space_key_multi
+        )

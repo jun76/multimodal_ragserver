@@ -9,8 +9,8 @@ __all__ = ["get_config"]
 
 CHROMA_STORE_NAME = "chroma"
 PGVECTOR_STORE_NAME = "pgvector"
-HFCLIP_EMBED_NAME = "hfclip"
-HF_RERANK_NAME = "hf"
+CLIP_EMBED_NAME = "clip"
+FLAGEMBEDDING_RERANK_NAME = "flagembedding"
 
 
 @dataclass
@@ -22,10 +22,10 @@ class Config:
     vector_store: str
 
     # Embeddings
-    hfclip_embed_base_url: str
+    clip_embed_base_url: str
 
     # Retrieval/Rerank
-    hf_rerank_base_url: str
+    flagembedding_rerank_base_url: str
 
     # LLM
     llm_provider: str  # local|openai
@@ -56,11 +56,13 @@ def get_config() -> Config:
         # vector store
         vector_store=os.getenv("VECTOR_STORE", CHROMA_STORE_NAME),
         # Embeddings
-        hfclip_embed_base_url=os.getenv(
-            "HFCLIP_EMBED_BASE_URL", "http://localhost:8001/v1"
+        clip_embed_base_url=os.getenv(
+            "CLIP_EMBED_BASE_URL", "http://localhost:8001/v1"
         ),
         # Retrieval/Rerank
-        hf_rerank_base_url=os.getenv("HF_RERANK_BASE_URL", "http://localhost:8002/v1"),
+        flagembedding_rerank_base_url=os.getenv(
+            "FLAGEMBEDDING_RERANK_BASE_URL", "http://localhost:8002/v1"
+        ),
         # LLM
         llm_provider=os.getenv("LLM_PROVIDER", "local"),
         llm_local_model=os.getenv("LLM_LOCAL_MODEL", "unsloth/gpt-oss-20b"),

@@ -13,6 +13,7 @@ from ragserver.core.metadata import META_KEYS as MK
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
+from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
 
 
 class VectorStoreManager(ABC):
@@ -32,6 +33,7 @@ class VectorStoreManager(ABC):
         self._image_store: Optional[BasePydanticVectorStore] = None
         self._index: Optional[VectorStoreIndex] = None
         self._embed: Optional[EmbeddingManager] = None
+        self._meta_store: Optional[StructuredStoreManager] = None
 
         # 各ストア（空間キー毎）の初期化時に同期し、以降は fingerprint チェックの度に追加
         self._fp_cache: dict[str, str] = {}
@@ -55,11 +57,15 @@ class VectorStoreManager(ABC):
         return self._index
 
     @abstractmethod
-    def activate_with(self, embed: EmbeddingManager):
+    def prepare_with(
+        self, embed: EmbeddingManager, meta_store: StructuredStoreManager, limit: int
+    ):
         """埋め込み管理に合わせてストアを初期化する。
 
         Args:
             embed (EmbeddingManager): 埋め込み管理
+            meta_store (StructuredStoreManager): メタデータ管理
+            limit (int): メタデータ読み込み件数上限
 
         Raises:
             RuntimeError: ストア初期化失敗
@@ -104,14 +110,23 @@ class VectorStoreManager(ABC):
             return
 
         if self._embed is None:
-            logger.warning("embedding is not set")
+            logger.warning("embedding is not initialized")
+            return
+
+        if self._meta_store is None:
+            logger.warning("metadata store is not initialized")
             return
 
         node_texts = []
         node_ids = []
+        metas = []
+        fps = []
         for node in nodes:
             node_texts.append(node.text)
             node_ids.append(node.node_id)
+            meta = node.metadata
+            metas.append(meta)
+            fps.append(self._get_lazy_fp(meta))
 
         try:
             vecs = await self._embed.embed_text(node_texts)
@@ -120,6 +135,7 @@ class VectorStoreManager(ABC):
                 nodes=nodes,
                 embeddings=vecs,
             )
+            self._meta_store.upsert_text_metas(metas=metas, fingerprints=fps)
         except Exception as e:
             logger.exception(e)
 
@@ -139,9 +155,15 @@ class VectorStoreManager(ABC):
             logger.warning("image store is not initialized")
             return
 
+        if self._meta_store is None:
+            logger.warning("metadata store is not initialized")
+            return
+
         file_paths = []
         temp_file_paths = []
         node_ids = []
+        metas = []
+        fps = []
         for node in nodes:
             meta = node.metadata
 
@@ -161,6 +183,9 @@ class VectorStoreManager(ABC):
                     continue
 
             node_ids.append(node.node_id)
+            meta = node.metadata
+            metas.append(meta)
+            fps.append(self._get_lazy_fp(meta))
 
         try:
             vecs = await self._embed.embed_image(file_paths)
@@ -169,6 +194,7 @@ class VectorStoreManager(ABC):
                 nodes=nodes,
                 embeddings=vecs,
             )
+            self._meta_store.upsert_image_metas(metas=metas, fingerprints=fps)
         except Exception as e:
             logger.exception(e)
         finally:
@@ -195,7 +221,7 @@ class VectorStoreManager(ABC):
         logger.debug("trace")
 
         if self._embed is None:
-            logger.warning("embedding is not set")
+            logger.warning("embedding is not initialized")
             return
 
         if image_store:

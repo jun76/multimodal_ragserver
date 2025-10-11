@@ -22,8 +22,8 @@
 	"forwardPorts": [
 		1234, // LM Studio
 		8000, // ragserver + MCP
-		8001, // hfclip_embed
-		8002, // hf_rerank
+		8001, // clip_embed
+		8002, // flagembedding_rerank
 		8003, // chroma
 		8004, // ragclient
 		8005, // reserved
