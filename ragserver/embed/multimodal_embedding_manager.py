@@ -47,10 +47,10 @@ class MultiModalEmbeddingManager(EmbeddingManager):
         """画像の埋め込みベクトルを取得する。
 
         Args:
-            paths (list[Embedding]): 画像のパス（または base64 画像の直渡しでも OK）
+            paths (list[ImageType]): 画像のパス（または base64 画像の直渡しでも OK）
 
         Returns:
-            Embedding: 埋め込みベクトル
+            list[Embedding]: 埋め込みベクトル
         """
         logger.debug("trace")
 

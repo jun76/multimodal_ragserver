@@ -7,7 +7,7 @@ from ragserver.core.names import PGVECTOR_STORE_NAME, PROJECT_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
-from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
+from ragserver.stractured_store.structured_store_manager import StructuredStoreManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 
@@ -38,10 +38,7 @@ class PgVectorManager(VectorStoreManager):
         """
         logger.debug("trace")
 
-        VectorStoreManager.__init__(
-            self,
-            check_update=check_update,
-        )
+        super().__init__(check_update)
         self._host = host
         self._port = port
         self._dbname = dbname
@@ -60,7 +57,7 @@ class PgVectorManager(VectorStoreManager):
 
     def prepare_with(
         self, embed: EmbeddingManager, meta_store: StructuredStoreManager, limit: int
-    ):
+    ) -> None:
         """埋め込み管理に合わせてストアを初期化する。
 
         Args:
@@ -83,8 +80,7 @@ class PgVectorManager(VectorStoreManager):
                 database=self._dbname,
                 user=self._user,
                 password=self._password,
-                table_name=f"{PROJECT_NAME}_{self._knowledgebase_name}_"
-                + embed.space_key_text,
+                table_name=f"{PROJECT_NAME}_{self._knowledgebase_name}_{embed.space_key_text}",
             )
 
             if isinstance(embed, MultiModalEmbeddingManager):
@@ -94,8 +90,7 @@ class PgVectorManager(VectorStoreManager):
                     database=self._dbname,
                     user=self._user,
                     password=self._password,
-                    table_name=f"{PROJECT_NAME}_{self._knowledgebase_name}_"
-                    + embed.space_key_multi,
+                    table_name=f"{PROJECT_NAME}_{self._knowledgebase_name}_{embed.space_key_multi}",
                 )
                 self._index = self._create_index(
                     text_store=self._text_store,
@@ -112,6 +107,6 @@ class PgVectorManager(VectorStoreManager):
                 )
 
             # メタデータ専用ストアから fingerprint キャッシュを復元
-            self._fp_cache = meta_store.select(cols=[MK.FINGERPRINT], limit=limit)
+            self._fp_cache = self._load_fp_cache(limit)
         except Exception as e:
             raise RuntimeError("failed to initialize stores") from e

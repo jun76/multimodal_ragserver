@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from abc import ABC, abstractmethod
 from typing import Any, Optional
@@ -13,7 +15,7 @@ from ragserver.core.metadata import META_KEYS as MK
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
-from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
+from ragserver.stractured_store.structured_store_manager import StructuredStoreManager
 
 
 class VectorStoreManager(ABC):
@@ -59,7 +61,7 @@ class VectorStoreManager(ABC):
     @abstractmethod
     def prepare_with(
         self, embed: EmbeddingManager, meta_store: StructuredStoreManager, limit: int
-    ):
+    ) -> None:
         """埋め込み管理に合わせてストアを初期化する。
 
         Args:
@@ -70,6 +72,23 @@ class VectorStoreManager(ABC):
         Raises:
             RuntimeError: ストア初期化失敗
         """
+
+    def _load_fp_cache(self, limit: int) -> dict[str, str]:
+        logger.debug("trace")
+
+        if self._meta_store is None:
+            logger.warning("metadata store is not initialized")
+            return {}
+
+        rows = self._meta_store.select(
+            cols=[MK.FILE_PATH, MK.URL, MK.FINGERPRINT], limit=limit
+        )
+
+        fp_cache = {}
+        for row in rows:
+            fp_cache[row[0] or row[1]] = row[2]
+
+        return fp_cache
 
     def _split_nodes_modality(
         self,
@@ -183,7 +202,6 @@ class VectorStoreManager(ABC):
                     continue
 
             node_ids.append(node.node_id)
-            meta = node.metadata
             metas.append(meta)
             fps.append(self._get_lazy_fp(meta))
 
@@ -275,13 +293,14 @@ class VectorStoreManager(ABC):
         logger.debug("trace")
 
         # Web ページの場合、現状 URL しかチェックしない
-        return (
-            f"{MK.FILE_PATH}:{meta.get(MK.FILE_PATH) or ""}_"
-            + f"{MK.FILE_SIZE}:{meta.get(MK.FILE_SIZE) or ""}_"
-            + f"{MK.FILE_LASTMOD_AT}:{meta.get(MK.FILE_LASTMOD_AT) or ""}_"
-            + f"{MK.CHUNK_NO}:{meta.get(MK.CHUNK_NO) or ""}_"
-            + f"{MK.URL}:{meta.get(MK.URL) or ""}"
-        )
+        fp_data = {
+            MK.FILE_PATH: meta.get(MK.FILE_PATH) or "",
+            MK.FILE_SIZE: meta.get(MK.FILE_SIZE) or "",
+            MK.FILE_LASTMOD_AT: meta.get(MK.FILE_LASTMOD_AT) or "",
+            MK.CHUNK_NO: meta.get(MK.CHUNK_NO) or "",
+            MK.URL: meta.get(MK.URL) or "",
+        }
+        return hashlib.md5(json.dumps(fp_data, sort_keys=True).encode()).hexdigest()
 
     def _filter_nodes_by_fp(self, nodes: list[BaseNode]) -> list[BaseNode]:
         """fingerprint に基づき既存ノードを除外したリストを返す。

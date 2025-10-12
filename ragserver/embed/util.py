@@ -13,7 +13,7 @@ EMBTYPE_IMAGE = "image"
 def _sanitize_space_key(space_key: str) -> str:
     """制約にマッチするよう space_key 文字列を整形する。
 
-    制約：
+    制約（AND）：
         Chroma
             containing 3-512 characters from [a-zA-Z0-9._-],
             starting and ending with a character in [a-zA-Z0-9]

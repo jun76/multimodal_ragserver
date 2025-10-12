@@ -1,12 +1,23 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Optional
 
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
 from ragserver.core.names import PROJECT_NAME
 from ragserver.logger import logger
+
+DML_SELECT = """
+SELECT {col_list}
+FROM (
+  SELECT {col_list}, {order_col} AS _ord FROM {text_table}
+  UNION ALL
+  SELECT {col_list}, {order_col} AS _ord FROM {image_table}
+) AS _u
+ORDER BY _ord DESC
+LIMIT {limit}
+"""
 
 
 class StructuredStoreManager(ABC):
@@ -28,15 +39,17 @@ class StructuredStoreManager(ABC):
         self._space_key_multi = None
 
     @abstractmethod
-    def _exec_query(self, query: str, params: list[Any]) -> dict[str, str]:
+    def _exec_query(self, query: str) -> list[tuple]:
         """クエリを実行する。
 
         Args:
             query (str): クエリ
-            params (list[Any]): パラメータのリスト
+
+        Raises:
+            RuntimeError: クエリ実行失敗
 
         Returns:
-            dict[str, str]: 取得したレコード群
+            list[tuple]: 取得したレコード群
         """
 
     @abstractmethod
@@ -53,7 +66,7 @@ class StructuredStoreManager(ABC):
             RuntimeError: ストア初期化失敗
         """
 
-    def select(self, cols: list[str], limit: int) -> dict[str, str]:
+    def select(self, cols: list[str], limit: int) -> list[tuple]:
         """select 文を実行する。
 
         Args:
@@ -61,28 +74,23 @@ class StructuredStoreManager(ABC):
             limit (int): 件数上限
 
         Returns:
-            dict[str, str]: 取得したレコード群
+            list[tuple]: 取得したレコード群
         """
         logger.debug("trace")
 
         if self._space_key_text is None or self._space_key_multi is None:
             logger.warning("space key is not initialized")
-            return {}
+            return []
 
-        params = []
-        query = f"SELECT ? FROM ?"
-        params.append(" ".join(cols))
-        params.append(
-            f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text} "
+        return self._exec_query(
+            DML_SELECT.format(
+                col_list=", ".join(cols),
+                text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
+                image_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_multi}",
+                order_col=MK.NODE_LASTMOD_AT,
+                limit=limit,
+            )
         )
-        params.append(
-            f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_multi} "
-        )
-
-        query += f"ORDER BY {MK.NODE_LASTMOD_AT} DESC LIMIT ?"
-        params.append(limit)
-
-        return self._exec_query(query, params)
 
     @abstractmethod
     def upsert_text_metas(

@@ -76,7 +76,7 @@ class FileLoader(Loader):
                     node.metadata = BasicMetaData(
                         file_path=file_path,
                         file_type=meta.get(MKF.FILE_TYPE) or "",
-                        file_size=int(meta.get(MKF.FILE_SIZE) or ""),
+                        file_size=int(meta.get(MKF.FILE_SIZE) or 0),
                         file_created_at=meta.get(MKF.FILE_CREATED_AT) or "",
                         file_lastmod_at=meta.get(MKF.FILE_LASTMOD_AT) or "",
                         chunk_no=i,

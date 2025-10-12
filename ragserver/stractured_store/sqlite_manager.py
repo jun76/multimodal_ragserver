@@ -8,7 +8,7 @@ from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
 from ragserver.core.names import PROJECT_NAME
 from ragserver.logger import logger
-from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
+from ragserver.stractured_store.structured_store_manager import StructuredStoreManager
 
 # メタデータ管理テーブルの create 用
 DDL_CREATE_METADATA = """
@@ -89,27 +89,26 @@ class SQLiteManager(StructuredStoreManager):
 
         self._db.close()
 
-    def _exec_query(self, query: str, params: list[Any]) -> dict[str, str]:
+    def _exec_query(self, query: str) -> list[tuple]:
         """クエリを実行する。
 
         Args:
             query (str): クエリ
-            params (list[Any]): パラメータのリスト
 
         Raises:
             RuntimeError: クエリ実行失敗
 
         Returns:
-            dict[str, str]: 取得したレコード群
+            list[tuple]: 取得したレコード群
         """
-
         logger.debug("trace")
+        logger.info(query)
 
         try:
             cur = self._db.cursor()
-            cur.execute(query, params)
+            cur.execute(query)
             self._db.commit()
-            res = dict(cur.fetchall())
+            res = cur.fetchall()
             cur.close()
         except Exception as e:
             raise RuntimeError("failed to exec query") from e
@@ -127,8 +126,6 @@ class SQLiteManager(StructuredStoreManager):
         """
         logger.debug("trace")
 
-        self._space_key = space_key
-
         table_name = f"{PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
         try:
             self._exec_query(
@@ -144,27 +141,23 @@ class SQLiteManager(StructuredStoreManager):
                     base_source=MK.BASE_SOURCE,
                     node_lastmod_at=MK.NODE_LASTMOD_AT,
                     fingerprint=MK.FINGERPRINT,
-                ),
-                [],
+                )
             )
             self._exec_query(
                 DDL_IDX_FINGERPRINT.format(
-                    table=table_name, fingerprint=MK.FINGERPRINT
-                ),
-                [],
+                    table_name=table_name, fingerprint=MK.FINGERPRINT
+                )
             )
             self._exec_query(
                 DDL_IDX_NODE_LASTMOD_AT.format(
-                    table=table_name, node_lastmod_at=MK.NODE_LASTMOD_AT
-                ),
-                [],
+                    table_name=table_name, node_lastmod_at=MK.NODE_LASTMOD_AT
+                )
             )
             self._exec_query(
                 DDL_IDX_BASE_SOURCE.format(
-                    table=table_name,
+                    table_name=table_name,
                     base_source=MK.BASE_SOURCE,
-                ),
-                [],
+                )
             )
         except Exception as e:
             raise RuntimeError("failed to exec DDL queries") from e
@@ -183,9 +176,11 @@ class SQLiteManager(StructuredStoreManager):
         """
         logger.debug("trace")
 
+        self._space_key_text = space_key_text
         self._prepare_with(space_key_text)
 
         if space_key_multi:
+            self._space_key_multi = space_key_multi
             self._prepare_with(space_key_multi)
 
     def _upsert_metadata_batch(

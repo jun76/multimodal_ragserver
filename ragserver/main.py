@@ -29,7 +29,7 @@ from ragserver.rerank.flagembedding_rerank_manager import FlagEmbeddingRerankMan
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.retrieval import retriever
 from ragserver.stractured_store.sqlite_manager import SQLiteManager
-from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
+from ragserver.stractured_store.structured_store_manager import StructuredStoreManager
 from ragserver.vector_store.chroma_manager import ChromaManager
 from ragserver.vector_store.pgvector_manager import PgVectorManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
@@ -116,7 +116,7 @@ def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
 _embed = _create_embed()
 
 
-def _create_meta_store() -> StructuredStoreManager:
+def _create_meta_store(embed: EmbeddingManager) -> StructuredStoreManager:
     """メタデータ専用ストアのインスタンスを作成する。
 
     Raises:
@@ -134,13 +134,24 @@ def _create_meta_store() -> StructuredStoreManager:
         raise RuntimeError(f"failed to load configuration: {e}") from e
 
     try:
-        return SQLiteManager(knowledgebase_name=cfg.knowledgebase_name)
+        meta_store = SQLiteManager(knowledgebase_name=cfg.knowledgebase_name)
+        if isinstance(embed, MultiModalEmbeddingManager):
+            meta_store.prepare_with(
+                space_key_text=embed.space_key_text,
+                space_key_multi=embed.space_key_multi,
+            )
+        else:
+            meta_store.prepare_with(
+                space_key_text=embed.space_key_text,
+            )
     except Exception as e:
         traceback.print_exc()
         raise RuntimeError(f"failed to prepare metadata store: {e}") from e
 
+    return meta_store
 
-_meta_store = _create_meta_store()
+
+_meta_store = _create_meta_store(_embed)
 
 
 def _create_vector_store(
@@ -169,30 +180,29 @@ def _create_vector_store(
     if name:
         cfg.vector_store = name
 
-    match cfg.vector_store:
-        case names.PGVECTOR_STORE_NAME:
-            vector_store = PgVectorManager(
-                host=cfg.pg_host,
-                port=cfg.pg_port,
-                dbname=cfg.pg_database,
-                user=cfg.pg_user,
-                password=cfg.pg_password,
-                check_update=cfg.check_update,
-                knowledgebase_name=cfg.knowledgebase_name,
-            )
-        case names.CHROMA_STORE_NAME:
-            vector_store = ChromaManager(
-                persist_directory=cfg.chroma_persist_dir,
-                host=cfg.chroma_host,
-                port=cfg.chroma_port,
-                check_update=cfg.check_update,
-                knowledgebase_name=cfg.knowledgebase_name,
-            )
-        case _:
-            traceback.print_exc()
-            raise RuntimeError(f"failed to create store")
-
     try:
+        match cfg.vector_store:
+            case names.PGVECTOR_STORE_NAME:
+                vector_store = PgVectorManager(
+                    host=cfg.pg_host,
+                    port=cfg.pg_port,
+                    dbname=cfg.pg_database,
+                    user=cfg.pg_user,
+                    password=cfg.pg_password,
+                    check_update=cfg.check_update,
+                    knowledgebase_name=cfg.knowledgebase_name,
+                )
+            case names.CHROMA_STORE_NAME:
+                vector_store = ChromaManager(
+                    persist_directory=cfg.chroma_persist_dir,
+                    host=cfg.chroma_host,
+                    port=cfg.chroma_port,
+                    check_update=cfg.check_update,
+                    knowledgebase_name=cfg.knowledgebase_name,
+                )
+            case _:
+                raise RuntimeError(f"failed to create store")
+
         global _meta_store
         vector_store.prepare_with(
             embed=embed, meta_store=_meta_store, limit=cfg.load_limit

@@ -10,7 +10,7 @@ from ragserver.core.names import CHROMA_STORE_NAME, PROJECT_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
-from ragserver.stractured_store.stractured_store_manager import StructuredStoreManager
+from ragserver.stractured_store.structured_store_manager import StructuredStoreManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 
@@ -37,14 +37,11 @@ class ChromaManager(VectorStoreManager):
         """
         logger.debug("trace")
 
-        VectorStoreManager.__init__(
-            self,
-            check_update,
-        )
+        super().__init__(check_update)
         self._knowledgebase_name = knowledgebase_name
 
         try:
-            if host and port:
+            if host is not None and port is not None:
                 # リモートモード
                 client = chromadb.HttpClient(
                     host=host,
@@ -71,7 +68,7 @@ class ChromaManager(VectorStoreManager):
 
     def prepare_with(
         self, embed: EmbeddingManager, meta_store: StructuredStoreManager, limit: int
-    ):
+    ) -> None:
         """埋め込み管理に合わせてストアを初期化する。
 
         Args:
@@ -89,15 +86,13 @@ class ChromaManager(VectorStoreManager):
 
         try:
             text_collection = self._client.get_or_create_collection(
-                name=f"{PROJECT_NAME}_{self._knowledgebase_name}_"
-                + embed.space_key_text
+                name=f"{PROJECT_NAME}_{self._knowledgebase_name}_{embed.space_key_text}"
             )
             self._text_store = ChromaVectorStore(chroma_collection=text_collection)
 
             if isinstance(embed, MultiModalEmbeddingManager):
                 image_collection = self._client.get_or_create_collection(
-                    name=f"{PROJECT_NAME}_{self._knowledgebase_name}_"
-                    + embed.space_key_multi
+                    name=f"{PROJECT_NAME}_{self._knowledgebase_name}_{embed.space_key_multi}"
                 )
                 self._image_store = ChromaVectorStore(
                     chroma_collection=image_collection
@@ -117,6 +112,6 @@ class ChromaManager(VectorStoreManager):
                 )
 
             # メタデータ専用ストアから fingerprint キャッシュを復元
-            self._fp_cache = meta_store.select(cols=[MK.FINGERPRINT], limit=limit)
+            self._fp_cache = self._load_fp_cache(limit)
         except Exception as e:
             raise RuntimeError("failed to initialize stores") from e
