@@ -7,7 +7,7 @@ from ragserver.core.names import PGVECTOR_STORE_NAME, PROJECT_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
-from ragserver.stractured_store.structured_store_manager import StructuredStoreManager
+from ragserver.structured_store.structured_store_manager import StructuredStoreManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 

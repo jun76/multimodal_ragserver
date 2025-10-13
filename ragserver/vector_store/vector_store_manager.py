@@ -12,10 +12,11 @@ from llama_index.core.schema import BaseNode, ImageNode, TextNode
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 
 from ragserver.core.metadata import META_KEYS as MK
+from ragserver.core.metadata import BasicMetaData
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
-from ragserver.stractured_store.structured_store_manager import StructuredStoreManager
+from ragserver.structured_store.structured_store_manager import StructuredStoreManager
 
 
 class VectorStoreManager(ABC):
@@ -124,6 +125,10 @@ class VectorStoreManager(ABC):
         """
         logger.debug("trace")
 
+        if len(nodes) == 0:
+            logger.warning("empty list")
+            return
+
         if self._text_store is None:
             logger.warning("text store is not initialized")
             return
@@ -136,27 +141,29 @@ class VectorStoreManager(ABC):
             logger.warning("metadata store is not initialized")
             return
 
-        node_texts = []
-        node_ids = []
+        texts = []
+        ids = []
         metas = []
         fps = []
         for node in nodes:
-            node_texts.append(node.text)
-            node_ids.append(node.node_id)
-            meta = node.metadata
+            texts.append(node.text)
+            ids.append(node.node_id)
+            meta = BasicMetaData(node.metadata)
             metas.append(meta)
             fps.append(self._get_lazy_fp(meta))
 
         try:
-            vecs = await self._embed.embed_text(node_texts)
-            await self._text_store.adelete_nodes(node_ids)
-            await self._text_store.async_add(
-                nodes=nodes,
-                embeddings=vecs,
-            )
+            vecs = await self._embed.embed_text(texts)
+            for node, vec in zip(nodes, vecs):
+                node.embedding = vec
+
+            await self._text_store.adelete_nodes(ids)
+            await self._text_store.async_add(nodes)
             self._meta_store.upsert_text_metas(metas=metas, fingerprints=fps)
         except Exception as e:
             logger.exception(e)
+
+        logger.info(f"{len(nodes)} nodes are upserted")
 
     async def _upsert_image(self, nodes: list[ImageNode]) -> None:
         """画像を埋め込み、ストアに格納する。
@@ -165,6 +172,10 @@ class VectorStoreManager(ABC):
             nodes (list[ImageNode]): 対象ノード
         """
         logger.debug("trace")
+
+        if len(nodes) == 0:
+            logger.warning("empty list")
+            return
 
         if not isinstance(self._embed, MultiModalEmbeddingManager):
             logger.warning("multimodal embed model is required")
@@ -180,20 +191,20 @@ class VectorStoreManager(ABC):
 
         file_paths = []
         temp_file_paths = []
-        node_ids = []
+        ids = []
         metas = []
         fps = []
         for node in nodes:
-            meta = node.metadata
+            meta = BasicMetaData(node.metadata)
 
-            temp_file_path = meta.get(MK.TEMP_FILE_PATH)
+            temp_file_path = meta.temp_file_path
             if temp_file_path and temp_file_path != "":
                 # フェッチした一時ファイル
                 file_paths.append(temp_file_path)
                 temp_file_paths.append(temp_file_path)
-                meta[MK.TEMP_FILE_PATH] = ""
+                meta.temp_file_path = ""
             else:
-                file_path = meta.get(MK.FILE_PATH)
+                file_path = meta.file_path
                 if file_path:
                     # ローカルファイル
                     file_paths.append(file_path)
@@ -201,23 +212,25 @@ class VectorStoreManager(ABC):
                     logger.warning("image is not found, skipped")
                     continue
 
-            node_ids.append(node.node_id)
+            ids.append(node.node_id)
             metas.append(meta)
             fps.append(self._get_lazy_fp(meta))
 
         try:
             vecs = await self._embed.embed_image(file_paths)
-            await self._image_store.adelete_nodes(node_ids)
-            await self._image_store.async_add(
-                nodes=nodes,
-                embeddings=vecs,
-            )
+            for node, vec in zip(nodes, vecs):
+                node.embedding = vec
+
+            await self._image_store.adelete_nodes(ids)
+            await self._image_store.async_add(nodes)
             self._meta_store.upsert_image_metas(metas=metas, fingerprints=fps)
         except Exception as e:
             logger.exception(e)
         finally:
             for path in temp_file_paths:
                 os.remove(path)
+
+        logger.info(f"{len(nodes)} nodes are upserted")
 
     def _create_index(
         self,
@@ -267,8 +280,8 @@ class VectorStoreManager(ABC):
         logger.debug("trace")
 
         for node in nodes:
-            meta = node.metadata or {}
-            source = meta.get(MK.FILE_PATH) or meta.get(MK.URL)
+            meta = BasicMetaData(node.metadata)
+            source = meta.file_path or meta.url
 
             if source is None:
                 logger.warning("no source info")
@@ -278,14 +291,14 @@ class VectorStoreManager(ABC):
             if source not in self._fp_cache:
                 self._fp_cache[source] = self._get_lazy_fp(meta)
 
-    def _get_lazy_fp(self, meta: dict[str, Any]) -> str:
+    def _get_lazy_fp(self, meta: BasicMetaData) -> str:
         """fingerprint を取得する。
 
         ingest スキップ用。
         スキップできなくても再 ingest されるだけなので、厳密な fingerprint は取らない。
 
         Args:
-            meta (dict[str, Any]): メタデータの辞書
+            meta (BasicMetaData): メタデータの辞書
 
         Returns:
             str: fingerprint 文字列
@@ -294,11 +307,11 @@ class VectorStoreManager(ABC):
 
         # Web ページの場合、現状 URL しかチェックしない
         fp_data = {
-            MK.FILE_PATH: meta.get(MK.FILE_PATH) or "",
-            MK.FILE_SIZE: meta.get(MK.FILE_SIZE) or "",
-            MK.FILE_LASTMOD_AT: meta.get(MK.FILE_LASTMOD_AT) or "",
-            MK.CHUNK_NO: meta.get(MK.CHUNK_NO) or "",
-            MK.URL: meta.get(MK.URL) or "",
+            MK.FILE_PATH: meta.file_path,
+            MK.FILE_SIZE: meta.file_size,
+            MK.FILE_LASTMOD_AT: meta.file_lastmod_at,
+            MK.CHUNK_NO: meta.chunk_no,
+            MK.URL: meta.url,
         }
         return hashlib.md5(json.dumps(fp_data, sort_keys=True).encode()).hexdigest()
 
@@ -316,8 +329,8 @@ class VectorStoreManager(ABC):
         filtered: list[BaseNode] = []
 
         for node in nodes:
-            meta = node.metadata or {}
-            source = meta.get(MK.FILE_PATH) or meta.get(MK.URL)
+            meta = BasicMetaData(node.metadata)
+            source = meta.file_path or meta.url
 
             if source is None:
                 logger.warning("no source info")

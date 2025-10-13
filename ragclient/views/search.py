@@ -157,10 +157,10 @@ def _render_query_results_text(title: str, result: dict[str, Any]) -> None:
         st.info("該当するドキュメントはありません")
         return
 
-    for item in documents:
-        content = item.get("page_content", "")
-        metadata = item.get("metadata") or {}
-        source = metadata.get("source", "不明")
+    for doc in documents:
+        metadata = doc.get("metadata", {})
+        content = doc.get("text", "")
+        source = metadata.get("file_path", "") + metadata.get("url", "")  # 空でない方
 
         st.divider()
         st.markdown("#### 本文")
@@ -184,20 +184,18 @@ def _render_query_results_image(title: str, result: dict[str, Any]) -> None:
         st.info("該当する画像はありません")
         return
 
-    for item in documents:
-        image_url = item.get("page_content", "")
-        metadata = item.get("metadata") or {}
+    for doc in documents:
+        metadata = doc.get("metadata", {})
+        source = metadata.get("file_path", "") + metadata.get("url", "")  # 空でない方
+        print(source)
 
         st.divider()
-        if image_url:
-            st.image(image_url, use_container_width=False)
+        st.image(source, width="content")
         st.markdown("##### ソース")
-
-        source = metadata.get("source", "不明")
         st.write(source)
 
-        base_source = metadata.get("base_source", "不明")
-        if base_source != source:
+        base_source = metadata.get("base_source", "")
+        if base_source != "":
             st.write(f"出典：{base_source}")
 
 

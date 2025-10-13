@@ -8,7 +8,7 @@ from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
 from ragserver.core.names import PROJECT_NAME
 from ragserver.logger import logger
-from ragserver.stractured_store.structured_store_manager import StructuredStoreManager
+from ragserver.structured_store.structured_store_manager import StructuredStoreManager
 
 # メタデータ管理テーブルの create 用
 DDL_CREATE_METADATA = """
@@ -102,7 +102,6 @@ class SQLiteManager(StructuredStoreManager):
             list[tuple]: 取得したレコード群
         """
         logger.debug("trace")
-        logger.info(query)
 
         try:
             cur = self._db.cursor()

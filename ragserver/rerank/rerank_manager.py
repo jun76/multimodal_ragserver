@@ -48,7 +48,6 @@ class RerankManager(ABC):
             RuntimeError: リランカーが処理に失敗した場合
         """
         logger.debug("trace")
-        logger.info("start reranking...")
 
         try:
             return await self._rerank.apostprocess_nodes(nodes=nodes, query_str=query)

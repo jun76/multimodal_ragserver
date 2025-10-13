@@ -63,33 +63,30 @@ class FileLoader(Loader):
                 chunk_overlap=self._chunk_overlap,
                 include_metadata=True,
             )
-
-            # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
-            # ここでは _source_cache.clear() しないこと。
-            all_nodes = []
-            for doc in docs:
-                nodes = splitter.get_nodes_from_documents([doc])
-
-                for i, node in enumerate(nodes):
-                    meta = node.metadata
-                    file_path = meta.get(MKF.FILE_PATH) or ""
-                    node.metadata = BasicMetaData(
-                        file_path=file_path,
-                        file_type=meta.get(MKF.FILE_TYPE) or "",
-                        file_size=int(meta.get(MKF.FILE_SIZE) or 0),
-                        file_created_at=meta.get(MKF.FILE_CREATED_AT) or "",
-                        file_lastmod_at=meta.get(MKF.FILE_LASTMOD_AT) or "",
-                        chunk_no=i,
-                        node_lastmod_at=time.time(),
-                    ).to_dict()
-
-                    # 取得済みキャッシュに追加
-                    self._source_cache.add(file_path)
-
-                all_nodes.extend(nodes)
         except Exception as e:
             logger.exception(e)
             return []
+
+        # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
+        # ここでは _source_cache.clear() しないこと。
+        all_nodes = []
+        for doc in docs:
+            try:
+                nodes = splitter.get_nodes_from_documents([doc])
+
+                for i, node in enumerate(nodes):
+                    meta = BasicMetaData(node.metadata)
+                    meta.chunk_no = i
+                    meta.node_lastmod_at = time.time()
+                    node.metadata = meta.to_dict()
+
+                    # 取得済みキャッシュに追加
+                    self._source_cache.add(meta.file_path)
+
+                all_nodes.extend(nodes)
+            except Exception as e:
+                logger.exception(e)
+                continue
 
         logger.info(f"Ingested {len(all_nodes)} nodes from {root}")
 

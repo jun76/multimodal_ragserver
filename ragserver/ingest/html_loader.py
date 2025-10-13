@@ -263,18 +263,17 @@ class HTMLLoader(Loader):
         if temp_file_path is None:
             return None
 
-        meta = BasicMetaData(
-            file_path=temp_file_path,  # MultiModalVectorStoreIndex 参照用
-            url=url,
-            base_source=base_url or "",
-            temp_file_path=temp_file_path,  # 削除用
-            node_lastmod_at=time.time(),
-        ).to_dict()
+        meta = BasicMetaData()
+        meta.file_path = temp_file_path  # MultiModalVectorStoreIndex 参照用
+        meta.url = url
+        meta.base_source = base_url or ""
+        meta.temp_file_path = temp_file_path  # 削除用
+        meta.node_lastmod_at = time.time()
 
         if self._is_image_file(temp_file_path):
-            return ImageNode(text=url, metadata=meta)
+            return ImageNode(text=url, metadata=meta.to_dict())
 
-        return TextNode(text=url, metadata=meta)
+        return TextNode(text=url, metadata=meta.to_dict())
 
     async def _load_html_text(
         self, url: str, base_url: Optional[str] = None
@@ -300,17 +299,21 @@ class HTMLLoader(Loader):
                 include_metadata=True,
             )
             nodes = splitter.get_nodes_from_documents(doc)
-
-            for i, node in enumerate(nodes):
-                node.metadata = BasicMetaData(
-                    chunk_no=i,
-                    url=url,
-                    base_source=base_url or "",
-                    node_lastmod_at=time.time(),
-                ).to_dict()
         except Exception as e:
             logger.exception(e)
             return []
+
+        for i, node in enumerate(nodes):
+            try:
+                meta = BasicMetaData()
+                meta.chunk_no = i
+                meta.url = url
+                meta.base_source = base_url or ""
+                meta.node_lastmod_at = time.time()
+                node.metadata = meta.to_dict()
+            except Exception as e:
+                logger.exception(e)
+                continue
 
         logger.info(f"Ingested {len(nodes)} nodes from {url}")
 

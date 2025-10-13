@@ -28,8 +28,8 @@ from ragserver.rerank.cohere_rerank_manager import CohereRerankManager
 from ragserver.rerank.flagembedding_rerank_manager import FlagEmbeddingRerankManager
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.retrieval import retriever
-from ragserver.stractured_store.sqlite_manager import SQLiteManager
-from ragserver.stractured_store.structured_store_manager import StructuredStoreManager
+from ragserver.structured_store.sqlite_manager import SQLiteManager
+from ragserver.structured_store.structured_store_manager import StructuredStoreManager
 from ragserver.vector_store.chroma_manager import ChromaManager
 from ragserver.vector_store.pgvector_manager import PgVectorManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
@@ -43,6 +43,7 @@ logging.getLogger("PIL.Image").setLevel(logging.WARNING)
 logging.getLogger("PIL.PngImagePlugin").setLevel(logging.WARNING)
 logging.getLogger("openai._base_client").setLevel(logging.WARNING)
 logging.getLogger("unstructured.trace").setLevel(logging.WARNING)
+logging.getLogger("watchdog.observers.inotify_buffer").setLevel(logging.WARNING)
 
 
 class ReloadRequest(BaseModel):
@@ -84,6 +85,8 @@ def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
     Returns:
         EmbeddingsManager: 生成された埋め込み管理
     """
+    logger.debug("trace")
+
     try:
         cfg = get_config()
     except Exception as e:
@@ -229,6 +232,8 @@ def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
     Returns:
         Optional[RerankManager]: 生成されたリランク管理
     """
+    logger.debug("trace")
+
     try:
         cfg = get_config()
     except Exception as e:
@@ -267,10 +272,7 @@ def _nodes_to_response(nodes: list[NodeWithScore]) -> list[dict[str, Any]]:
     logger.debug("trace")
 
     return [
-        {
-            "text": node.text,
-            "metadata": node.metadata,
-        }
+        {"text": node.text, "metadata": node.metadata, "score": node.score}
         for node in nodes
     ]
 
@@ -365,6 +367,8 @@ async def upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
     Returns:
         dict[str, Any]: 結果
     """
+    logger.debug("trace")
+
     try:
         cfg = get_config()
         upload_dir = Path(cfg.upload_dir)
@@ -438,7 +442,7 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            docs = await retriever.query_text(
+            nodes = await retriever.query_text(
                 query=payload.query,
                 store=_vector_store,
                 topk=payload.topk or cfg.topk,
@@ -450,7 +454,7 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     finally:
         _request_lock.release()
 
-    return {"documents": _nodes_to_response(docs)}
+    return {"documents": _nodes_to_response(nodes)}
 
 
 @app.post("/v1/query/text_multi", operation_id="query_text_multi")
@@ -486,7 +490,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            docs = await retriever.query_text_multi(
+            nodes = await retriever.query_text_multi(
                 query=payload.query,
                 store=_vector_store,
                 topk=payload.topk or cfg.topk,
@@ -498,7 +502,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     finally:
         _request_lock.release()
 
-    return {"documents": _nodes_to_response(docs)}
+    return {"documents": _nodes_to_response(nodes)}
 
 
 @app.post("/v1/query/image", operation_id="query_image")
@@ -531,7 +535,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            docs = await retriever.query_image(
+            nodes = await retriever.query_image(
                 path=payload.path,
                 store=_vector_store,
                 topk=payload.topk or cfg.topk,
@@ -542,7 +546,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     finally:
         _request_lock.release()
 
-    return {"documents": _nodes_to_response(docs)}
+    return {"documents": _nodes_to_response(nodes)}
 
 
 @app.post("/v1/ingest/path", operation_id="ingest_path")
@@ -712,6 +716,11 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
 
     return {"status": "ok"}
 
+
+logger.info(f"embed: {_embed.name}")
+logger.info(f"vector store: {_vector_store.name}")
+logger.info(f"rerank: {_rerank.name if _rerank else "none"}")
+logger.info("now mcp server is starting up...")
 
 # FastAPI アプリを MCP サーバとして公開
 _mcp_server = FastApiMCP(
