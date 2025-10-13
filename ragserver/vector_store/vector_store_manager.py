@@ -11,6 +11,8 @@ from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
 from llama_index.core.schema import BaseNode, ImageNode, TextNode
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 
+from ragserver.core.exts import Exts
+from ragserver.core.metadata import META_KEYS
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
 from ragserver.embed.embedding_manager import EmbeddingManager
@@ -95,10 +97,10 @@ class VectorStoreManager(ABC):
         self,
         nodes: list[BaseNode],
     ) -> tuple[list[TextNode], list[ImageNode]]:
-        """ノードをテキスト用と画像用に分ける。
+        """ノードをモダリティ別に分ける。
 
         Args:
-            nodes (list[BaseNode]): テキストノードまたは画像ノード
+            nodes (list[BaseNode]): 入力ノード
 
         Returns:
             tuple[list[TextNode], list[ImageNode]]: テキストノード、画像ノード
@@ -108,14 +110,30 @@ class VectorStoreManager(ABC):
         text_nodes = []
         image_nodes = []
         for node in nodes:
-            if isinstance(node, TextNode):
+            if isinstance(node, TextNode) and self._is_image_node(node):
+                image_nodes.append(ImageNode(text=node.text, metadata=node.metadata))
+            elif isinstance(node, TextNode):
                 text_nodes.append(node)
-            elif isinstance(node, ImageNode):
-                image_nodes.append(node)
             else:
                 logger.warning(f"unexpected node type {type(node)}, skipped")
 
         return text_nodes, image_nodes
+
+    def _is_image_node(self, node: BaseNode) -> bool:
+        """画像ノードか。
+
+        Args:
+            node (BaseNode): 対象ノード
+
+        Returns:
+            bool: 画像ノードなら True
+        """
+        logger.debug("trace")
+
+        # ファイルパスか URL の末尾に画像ファイルの拡張子が含まれるものを画像ノードとする
+        return Exts.is_image_file(
+            node.metadata.get(META_KEYS.FILE_PATH, "")
+        ) or Exts.is_image_file(node.metadata.get(META_KEYS.URL, ""))
 
     async def _upsert_text(self, nodes: list[TextNode]) -> None:
         """テキストを埋め込み、ストアに格納する。
@@ -197,11 +215,11 @@ class VectorStoreManager(ABC):
         for node in nodes:
             meta = BasicMetaData(node.metadata)
 
-            temp_file_path = meta.temp_file_path
-            if temp_file_path and temp_file_path != "":
+            temp = meta.temp_file_path
+            if temp:
                 # フェッチした一時ファイル
-                file_paths.append(temp_file_path)
-                temp_file_paths.append(temp_file_path)
+                file_paths.append(temp)
+                temp_file_paths.append(temp)
                 meta.temp_file_path = ""
             else:
                 file_path = meta.file_path
@@ -237,7 +255,7 @@ class VectorStoreManager(ABC):
         text_store: BasePydanticVectorStore,
         image_store: Optional[BasePydanticVectorStore] = None,
     ) -> Optional[VectorStoreIndex]:
-        """インデックスを作成する。
+        """インデックスを生成する。
 
         Args:
             text_store (BasePydanticVectorStore): テキストストア
@@ -247,7 +265,7 @@ class VectorStoreManager(ABC):
             RuntimeError: テキスト埋め込み管理に対してマルチモーダルストアの要求
 
         Returns:
-            Optional[VectorStoreIndex]: _description_
+            Optional[VectorStoreIndex]: 生成したインデックス
         """
         logger.debug("trace")
 

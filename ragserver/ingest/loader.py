@@ -1,20 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Set
 
 from ragserver.logger import logger
-
-
-@dataclass
-class Exts:
-    TEXT_FILE_EXTS = {".txt"}
-    MARKDOWN_FILE_EXTS = {".md"}
-    IMAGE_FILE_EXTS = {".jpg", ".jpeg", ".png", ".gif"}
-    PDF_FILE_EXTS = {".pdf"}
-    SUPPORTED_EXTS = (
-        TEXT_FILE_EXTS | MARKDOWN_FILE_EXTS | IMAGE_FILE_EXTS | PDF_FILE_EXTS
-    )
 
 
 class Loader:
@@ -58,16 +46,3 @@ class Loader:
                 ]
         except OSError as e:
             raise RuntimeError("failed to read source list") from e
-
-    def _is_image_file(self, uri: str) -> bool:
-        """ファイルパスまたは URL が指すのは画像ファイルか。
-
-        Args:
-            uri (str): ファイルパスまたは URL
-
-        Returns:
-            bool: 画像ファイルなら True
-        """
-        logger.debug("trace")
-
-        return any(uri.lower().endswith(ext) for ext in Exts.IMAGE_FILE_EXTS)

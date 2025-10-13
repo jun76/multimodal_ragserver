@@ -14,10 +14,11 @@ from llama_index.core.schema import BaseNode, ImageNode, TextNode
 from llama_index.readers.web.simple_web.base import SimpleWebPageReader
 from llama_index.readers.web.sitemap.base import SitemapReader
 
+from ragserver.core.exts import Exts
 from ragserver.core.metadata import BasicMetaData
 from ragserver.core.names import PROJECT_NAME
 from ragserver.ingest.file_loader import FileLoader
-from ragserver.ingest.loader import Exts, Loader
+from ragserver.ingest.loader import Loader
 from ragserver.logger import logger
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
@@ -247,14 +248,14 @@ class HTMLLoader(Loader):
     async def _load_direct_linked_file(
         self, url: str, base_url: Optional[str] = None
     ) -> Optional[BaseNode]:
-        """直リンクのファイルからノードを作成する。
+        """直リンクのファイルからノードを生成する。
 
         Args:
             url (str): 対象 URL
             base_url (Optional[str], optional): source の取得元を指定する場合。Defaults to None.
 
         Returns:
-            Optional[BaseNode]: テキストノードまたは画像ノード
+            Optional[BaseNode]: 生成したノード
         """
         logger.debug("trace")
 
@@ -270,7 +271,7 @@ class HTMLLoader(Loader):
         meta.temp_file_path = temp_file_path  # 削除用
         meta.node_lastmod_at = time.time()
 
-        if self._is_image_file(temp_file_path):
+        if Exts.is_image_file(temp_file_path):
             return ImageNode(text=url, metadata=meta.to_dict())
 
         return TextNode(text=url, metadata=meta.to_dict())
@@ -285,7 +286,7 @@ class HTMLLoader(Loader):
             base_url (Optional[str], optional): source の取得元を指定する場合。Defaults to None.
 
         Returns:
-            list[BaseNode]: テキストノード
+            list[BaseNode]: 生成したノード
         """
         logger.debug("trace")
 
@@ -329,13 +330,13 @@ class HTMLLoader(Loader):
             base_url (str): 対象 URL
 
         Returns:
-            list[BaseNode]: テキストノードまたは画像ノード
+            list[BaseNode]: 生成したノード
         """
         logger.debug("trace")
 
         html = await self._fetch_text(base_url)
         urls = self._gather_asset_links(
-            html=html, base_url=base_url, allowed_exts=Exts.SUPPORTED_EXTS
+            html=html, base_url=base_url, allowed_exts=Exts.FETCH_TARGET
         )
 
         # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
@@ -367,7 +368,7 @@ class HTMLLoader(Loader):
             url (str): 対象 URL
 
         Returns:
-            list[BaseNode]: テキストノードまたは画像ノード
+            list[BaseNode]: 生成したノード
         """
         logger.debug("trace")
 
@@ -410,12 +411,12 @@ class HTMLLoader(Loader):
             url (str): 対象 URL
 
         Returns:
-            list[BaseNode]: テキストノードまたは画像ノード
+            list[BaseNode]: 生成したノード
         """
         logger.debug("trace")
 
-        # .xml 以外は単一のサイトとして読み込み
-        if not url.endswith(".xml"):
+        # サイトマップ以外は単一のサイトとして読み込み
+        if not Exts.is_sitemap_file(url):
             return await self._load_from_site(url)
 
         # 以下、サイトマップの解析と読み込み
@@ -445,7 +446,7 @@ class HTMLLoader(Loader):
             list_path (str): URL リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
 
         Returns:
-            list[BaseNode]: テキストノードまたは画像ノード
+            list[BaseNode]: 生成したノード
         """
         logger.debug("trace")
 

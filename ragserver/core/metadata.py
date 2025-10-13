@@ -66,7 +66,7 @@ class BasicMetaData:
     """
 
     # メタデータの中身
-    # 追加・削除する場合、ノードのインスタンスを作成する loader 系の実装と
+    # 追加・削除する場合、ノードのインスタンスを生成する loader 系の実装と
     # メタ情報を管理する structured_store 系の実装とも整合させること
     #
     file_path: str = ""  # 取得元ファイルパス
@@ -81,7 +81,7 @@ class BasicMetaData:
     node_lastmod_at: float = 0  # ノードの最終更新時刻（epoch 秒）
 
     def __init__(self, meta: dict[str, Any] = {}) -> None:
-        """dict からメタデータインスタンスを作成する。
+        """dict からメタデータインスタンスを生成する。
 
         Args:
             meta (dict[str, Any], optional): メタデータの dict

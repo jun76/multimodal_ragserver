@@ -40,7 +40,7 @@ class FileLoader(Loader):
             root (str): 対象パス
 
         Returns:
-            list[BaseNode]: テキストノードまたは画像ノード
+            list[BaseNode]: 生成したノード
         """
         logger.debug("trace")
 
@@ -102,7 +102,7 @@ class FileLoader(Loader):
             list_path (str): path リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
 
         Returns:
-            list[BaseNode]: テキストノードまたは画像ノード
+            list[BaseNode]: 生成したノード
         """
         logger.debug("trace")
 

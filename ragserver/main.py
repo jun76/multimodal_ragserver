@@ -74,7 +74,7 @@ app = FastAPI(title=names.PROJECT_NAME, version="1.0")
 
 
 def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
-    """埋め込み管理インスタンスを作成する。
+    """埋め込み管理インスタンスを生成する。
 
     Args:
         name (Optional[str], optional): 埋め込み管理名。Defaults to None.
@@ -120,7 +120,7 @@ _embed = _create_embed()
 
 
 def _create_meta_store(embed: EmbeddingManager) -> StructuredStoreManager:
-    """メタデータ専用ストアのインスタンスを作成する。
+    """メタデータ専用ストアのインスタンスを生成する。
 
     Raises:
         RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
@@ -160,7 +160,7 @@ _meta_store = _create_meta_store(_embed)
 def _create_vector_store(
     embed: EmbeddingManager, name: Optional[str] = None
 ) -> VectorStoreManager:
-    """ベクトルストアのインスタンスを作成する。
+    """ベクトルストアのインスタンスを生成する。
 
     Args:
         embed (EmbeddingManager): 埋め込み管理
@@ -221,7 +221,7 @@ _vector_store = _create_vector_store(_embed)
 
 
 def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
-    """リランク管理インスタンスを作成する。
+    """リランク管理インスタンスを生成する。
 
     Args:
         name (Optional[str], optional): リランク管理名。Defaults to None.
