@@ -29,9 +29,9 @@ class HTMLLoader(Loader):
         chunk_size: int,
         chunk_overlap: int,
         file_loader: FileLoader,
+        store: VectorStoreManager,
         load_asset: bool = True,
         req_per_sec: int = 2,
-        store: Optional[VectorStoreManager] = None,
         timeout: int = 30,
         user_agent: str = PROJECT_NAME,
         same_origin: bool = True,
@@ -42,9 +42,9 @@ class HTMLLoader(Loader):
             chunk_size (int): チャンクサイズ
             chunk_overlap (int): チャンク重複語数
             file_loader (FileLoader): ファイル読み込み用
+            store (VectorStoreManager): 登録済みソースの判定に使用
             load_asset (bool, optional): アセットを読み込むか。Defaults to True.
             req_per_sec (int): 秒間リクエスト数。Defaults to 2.
-            store (Optional[VectorStoreManager], opitonal): 登録済みソースの判定に使用。Defaults to None.
             timeout (int, optional): タイムアウト秒。Defaults to 30.
             user_agent (str, optional): GET リクエスト時の user agent。Defaults to PROJECT_NAME.
             same_origin (bool, optional): True なら同一オリジンのみ対象。Defaults to True.
@@ -316,8 +316,6 @@ class HTMLLoader(Loader):
                 logger.exception(e)
                 continue
 
-        logger.info(f"Ingested {len(nodes)} nodes from {url}")
-
         return nodes
 
     async def _load_html_asset_files(
@@ -376,7 +374,7 @@ class HTMLLoader(Loader):
             logger.error("invalid URL. expected http(s)://*")
             return []
 
-        if self._store and self._store.skip_update(url):
+        if self._store.skip_update(url):
             logger.info(f"skip loading: source exists ({url})")
             return []
 

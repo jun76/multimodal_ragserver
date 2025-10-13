@@ -88,15 +88,15 @@ class BasicMetaData:
         """
         # logger.debug("trace")
 
-        self.file_path = meta.get(META_KEYS.FILE_PATH) or ""
-        self.file_type = meta.get(META_KEYS.FILE_TYPE) or ""
-        self.file_size = meta.get(META_KEYS.FILE_SIZE) or 0
-        self.file_created_at = meta.get(META_KEYS.FILE_CREATED_AT) or ""
-        self.file_lastmod_at = meta.get(META_KEYS.FILE_LASTMOD_AT) or ""
-        self.chunk_no = meta.get(META_KEYS.CHUNK_NO) or 0
-        self.base_source = meta.get(META_KEYS.BASE_SOURCE) or ""
-        self.temp_file_path = meta.get(META_KEYS.TEMP_FILE_PATH) or ""
-        self.node_lastmod_at = meta.get(META_KEYS.NODE_LASTMOD_AT) or 0
+        self.file_path = meta.get(META_KEYS.FILE_PATH, "")
+        self.file_type = meta.get(META_KEYS.FILE_TYPE, "")
+        self.file_size = meta.get(META_KEYS.FILE_SIZE, 0)
+        self.file_created_at = meta.get(META_KEYS.FILE_CREATED_AT, "")
+        self.file_lastmod_at = meta.get(META_KEYS.FILE_LASTMOD_AT, "")
+        self.chunk_no = meta.get(META_KEYS.CHUNK_NO, 0)
+        self.base_source = meta.get(META_KEYS.BASE_SOURCE, "")
+        self.temp_file_path = meta.get(META_KEYS.TEMP_FILE_PATH, "")
+        self.node_lastmod_at = meta.get(META_KEYS.NODE_LASTMOD_AT, 0)
 
     def to_dict(self) -> dict[str, Any]:
         """メタデータの dict を返す。

@@ -570,7 +570,9 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
             status_code=500, detail=f"failed to load config: {e}"
         ) from e
 
-    file_loader = FileLoader(chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap)
+    file_loader = FileLoader(
+        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_vector_store
+    )
 
     await run_in_threadpool(_request_lock.acquire)
     try:
@@ -608,7 +610,9 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
             status_code=500, detail=f"failed to load config: {e}"
         ) from e
 
-    file_loader = FileLoader(chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap)
+    file_loader = FileLoader(
+        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_vector_store
+    )
 
     await run_in_threadpool(_request_lock.acquire)
     try:
@@ -647,7 +651,9 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
             status_code=500, detail=f"failed to load config: {e}"
         ) from e
 
-    file_loader = FileLoader(chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap)
+    file_loader = FileLoader(
+        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_vector_store
+    )
     html_loader = HTMLLoader(
         chunk_size=cfg.chunk_size,
         chunk_overlap=cfg.chunk_overlap,
@@ -692,7 +698,9 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
             status_code=500, detail=f"failed to load config: {e}"
         ) from e
 
-    file_loader = FileLoader(chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap)
+    file_loader = FileLoader(
+        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_vector_store
+    )
     html_loader = HTMLLoader(
         chunk_size=cfg.chunk_size,
         chunk_overlap=cfg.chunk_overlap,

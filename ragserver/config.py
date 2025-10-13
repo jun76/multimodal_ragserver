@@ -253,9 +253,9 @@ def get_config() -> Config:
         clip_embed_model_image=os.getenv("CLIP_EMBED_MODEL_IMAGE", "ViT-B/32"),
         # Ingestion
         chunk_size=_to_int(
-            "CHUNK_SIZE", 50
+            "CHUNK_SIZE", 500
         ),  # TODO: CLIP のテキスト埋め込みはトークン数 77 以下の制約があるらしい。text/image の埋め込みモデルをプロバイダごとに縛っている現状の EmbeddingManager の作りでは、CLIPEmbedding のテキスト埋め込みの制約が無駄にきついので見直し必要
-        chunk_overlap=_to_int("CHUNK_OVERLAP", 5),
+        chunk_overlap=_to_int("CHUNK_OVERLAP", 50),
         user_agent=os.getenv("USER_AGENT", PROJECT_NAME),
         # Retrieval/Rerank
         rerank_provider=os.getenv("RERANK_PROVIDER", FLAGEMBEDDING_RERANK_NAME),

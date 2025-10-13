@@ -299,7 +299,11 @@ class VectorStoreManager(ABC):
 
         for node in nodes:
             meta = BasicMetaData(node.metadata)
-            source = meta.file_path or meta.url
+            print(f"url = {meta.url}, path = {meta.file_path}")
+
+            # MultiModalVectorStoreIndex 参照用に画像の一時ファイルを file_path に
+            # 入れている場合は、URL が正ソースとなるためこの or 順序が重要
+            source = meta.url or meta.file_path
 
             if source is None:
                 logger.warning("no source info")
@@ -307,6 +311,7 @@ class VectorStoreManager(ABC):
 
             # fingerprint キャッシュになければ追加（＝次回以降スキップ）
             if source not in self._fp_cache:
+                print(f"source = {source}, len(self._fp_cache) = {len(self._fp_cache)}")
                 self._fp_cache[source] = self._get_lazy_fp(meta)
 
     def _get_lazy_fp(self, meta: BasicMetaData) -> str:
@@ -348,7 +353,7 @@ class VectorStoreManager(ABC):
 
         for node in nodes:
             meta = BasicMetaData(node.metadata)
-            source = meta.file_path or meta.url
+            source = meta.url or meta.file_path
 
             if source is None:
                 logger.warning("no source info")
@@ -359,13 +364,7 @@ class VectorStoreManager(ABC):
                 filtered.append(node)
                 continue
 
-            existing_fp = self._fp_cache.get(source)
-
-            # None が登録されていた場合（ないはず。型チェックの都合）
-            if existing_fp is None:
-                filtered.append(node)
-                continue
-
+            existing_fp = self._fp_cache.get(source, "")
             fp = self._get_lazy_fp(meta)
             if existing_fp == fp:
                 logger.info(f"skip document: identical fingerprint for {source}")

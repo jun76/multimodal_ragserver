@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
+from typing import Optional
 
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.node_parser import SentenceSplitter
@@ -11,6 +12,7 @@ from ragserver.core.metadata import META_KEYS_FROM as MKF
 from ragserver.core.metadata import BasicMetaData
 from ragserver.ingest.loader import Loader
 from ragserver.logger import logger
+from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 
 class FileLoader(Loader):
@@ -18,16 +20,19 @@ class FileLoader(Loader):
         self,
         chunk_size: int,
         chunk_overlap: int,
+        store: VectorStoreManager,
     ) -> None:
         """ローカルファイルを読み込み、ノードを生成するためのクラス。
 
         Args:
             chunk_size (int): チャンクサイズ
             chunk_overlap (int): チャンク重複語数
+            store (VectorStoreManager): 登録済みソースの判定に使用
         """
         logger.debug("trace")
 
         Loader.__init__(self, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        self._store = store
 
     async def load_from_path(
         self,
@@ -53,10 +58,30 @@ class FileLoader(Loader):
             reader = SimpleDirectoryReader(
                 input_dir=root if path.is_dir() else None,
                 input_files=[root] if path.is_file() else None,
-                exclude=list(self._source_cache),
                 recursive=True,
             )
-            docs = await reader.aload_data(show_progress=True)
+
+            # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
+            # ここでは _source_cache.clear() しないこと。
+            paths = reader.list_resources()
+            docs = []
+            for path in paths:
+                if path in self._source_cache:
+                    continue
+
+                if self._store.skip_update(path):
+                    logger.info(f"skip loading: source exists ({path})")
+                    continue
+
+                docs.extend(
+                    await reader.aload_file(
+                        input_file=Path(path),
+                        file_metadata=reader.file_metadata,
+                        file_extractor=reader.file_extractor,
+                    )
+                )
+                # 取得済みキャッシュに追加
+                self._source_cache.add(path)
 
             splitter = SentenceSplitter(
                 chunk_size=self._chunk_size,
@@ -67,8 +92,6 @@ class FileLoader(Loader):
             logger.exception(e)
             return []
 
-        # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
-        # ここでは _source_cache.clear() しないこと。
         all_nodes = []
         for doc in docs:
             try:
@@ -80,15 +103,12 @@ class FileLoader(Loader):
                     meta.node_lastmod_at = time.time()
                     node.metadata = meta.to_dict()
 
-                    # 取得済みキャッシュに追加
-                    self._source_cache.add(meta.file_path)
-
                 all_nodes.extend(nodes)
             except Exception as e:
                 logger.exception(e)
                 continue
 
-        logger.info(f"Ingested {len(all_nodes)} nodes from {root}")
+        logger.info(f"loaded {len(all_nodes)} nodes from {root}")
 
         return all_nodes
 
