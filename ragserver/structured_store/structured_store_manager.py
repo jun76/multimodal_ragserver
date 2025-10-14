@@ -72,15 +72,3 @@ class StructuredStoreManager(ABC):
         Returns:
             list[tuple]: 取得したレコード群
         """
-
-    @abstractmethod
-    async def aselect(self, cols: list[str], limit: int) -> list[tuple]:
-        """select 文を実行する。
-
-        Args:
-            cols (list[str]): 取得する列
-            limit (int): 件数上限
-
-        Returns:
-            list[tuple]: 取得したレコード群
-        """

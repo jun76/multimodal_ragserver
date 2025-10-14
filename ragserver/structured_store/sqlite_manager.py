@@ -158,55 +158,6 @@ class SQLiteManager(StructuredStoreManager):
         except Exception as e:
             raise RuntimeError("failed to exec DDL queries") from e
 
-    async def _aprepare_with(self, space_key: str) -> None:
-        """空間キーに合わせてストアを初期化する。
-
-        Args:
-            space_key (str): 空間キー
-
-        Raises:
-            RuntimeError: ストア初期化失敗
-        """
-        logger.debug("trace")
-
-        table_name = f"{PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
-        try:
-            async with aiosqlite.connect(self._db_path) as db:
-                await db.execute(
-                    DDL_CREATE_METADATA.format(
-                        table_name=table_name,
-                        file_path=MK.FILE_PATH,
-                        file_type=MK.FILE_TYPE,
-                        file_size=MK.FILE_SIZE,
-                        file_created_at=MK.FILE_CREATED_AT,
-                        file_lastmod_at=MK.FILE_LASTMOD_AT,
-                        chunk_no=MK.CHUNK_NO,
-                        url=MK.URL,
-                        base_source=MK.BASE_SOURCE,
-                        node_lastmod_at=MK.NODE_LASTMOD_AT,
-                        fingerprint=MK.FINGERPRINT,
-                    )
-                )
-                await db.execute(
-                    DDL_IDX_FINGERPRINT.format(
-                        table_name=table_name, fingerprint=MK.FINGERPRINT
-                    )
-                )
-                await db.execute(
-                    DDL_IDX_NODE_LASTMOD_AT.format(
-                        table_name=table_name, node_lastmod_at=MK.NODE_LASTMOD_AT
-                    )
-                )
-                await db.execute(
-                    DDL_IDX_BASE_SOURCE.format(
-                        table_name=table_name,
-                        base_source=MK.BASE_SOURCE,
-                    )
-                )
-                await db.commit()
-        except Exception as e:
-            raise RuntimeError("failed to exec DDL queries") from e
-
     def prepare_with(
         self, space_key_text: str, space_key_multi: Optional[str] = None
     ) -> None:
@@ -227,80 +178,6 @@ class SQLiteManager(StructuredStoreManager):
         if space_key_multi:
             self._space_key_multi = space_key_multi
             self._prepare_with(space_key_multi)
-
-    async def aprepare_with(
-        self, space_key_text: str, space_key_multi: Optional[str] = None
-    ) -> None:
-        """空間キーに合わせてストアを初期化する。
-
-        Args:
-            space_key_text (str): テキストベクトルの空間キー
-            space_key_multi (Optional[str], optional): 画像ベクトルの空間キー。Defaults to None.
-
-        Raises:
-            RuntimeError: ストア初期化失敗
-        """
-        logger.debug("trace")
-
-        self._space_key_text = space_key_text
-        await self._aprepare_with(space_key_text)
-
-        if space_key_multi:
-            self._space_key_multi = space_key_multi
-            await self._aprepare_with(space_key_multi)
-
-    def _upsert_metadata_batch(
-        self,
-        table_name: str,
-        rows: Iterable[Sequence[Any]],  # パラメタ順は下に記載
-        chunk_size: int = 1000,
-    ) -> None:
-        """メタデータのバッチ upsert。
-
-        Args:
-            table_name (str): テーブル名
-            rows (Iterable[Sequence[Any]]): メタデータ（複数レコード）
-            chunk_size (int): バッチ数が多すぎる場合の分割用
-
-        Raises:
-            RuntimeError: upsert 失敗
-        """
-        logger.debug("trace")
-
-        sql = DML_UPSERT_METADATA.format(
-            table_name=table_name,
-            file_path=MK.FILE_PATH,
-            file_type=MK.FILE_TYPE,
-            file_size=MK.FILE_SIZE,
-            file_created_at=MK.FILE_CREATED_AT,
-            file_lastmod_at=MK.FILE_LASTMOD_AT,
-            chunk_no=MK.CHUNK_NO,
-            url=MK.URL,
-            base_source=MK.BASE_SOURCE,
-            node_lastmod_at=MK.NODE_LASTMOD_AT,
-            fingerprint=MK.FINGERPRINT,
-        )
-
-        cur = self._db.cursor()
-        try:
-            self._db.execute("BEGIN")
-            batch = []
-            for row in rows:
-                batch.append(row)
-                if len(batch) >= chunk_size:
-                    cur.executemany(sql, batch)
-                    batch.clear()
-
-            if batch:
-                cur.executemany(sql, batch)
-
-            self._db.commit()
-        except Exception as e:
-            self._db.rollback()
-            cur.close()
-            raise RuntimeError("failed to upsert batch") from e
-        finally:
-            cur.close()
 
     async def _aupset_metadata_batch(
         self,
@@ -352,37 +229,6 @@ class SQLiteManager(StructuredStoreManager):
                 await db.rollback()
                 raise RuntimeError("failed to upsert batch") from e
 
-    def _upsert(
-        self, metas: list[BasicMetaData], fingerprints: list[str], space_key: str
-    ) -> None:
-        """メタデータをストアに格納する。
-
-        Args:
-            metas (list[BasicMetaData]): メタデータ
-            fingerprints (list[str]): fingerprint 文字列
-            space_key (str): 空間キー
-        """
-        logger.debug("trace")
-
-        rows = []
-        for i, meta in enumerate(metas):
-            row = (
-                meta.file_path,
-                meta.file_type,
-                meta.file_size,
-                meta.file_created_at,
-                meta.file_lastmod_at,
-                meta.chunk_no,
-                meta.url,
-                meta.base_source,
-                meta.node_lastmod_at,
-                fingerprints[i],
-            )
-            rows.append(row)
-
-        table_name = f"{PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
-        self._upsert_metadata_batch(table_name=table_name, rows=rows)
-
     async def _aupset(
         self, metas: list[BasicMetaData], fingerprints: list[str], space_key: str
     ) -> None:
@@ -414,27 +260,6 @@ class SQLiteManager(StructuredStoreManager):
         table_name = f"{PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
         await self._aupset_metadata_batch(table_name=table_name, rows=rows)
 
-    def upsert_text_metas(
-        self, metas: list[BasicMetaData], fingerprints: list[str]
-    ) -> None:
-        """テキストノードのメタデータをストアに格納する。
-
-        Raises:
-            RuntimeError: space key が初期化されていない場合
-
-        Args:
-            metas (list[BasicMetaData]): メタデータ
-            fingerprints (list[str]): fingerprint 文字列
-        """
-        logger.debug("trace")
-
-        if self._space_key_text is None:
-            raise RuntimeError("space key(text) is not initialized")
-
-        self._upsert(
-            metas=metas, fingerprints=fingerprints, space_key=self._space_key_text
-        )
-
     async def aupsert_text_metas(
         self, metas: list[BasicMetaData], fingerprints: list[str]
     ) -> None:
@@ -454,27 +279,6 @@ class SQLiteManager(StructuredStoreManager):
 
         await self._aupset(
             metas=metas, fingerprints=fingerprints, space_key=self._space_key_text
-        )
-
-    def upsert_image_metas(
-        self, metas: list[BasicMetaData], fingerprints: list[str]
-    ) -> None:
-        """画像ノードのメタデータをストアに格納する。
-
-        Raises:
-            RuntimeError: space key が初期化されていない場合
-
-        Args:
-            metas (list[BasicMetaData]): メタデータ
-            fingerprints (list[str]): fingerprint 文字列
-        """
-        logger.debug("trace")
-
-        if self._space_key_multi is None:
-            raise RuntimeError("space key(multi) is not initialized")
-
-        self._upsert(
-            metas=metas, fingerprints=fingerprints, space_key=self._space_key_multi
         )
 
     async def aupsert_image_metas(
@@ -540,53 +344,5 @@ class SQLiteManager(StructuredStoreManager):
                     cur.close()
         except Exception as e:
             raise RuntimeError("failed to exec query") from e
-
-        return res
-
-    async def aselect(self, cols: list[str], limit: int) -> list[tuple]:
-        """select 文を実行する。
-
-        Args:
-            cols (list[str]): 取得する列
-            limit (int): 件数上限
-
-        Returns:
-            list[tuple]: 取得したレコード群
-        """
-        logger.debug("trace")
-
-        if self._space_key_text is None:
-            logger.warning("space key is not initialized")
-            return []
-
-        if self._space_key_multi:
-            query = DML_SELECT_MULTI.format(
-                col_list=", ".join(cols),
-                text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
-                image_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_multi}",
-                order_col=MK.NODE_LASTMOD_AT,
-                limit=limit,
-            )
-        else:
-            query = DML_SELECT.format(
-                col_list=", ".join(cols),
-                text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
-                order_col=MK.NODE_LASTMOD_AT,
-                limit=limit,
-            )
-
-        try:
-            async with aiosqlite.connect(self._db_path) as db:
-                cur = await db.execute(query)
-                try:
-                    rows = await cur.fetchall()
-                finally:
-                    await cur.close()
-        except Exception as e:
-            raise RuntimeError("failed to exec query") from e
-
-        res = []
-        for row in rows:
-            res.append(tuple(row))
 
         return res
