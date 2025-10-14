@@ -441,7 +441,7 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            nodes = await retriever.query_text(
+            nodes = await retriever.aquery_text(
                 query=payload.query,
                 store=_vector_store,
                 topk=payload.topk or cfg.topk,
@@ -489,7 +489,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            nodes = await retriever.query_text_multi(
+            nodes = await retriever.aquery_text_multi(
                 query=payload.query,
                 store=_vector_store,
                 topk=payload.topk or cfg.topk,
@@ -534,7 +534,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            nodes = await retriever.query_image(
+            nodes = await retriever.aquery_image(
                 path=payload.path,
                 store=_vector_store,
                 topk=payload.topk or cfg.topk,
@@ -575,7 +575,7 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await ingest.ingest_from_path(
+        await ingest.aingest_from_path(
             path=payload.path,
             store=_vector_store,
             file_loader=file_loader,
@@ -615,7 +615,7 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await ingest.ingest_from_path_list(
+        await ingest.aingest_from_path_list(
             list_path=payload.path,
             store=_vector_store,
             file_loader=file_loader,
@@ -663,7 +663,7 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await ingest.ingest_from_url(
+        await ingest.aingest_from_url(
             url=payload.url,
             store=_vector_store,
             html_loader=html_loader,
@@ -710,7 +710,7 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
 
     await run_in_threadpool(_request_lock.acquire)
     try:
-        await ingest.ingest_from_url_list(
+        await ingest.aingest_from_url_list(
             list_path=payload.path,
             store=_vector_store,
             html_loader=html_loader,

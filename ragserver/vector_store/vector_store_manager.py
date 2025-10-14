@@ -4,7 +4,7 @@ import hashlib
 import json
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Optional
 
 from llama_index.core.indices import VectorStoreIndex
 from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
@@ -77,6 +77,14 @@ class VectorStoreManager(ABC):
         """
 
     def _load_fp_cache(self, limit: int) -> dict[str, str]:
+        """メタデータ用ストアから fingerprint のキャッシュを読み込む。
+
+        Args:
+            limit (int): メタデータ読み込み件数上限
+
+        Returns:
+            dict[str, str]: ソース情報対 fingerprint の KVS
+        """
         logger.debug("trace")
 
         if self._meta_store is None:
@@ -181,6 +189,8 @@ class VectorStoreManager(ABC):
             fps.append(self._get_lazy_fp(meta))
 
         try:
+            # TODO: バッチだと効率は良いが一件でも失敗すると全滅扱いになる。
+            # 最初バッチで実行してみて、失敗したら一件ずつのループにして被害局所化？
             vecs = await self._embed.aembed_text(texts)
             if len(vecs) != len(nodes):
                 raise RuntimeError(
@@ -192,7 +202,7 @@ class VectorStoreManager(ABC):
 
             await self._text_store.adelete_nodes(ids)
             await self._text_store.async_add(nodes)
-            self._meta_store.upsert_text_metas(metas=metas, fingerprints=fps)
+            await self._meta_store.aupsert_text_metas(metas=metas, fingerprints=fps)
         except Exception as e:
             raise RuntimeError("failed to upsert text") from e
 
@@ -264,7 +274,7 @@ class VectorStoreManager(ABC):
 
             await self._image_store.adelete_nodes(ids)
             await self._image_store.async_add(nodes)
-            self._meta_store.upsert_image_metas(metas=metas, fingerprints=fps)
+            await self._meta_store.aupsert_image_metas(metas=metas, fingerprints=fps)
         except Exception as e:
             raise RuntimeError("failed to upsert text") from e
         finally:
@@ -357,6 +367,7 @@ class VectorStoreManager(ABC):
             MK.CHUNK_NO: meta.chunk_no,
             MK.URL: meta.url,
         }
+
         return hashlib.md5(json.dumps(fp_data, sort_keys=True).encode()).hexdigest()
 
     def _filter_nodes_by_fp(self, nodes: list[BaseNode]) -> list[BaseNode]:

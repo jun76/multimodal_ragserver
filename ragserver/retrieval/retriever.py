@@ -9,10 +9,10 @@ from ragserver.logger import logger
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
-__all__ = ["query_text", "query_text_multi", "query_image"]
+__all__ = ["aquery_text", "aquery_text_multi", "aquery_image"]
 
 
-async def query_text(
+async def aquery_text(
     query: str,
     store: VectorStoreManager,
     topk: int = 10,
@@ -51,7 +51,7 @@ async def query_text(
     return nwss
 
 
-async def query_text_multi(
+async def aquery_text_multi(
     query: str,
     store: VectorStoreManager,
     topk: int = 10,
@@ -96,7 +96,7 @@ async def query_text_multi(
     return nwss
 
 
-async def query_image(
+async def aquery_image(
     path: str,
     store: VectorStoreManager,
     topk: int = 10,

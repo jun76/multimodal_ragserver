@@ -4,13 +4,13 @@ import asyncio
 import os
 import tempfile
 import time
-from typing import Optional, Set
+from typing import Optional
 from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.core.schema import BaseNode, ImageNode, TextNode
+from llama_index.core.schema import BaseNode, TextNode
 from llama_index.readers.web.simple_web.base import SimpleWebPageReader
 from llama_index.readers.web.sitemap.base import SitemapReader
 

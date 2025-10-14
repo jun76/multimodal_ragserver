@@ -3,27 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
-from ragserver.core.names import PROJECT_NAME
 from ragserver.logger import logger
-
-DML_SELECT = """
-SELECT {col_list}, {order_col} AS _ord FROM {text_table}
-ORDER BY _ord DESC
-LIMIT {limit}
-"""
-
-DML_SELECT_MULTI = """
-SELECT {col_list}
-FROM (
-  SELECT {col_list}, {order_col} AS _ord FROM {text_table}
-  UNION ALL
-  SELECT {col_list}, {order_col} AS _ord FROM {image_table}
-) AS _u
-ORDER BY _ord DESC
-LIMIT {limit}
-"""
 
 
 class StructuredStoreManager(ABC):
@@ -45,20 +26,6 @@ class StructuredStoreManager(ABC):
         self._space_key_multi = None
 
     @abstractmethod
-    def _exec_query(self, query: str) -> list[tuple]:
-        """クエリを実行する。
-
-        Args:
-            query (str): クエリ
-
-        Raises:
-            RuntimeError: クエリ実行失敗
-
-        Returns:
-            list[tuple]: 取得したレコード群
-        """
-
-    @abstractmethod
     def prepare_with(
         self, space_key_text: str, space_key_multi: Optional[str] = None
     ) -> None:
@@ -72,44 +39,8 @@ class StructuredStoreManager(ABC):
             RuntimeError: ストア初期化失敗
         """
 
-    def select(self, cols: list[str], limit: int) -> list[tuple]:
-        """select 文を実行する。
-
-        Args:
-            cols (list[str]): 取得する列
-            limit (int): 件数上限
-
-        Returns:
-            list[tuple]: 取得したレコード群
-        """
-        logger.debug("trace")
-
-        if self._space_key_text is None:
-            logger.warning("space key is not initialized")
-            return []
-
-        if self._space_key_multi:
-            return self._exec_query(
-                DML_SELECT_MULTI.format(
-                    col_list=", ".join(cols),
-                    text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
-                    image_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_multi}",
-                    order_col=MK.NODE_LASTMOD_AT,
-                    limit=limit,
-                )
-            )
-
-        return self._exec_query(
-            DML_SELECT.format(
-                col_list=", ".join(cols),
-                text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
-                order_col=MK.NODE_LASTMOD_AT,
-                limit=limit,
-            )
-        )
-
     @abstractmethod
-    def upsert_text_metas(
+    async def aupsert_text_metas(
         self, metas: list[BasicMetaData], fingerprints: list[str]
     ) -> None:
         """テキストノードのメタデータをストアに格納する。
@@ -120,7 +51,7 @@ class StructuredStoreManager(ABC):
         """
 
     @abstractmethod
-    def upsert_image_metas(
+    async def aupsert_image_metas(
         self, metas: list[BasicMetaData], fingerprints: list[str]
     ) -> None:
         """画像ノードのメタデータをストアに格納する。
@@ -128,4 +59,28 @@ class StructuredStoreManager(ABC):
         Args:
             metas (list[BasicMetaData]): メタデータ
             fingerprints (list[str]): fingerprint 文字列
+        """
+
+    @abstractmethod
+    def select(self, cols: list[str], limit: int) -> list[tuple]:
+        """select 文を実行する。
+
+        Args:
+            cols (list[str]): 取得する列
+            limit (int): 件数上限
+
+        Returns:
+            list[tuple]: 取得したレコード群
+        """
+
+    @abstractmethod
+    async def aselect(self, cols: list[str], limit: int) -> list[tuple]:
+        """select 文を実行する。
+
+        Args:
+            cols (list[str]): 取得する列
+            limit (int): 件数上限
+
+        Returns:
+            list[tuple]: 取得したレコード群
         """

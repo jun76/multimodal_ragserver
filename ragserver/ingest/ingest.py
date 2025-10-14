@@ -6,14 +6,14 @@ from ragserver.logger import logger
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 __all__ = [
-    "ingest_from_path",
-    "ingest_from_path_list",
-    "ingest_from_url",
-    "ingest_from_url_list",
+    "aingest_from_path",
+    "aingest_from_path_list",
+    "aingest_from_url",
+    "aingest_from_url_list",
 ]
 
 
-async def ingest_from_path(
+async def aingest_from_path(
     path: str,
     store: VectorStoreManager,
     file_loader: FileLoader,
@@ -32,7 +32,7 @@ async def ingest_from_path(
     await store.aupsert_nodes(nodes)
 
 
-async def ingest_from_path_list(
+async def aingest_from_path_list(
     list_path: str,
     store: VectorStoreManager,
     file_loader: FileLoader,
@@ -50,7 +50,7 @@ async def ingest_from_path_list(
     await store.aupsert_nodes(nodes)
 
 
-async def ingest_from_url(
+async def aingest_from_url(
     url: str,
     store: VectorStoreManager,
     html_loader: HTMLLoader,
@@ -69,7 +69,7 @@ async def ingest_from_url(
     await store.aupsert_nodes(nodes)
 
 
-async def ingest_from_url_list(
+async def aingest_from_url_list(
     list_path: str,
     store: VectorStoreManager,
     html_loader: HTMLLoader,
