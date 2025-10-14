@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from llama_index.vector_stores.postgres import PGVectorStore
 
-from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.names import PGVECTOR_STORE_NAME, PROJECT_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager

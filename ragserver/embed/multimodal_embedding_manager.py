@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from types import CoroutineType
-from typing import Any
 
 from llama_index.core.base.embeddings.base import Embedding
 from llama_index.core.embeddings.multi_modal_base import MultiModalEmbedding
@@ -43,7 +41,7 @@ class MultiModalEmbeddingManager(EmbeddingManager):
             str: この埋め込み実装が生成する画像用ベクトルの空間キー
         """
 
-    async def embed_image(self, paths: list[ImageType]) -> list[Embedding]:
+    async def aembed_image(self, paths: list[ImageType]) -> list[Embedding]:
         """画像の埋め込みベクトルを取得する。
 
         Args:

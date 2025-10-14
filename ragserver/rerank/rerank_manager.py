@@ -32,7 +32,7 @@ class RerankManager(ABC):
             str: プロバイダ名
         """
 
-    async def rerank(
+    async def arerank(
         self, nodes: list[NodeWithScore], query: str
     ) -> list[NodeWithScore]:
         """クエリに基づきリランカーで結果を並べ替える。

@@ -43,7 +43,6 @@ logging.getLogger("PIL.Image").setLevel(logging.WARNING)
 logging.getLogger("PIL.PngImagePlugin").setLevel(logging.WARNING)
 logging.getLogger("openai._base_client").setLevel(logging.WARNING)
 logging.getLogger("unstructured.trace").setLevel(logging.WARNING)
-logging.getLogger("watchdog.observers.inotify_buffer").setLevel(logging.WARNING)
 
 
 class ReloadRequest(BaseModel):
@@ -204,7 +203,7 @@ def _create_vector_store(
                     knowledgebase_name=cfg.knowledgebase_name,
                 )
             case _:
-                raise RuntimeError(f"failed to create store")
+                raise RuntimeError(f"unsupported vector store: {cfg.vector_store}")
 
         global _meta_store
         vector_store.prepare_with(
@@ -724,6 +723,9 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
 
     return {"status": "ok"}
 
+
+# ログレベルを設定
+logger.setLevel(logging.DEBUG)
 
 logger.info(f"embed: {_embed.name}")
 logger.info(f"vector store: {_vector_store.name}")

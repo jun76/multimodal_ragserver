@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Optional
 
 from llama_index.core import SimpleDirectoryReader
 from llama_index.core.node_parser import SentenceSplitter
+from llama_index.core.node_parser.interface import MetadataAwareTextSplitter
+from llama_index.core.readers.file.base import SimpleDirectoryReader
 from llama_index.core.schema import BaseNode
 
-from ragserver.core.metadata import META_KEYS_FROM as MKF
 from ragserver.core.metadata import BasicMetaData
 from ragserver.ingest.loader import Loader
 from ragserver.logger import logger
@@ -34,7 +34,47 @@ class FileLoader(Loader):
         Loader.__init__(self, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._store = store
 
-    async def load_from_path(
+    async def _aload_from_file(
+        self,
+        path: str,
+        reader: SimpleDirectoryReader,
+        splitter: MetadataAwareTextSplitter,
+    ) -> list[BaseNode]:
+        """ファイルからノードを生成する。
+
+        Args:
+            path (str): ファイルパス
+            reader (SimpleDirectoryReader): ファイルリーダ
+            splitter (MetadataAwareTextSplitter): テキストスプリッタ
+
+        Raises:
+            RuntimeError: ノードの生成に失敗
+
+        Returns:
+            list[BaseNode]: 生成したノード
+        """
+        logger.debug("trace")
+
+        try:
+            docs = await reader.aload_file(
+                input_file=Path(path),
+                file_metadata=reader.file_metadata,
+                file_extractor=reader.file_extractor,
+            )
+
+            for doc in docs:
+                nodes = await splitter.aget_nodes_from_documents([doc])
+                for i, node in enumerate(nodes):
+                    meta = BasicMetaData(node.metadata)
+                    meta.chunk_no = i
+                    meta.node_lastmod_at = time.time()
+                    node.metadata = meta.to_dict()
+        except Exception as e:
+            raise RuntimeError("failed to generate nodes from file") from e
+
+        return nodes
+
+    async def aload_from_path(
         self,
         root: str,
     ) -> list[BaseNode]:
@@ -61,11 +101,22 @@ class FileLoader(Loader):
                 recursive=True,
             )
 
-            # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
-            # ここでは _source_cache.clear() しないこと。
+            splitter = SentenceSplitter(
+                chunk_size=self._chunk_size,
+                chunk_overlap=self._chunk_overlap,
+                include_metadata=True,
+            )
+
             paths = reader.list_resources()
-            docs = []
-            for path in paths:
+        except Exception as e:
+            logger.exception(e)
+            return []
+
+        # 最上位ループ内で複数ソースをまたいで _source_cache を共有したいため
+        # ここでは _source_cache.clear() しないこと。
+        nodes = []
+        for path in paths:
+            try:
                 if path in self._source_cache:
                     continue
 
@@ -73,46 +124,23 @@ class FileLoader(Loader):
                     logger.info(f"skip loading: source exists ({path})")
                     continue
 
-                docs.extend(
-                    await reader.aload_file(
-                        input_file=Path(path),
-                        file_metadata=reader.file_metadata,
-                        file_extractor=reader.file_extractor,
+                nodes.extend(
+                    await self._aload_from_file(
+                        path=path, reader=reader, splitter=splitter
                     )
                 )
+
                 # 取得済みキャッシュに追加
                 self._source_cache.add(path)
-
-            splitter = SentenceSplitter(
-                chunk_size=self._chunk_size,
-                chunk_overlap=self._chunk_overlap,
-                include_metadata=True,
-            )
-        except Exception as e:
-            logger.exception(e)
-            return []
-
-        all_nodes = []
-        for doc in docs:
-            try:
-                nodes = splitter.get_nodes_from_documents([doc])
-
-                for i, node in enumerate(nodes):
-                    meta = BasicMetaData(node.metadata)
-                    meta.chunk_no = i
-                    meta.node_lastmod_at = time.time()
-                    node.metadata = meta.to_dict()
-
-                all_nodes.extend(nodes)
             except Exception as e:
                 logger.exception(e)
                 continue
 
-        logger.info(f"loaded {len(all_nodes)} nodes from {root}")
+        logger.info(f"loaded {len(nodes)} nodes from {root}")
 
-        return all_nodes
+        return nodes
 
-    async def load_from_path_list(
+    async def aload_from_path_list(
         self,
         list_path: str,
     ) -> list[BaseNode]:
@@ -133,7 +161,7 @@ class FileLoader(Loader):
         nodes = []
         for path in paths:
             try:
-                temp = await self.load_from_path(path)
+                temp = await self.aload_from_path(path)
                 nodes.extend(temp)
             except Exception as e:
                 logger.exception(e)

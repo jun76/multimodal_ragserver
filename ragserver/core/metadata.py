@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Optional
 
 from ragserver.logger import logger
 
@@ -80,23 +80,25 @@ class BasicMetaData:
     temp_file_path: str = ""  # ダウンロード画像等の一時ファイルパス
     node_lastmod_at: float = 0  # ノードの最終更新時刻（epoch 秒）
 
-    def __init__(self, meta: dict[str, Any] = {}) -> None:
+    def __init__(self, meta: Optional[dict[str, Any]] = None) -> None:
         """dict からメタデータインスタンスを生成する。
 
         Args:
-            meta (dict[str, Any], optional): メタデータの dict
+            meta (Optional[dict[str, Any]], optional): メタデータの dict。 Defaults to None.
         """
         # logger.debug("trace")
 
-        self.file_path = meta.get(META_KEYS.FILE_PATH, "")
-        self.file_type = meta.get(META_KEYS.FILE_TYPE, "")
-        self.file_size = meta.get(META_KEYS.FILE_SIZE, 0)
-        self.file_created_at = meta.get(META_KEYS.FILE_CREATED_AT, "")
-        self.file_lastmod_at = meta.get(META_KEYS.FILE_LASTMOD_AT, "")
-        self.chunk_no = meta.get(META_KEYS.CHUNK_NO, 0)
-        self.base_source = meta.get(META_KEYS.BASE_SOURCE, "")
-        self.temp_file_path = meta.get(META_KEYS.TEMP_FILE_PATH, "")
-        self.node_lastmod_at = meta.get(META_KEYS.NODE_LASTMOD_AT, 0)
+        data = meta or {}
+        self.file_path = data.get(META_KEYS.FILE_PATH, "")
+        self.file_type = data.get(META_KEYS.FILE_TYPE, "")
+        self.file_size = data.get(META_KEYS.FILE_SIZE, 0)
+        self.file_created_at = data.get(META_KEYS.FILE_CREATED_AT, "")
+        self.file_lastmod_at = data.get(META_KEYS.FILE_LASTMOD_AT, "")
+        self.chunk_no = data.get(META_KEYS.CHUNK_NO, 0)
+        self.url = data.get(META_KEYS.URL, "")
+        self.base_source = data.get(META_KEYS.BASE_SOURCE, "")
+        self.temp_file_path = data.get(META_KEYS.TEMP_FILE_PATH, "")
+        self.node_lastmod_at = data.get(META_KEYS.NODE_LASTMOD_AT, 0)
 
     def to_dict(self) -> dict[str, Any]:
         """メタデータの dict を返す。

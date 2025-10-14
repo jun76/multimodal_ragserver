@@ -60,7 +60,7 @@ class HTMLLoader(Loader):
         self._user_agent = user_agent
         self._same_origin = same_origin
 
-    async def _request_get(self, url: str) -> requests.Response:
+    async def _arequest_get(self, url: str) -> requests.Response:
         """HTTP GET を実行する非同期ラッパー。
 
         Args:
@@ -99,7 +99,7 @@ class HTMLLoader(Loader):
 
         return res
 
-    async def _fetch_text(
+    async def _afetch_text(
         self,
         url: str,
     ) -> str:
@@ -114,7 +114,7 @@ class HTMLLoader(Loader):
         logger.debug("trace")
 
         try:
-            res = await self._request_get(url)
+            res = await self._arequest_get(url)
         except Exception as e:
             logger.exception(e)
             return ""
@@ -146,7 +146,7 @@ class HTMLLoader(Loader):
         self,
         html: str,
         base_url: str,
-        allowed_exts: Set[str],
+        allowed_exts: frozenset[str],
         limit: int = 20,
     ) -> list[str]:
         """HTML からアセット URL を収集する。
@@ -154,7 +154,7 @@ class HTMLLoader(Loader):
         Args:
             html (str): HTML 文字列
             base_url (str): 相対 URL 解決用の基準 URL
-            allowed_exts (Set[str]): 許可される拡張子集合（ドット付き小文字）
+            allowed_exts (frozenset[str]): 許可される拡張子集合（ドット付き小文字）
             limit (int, optional): 返却する最大件数.Defaults to 20.
 
         Returns:
@@ -182,8 +182,8 @@ class HTMLLoader(Loader):
                 ):
                     return
 
-                pth = pu.path.lower()
-                if any(pth.endswith(ext) for ext in allowed_exts):
+                path = pu.path.lower()
+                if Exts.endswith_exts(path, allowed_exts):
                     seen.add(absu)
                     out.append(absu)
             except Exception:
@@ -205,13 +205,17 @@ class HTMLLoader(Loader):
 
         return out[: max(0, int(limit))]
 
-    async def _download_direct_linked_file(
-        self, url: str, max_asset_bytes: int = 100 * 1024 * 1024
+    async def _adownload_direct_linked_file(
+        self,
+        url: str,
+        allowed_exts: frozenset[str],
+        max_asset_bytes: int = 100 * 1024 * 1024,
     ) -> Optional[str]:
         """直リンクのファイルをダウンロードし、ローカルの一時ファイルパスを返す。
 
         Args:
             url (str): 対象 URL
+            allowed_exts (frozenset[str]): 許可される拡張子集合（ドット付き小文字）
             max_asset_bytes (int, optional): データサイズ上限。Defaults to 100*1024*1024.
 
         Returns:
@@ -219,8 +223,12 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
+        if Exts.endswith_exts(url, allowed_exts):
+            logger.warning(f"unsupported ext. {' '.join(allowed_exts)} are allowed.")
+            return None
+
         try:
-            res = await self._request_get(url)
+            res = await self._arequest_get(url)
         except Exception as e:
             logger.exception(e)
             return None
@@ -245,7 +253,7 @@ class HTMLLoader(Loader):
 
         return path
 
-    async def _load_direct_linked_file(
+    async def _aload_direct_linked_file(
         self, url: str, base_url: Optional[str] = None
     ) -> Optional[BaseNode]:
         """直リンクのファイルからノードを生成する。
@@ -259,7 +267,9 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
-        temp_file_path = await self._download_direct_linked_file(url)
+        temp_file_path = await self._adownload_direct_linked_file(
+            url=url, allowed_exts=Exts.FETCH_TARGET
+        )
 
         if temp_file_path is None:
             return None
@@ -271,12 +281,9 @@ class HTMLLoader(Loader):
         meta.temp_file_path = temp_file_path  # 削除用
         meta.node_lastmod_at = time.time()
 
-        if Exts.is_image_file(temp_file_path):
-            return ImageNode(text=url, metadata=meta.to_dict())
-
         return TextNode(text=url, metadata=meta.to_dict())
 
-    async def _load_html_text(
+    async def _aload_html_text(
         self, url: str, base_url: Optional[str] = None
     ) -> list[BaseNode]:
         """HTML を読み込み、テキスト部分からノードを生成する。
@@ -305,20 +312,16 @@ class HTMLLoader(Loader):
             return []
 
         for i, node in enumerate(nodes):
-            try:
-                meta = BasicMetaData()
-                meta.chunk_no = i
-                meta.url = url
-                meta.base_source = base_url or ""
-                meta.node_lastmod_at = time.time()
-                node.metadata = meta.to_dict()
-            except Exception as e:
-                logger.exception(e)
-                continue
+            meta = BasicMetaData()
+            meta.chunk_no = i
+            meta.url = url
+            meta.base_source = base_url or ""
+            meta.node_lastmod_at = time.time()
+            node.metadata = meta.to_dict()
 
         return nodes
 
-    async def _load_html_asset_files(
+    async def _aload_html_asset_files(
         self,
         base_url: str,
     ) -> list[BaseNode]:
@@ -332,7 +335,7 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
-        html = await self._fetch_text(base_url)
+        html = await self._afetch_text(base_url)
         urls = self._gather_asset_links(
             html=html, base_url=base_url, allowed_exts=Exts.FETCH_TARGET
         )
@@ -344,7 +347,7 @@ class HTMLLoader(Loader):
             if url in self._source_cache:
                 continue
 
-            node = await self._load_direct_linked_file(url=url, base_url=base_url)
+            node = await self._aload_direct_linked_file(url=url, base_url=base_url)
             if node is None:
                 logger.warning(f"failed to fetch from {url}, skipped")
                 continue
@@ -356,7 +359,7 @@ class HTMLLoader(Loader):
 
         return nodes
 
-    async def _load_from_site(
+    async def _aload_from_site(
         self,
         url: str,
     ) -> list[BaseNode]:
@@ -381,24 +384,24 @@ class HTMLLoader(Loader):
         nodes = []
         if self._is_file_url(url):
             # 直リンクファイル
-            node = await self._load_direct_linked_file(url)
+            node = await self._aload_direct_linked_file(url)
             if node is None:
                 logger.warning(f"failed to fetch from {url}, skipped")
             else:
                 nodes.append(node)
         else:
             # 本文テキスト
-            nodes.extend(await self._load_html_text(url))
+            nodes.extend(await self._aload_html_text(url))
 
             if self._load_asset:
                 # アセットファイル
-                nodes.extend(await self._load_html_asset_files(base_url=url))
+                nodes.extend(await self._aload_html_asset_files(base_url=url))
 
         logger.info(f"loaded {len(nodes)} nodes from {url}")
 
         return nodes
 
-    async def load_from_url(
+    async def aload_from_url(
         self,
         url: str,
     ) -> list[BaseNode]:
@@ -415,7 +418,7 @@ class HTMLLoader(Loader):
 
         # サイトマップ以外は単一のサイトとして読み込み
         if not Exts.is_sitemap_file(url):
-            return await self._load_from_site(url)
+            return await self._aload_from_site(url)
 
         # 以下、サイトマップの解析と読み込み
         try:
@@ -429,12 +432,12 @@ class HTMLLoader(Loader):
         self._source_cache.clear()
         nodes = []
         for url in urls:
-            temp = await self._load_from_site(url)
+            temp = await self._aload_from_site(url)
             nodes.extend(temp)
 
         return nodes
 
-    async def load_from_url_list(
+    async def aload_from_url_list(
         self,
         list_path: str,
     ) -> list[BaseNode]:
@@ -454,7 +457,7 @@ class HTMLLoader(Loader):
         self._source_cache.clear()
         nodes = []
         for url in urls:
-            temp = await self.load_from_url(url)
+            temp = await self.aload_from_url(url)
             nodes.extend(temp)
 
         return nodes

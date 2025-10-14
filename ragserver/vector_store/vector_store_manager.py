@@ -89,7 +89,10 @@ class VectorStoreManager(ABC):
 
         fp_cache = {}
         for row in rows:
-            fp_cache[row[0] or row[1]] = row[2]
+            path, url, fp = row
+            source = path or url
+            if source and fp:
+                fp_cache[path or url] = fp
 
         return fp_cache
 
@@ -135,8 +138,11 @@ class VectorStoreManager(ABC):
             node.metadata.get(META_KEYS.FILE_PATH, "")
         ) or Exts.is_image_file(node.metadata.get(META_KEYS.URL, ""))
 
-    async def _upsert_text(self, nodes: list[TextNode]) -> None:
+    async def _aupsert_text(self, nodes: list[TextNode]) -> None:
         """テキストを埋め込み、ストアに格納する。
+
+        Raises:
+            RuntimeError: upsert 失敗
 
         Args:
             nodes (list[TextNode]): 対象ノード
@@ -164,6 +170,10 @@ class VectorStoreManager(ABC):
         metas = []
         fps = []
         for node in nodes:
+            if not node.text:
+                logger.warning(f"empty text for node {node.node_id}, skipped")
+                continue
+
             texts.append(node.text)
             ids.append(node.node_id)
             meta = BasicMetaData(node.metadata)
@@ -171,7 +181,12 @@ class VectorStoreManager(ABC):
             fps.append(self._get_lazy_fp(meta))
 
         try:
-            vecs = await self._embed.embed_text(texts)
+            vecs = await self._embed.aembed_text(texts)
+            if len(vecs) != len(nodes):
+                raise RuntimeError(
+                    f"embedding count mismatch: expected {len(nodes)}, got {len(vecs)}"
+                )
+
             for node, vec in zip(nodes, vecs):
                 node.embedding = vec
 
@@ -179,12 +194,15 @@ class VectorStoreManager(ABC):
             await self._text_store.async_add(nodes)
             self._meta_store.upsert_text_metas(metas=metas, fingerprints=fps)
         except Exception as e:
-            logger.exception(e)
+            raise RuntimeError("failed to upsert text") from e
 
         logger.info(f"{len(nodes)} nodes are upserted")
 
-    async def _upsert_image(self, nodes: list[ImageNode]) -> None:
+    async def _aupsert_image(self, nodes: list[ImageNode]) -> None:
         """画像を埋め込み、ストアに格納する。
+
+        Raises:
+            RuntimeError: upsert 失敗
 
         Args:
             nodes (list[ImageNode]): 対象ノード
@@ -235,7 +253,12 @@ class VectorStoreManager(ABC):
             fps.append(self._get_lazy_fp(meta))
 
         try:
-            vecs = await self._embed.embed_image(file_paths)
+            vecs = await self._embed.aembed_image(file_paths)
+            if len(vecs) != len(nodes):
+                raise RuntimeError(
+                    f"embedding count mismatch: expected {len(nodes)}, got {len(vecs)}"
+                )
+
             for node, vec in zip(nodes, vecs):
                 node.embedding = vec
 
@@ -243,7 +266,7 @@ class VectorStoreManager(ABC):
             await self._image_store.async_add(nodes)
             self._meta_store.upsert_image_metas(metas=metas, fingerprints=fps)
         except Exception as e:
-            logger.exception(e)
+            raise RuntimeError("failed to upsert text") from e
         finally:
             for path in temp_file_paths:
                 os.remove(path)
@@ -299,19 +322,17 @@ class VectorStoreManager(ABC):
 
         for node in nodes:
             meta = BasicMetaData(node.metadata)
-            print(f"url = {meta.url}, path = {meta.file_path}")
 
             # MultiModalVectorStoreIndex 参照用に画像の一時ファイルを file_path に
-            # 入れている場合は、URL が正ソースとなるためこの or 順序が重要
+            # 入れている場合は URL が正ソースとなるため、この or 順序が重要
             source = meta.url or meta.file_path
 
-            if source is None:
+            if source == "":
                 logger.warning("no source info")
                 continue
 
             # fingerprint キャッシュになければ追加（＝次回以降スキップ）
             if source not in self._fp_cache:
-                print(f"source = {source}, len(self._fp_cache) = {len(self._fp_cache)}")
                 self._fp_cache[source] = self._get_lazy_fp(meta)
 
     def _get_lazy_fp(self, meta: BasicMetaData) -> str:
@@ -374,7 +395,7 @@ class VectorStoreManager(ABC):
 
         return filtered
 
-    async def upsert_nodes(self, nodes: list[BaseNode]) -> None:
+    async def aupsert_nodes(self, nodes: list[BaseNode]) -> None:
         """ノードを埋め込み、ストアに格納する。
 
         Args:
@@ -389,8 +410,8 @@ class VectorStoreManager(ABC):
             return
 
         text_nodes, image_nodes = self._split_nodes_modality(nodes)
-        await self._upsert_text(text_nodes)
-        await self._upsert_image(image_nodes)
+        await self._aupsert_text(text_nodes)
+        await self._aupsert_image(image_nodes)
 
         # キャッシュ登録
         self._add_fp_cache(nodes)

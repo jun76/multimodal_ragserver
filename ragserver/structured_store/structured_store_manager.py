@@ -9,6 +9,12 @@ from ragserver.core.names import PROJECT_NAME
 from ragserver.logger import logger
 
 DML_SELECT = """
+SELECT {col_list}, {order_col} AS _ord FROM {text_table}
+ORDER BY _ord DESC
+LIMIT {limit}
+"""
+
+DML_SELECT_MULTI = """
 SELECT {col_list}
 FROM (
   SELECT {col_list}, {order_col} AS _ord FROM {text_table}
@@ -78,15 +84,25 @@ class StructuredStoreManager(ABC):
         """
         logger.debug("trace")
 
-        if self._space_key_text is None or self._space_key_multi is None:
+        if self._space_key_text is None:
             logger.warning("space key is not initialized")
             return []
+
+        if self._space_key_multi:
+            return self._exec_query(
+                DML_SELECT_MULTI.format(
+                    col_list=", ".join(cols),
+                    text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
+                    image_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_multi}",
+                    order_col=MK.NODE_LASTMOD_AT,
+                    limit=limit,
+                )
+            )
 
         return self._exec_query(
             DML_SELECT.format(
                 col_list=", ".join(cols),
                 text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
-                image_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_multi}",
                 order_col=MK.NODE_LASTMOD_AT,
                 limit=limit,
             )

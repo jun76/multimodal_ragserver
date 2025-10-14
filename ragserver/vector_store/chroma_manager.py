@@ -5,7 +5,6 @@ from typing import Optional
 import chromadb
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
-from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.names import CHROMA_STORE_NAME, PROJECT_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager

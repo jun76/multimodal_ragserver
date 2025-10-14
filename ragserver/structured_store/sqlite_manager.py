@@ -87,7 +87,8 @@ class SQLiteManager(StructuredStoreManager):
         """デストラクタ"""
         logger.debug("trace")
 
-        self._db.close()
+        if hasattr(self, "_db") and self._db is not None:
+            self._db.close()
 
     def _exec_query(self, query: str) -> list[tuple]:
         """クエリを実行する。
@@ -104,11 +105,13 @@ class SQLiteManager(StructuredStoreManager):
         logger.debug("trace")
 
         try:
-            cur = self._db.cursor()
-            cur.execute(query)
-            self._db.commit()
-            res = cur.fetchall()
-            cur.close()
+            with self._db:  # トランザクション管理
+                cur = self._db.cursor()
+                try:
+                    cur.execute(query)
+                    res = cur.fetchall()
+                finally:
+                    cur.close()
         except Exception as e:
             raise RuntimeError("failed to exec query") from e
 
@@ -271,6 +274,9 @@ class SQLiteManager(StructuredStoreManager):
     ) -> None:
         """テキストノードのメタデータをストアに格納する。
 
+        Raises:
+            RuntimeError: space key が初期化されていない場合
+
         Args:
             metas (list[BasicMetaData]): メタデータ
             fingerprints (list[str]): fingerprint 文字列
@@ -278,8 +284,7 @@ class SQLiteManager(StructuredStoreManager):
         logger.debug("trace")
 
         if self._space_key_text is None:
-            logger.warning("space key(text) is not initialized")
-            return
+            raise RuntimeError("space key(text) is not initialized")
 
         self._upsert(
             metas=metas, fingerprints=fingerprints, space_key=self._space_key_text
@@ -290,6 +295,9 @@ class SQLiteManager(StructuredStoreManager):
     ) -> None:
         """画像ノードのメタデータをストアに格納する。
 
+        Raises:
+            RuntimeError: space key が初期化されていない場合
+
         Args:
             metas (list[BasicMetaData]): メタデータ
             fingerprints (list[str]): fingerprint 文字列
@@ -297,8 +305,7 @@ class SQLiteManager(StructuredStoreManager):
         logger.debug("trace")
 
         if self._space_key_multi is None:
-            logger.warning("space key(multi) is not initialized")
-            return
+            raise RuntimeError("space key(multi) is not initialized")
 
         self._upsert(
             metas=metas, fingerprints=fingerprints, space_key=self._space_key_multi

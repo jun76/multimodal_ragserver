@@ -160,7 +160,7 @@ def _render_query_results_text(title: str, result: dict[str, Any]) -> None:
     for doc in documents:
         metadata = doc.get("metadata", {})
         content = doc.get("text", "")
-        source = metadata.get("file_path", "") + metadata.get("url", "")  # 空でない方
+        source = metadata.get("file_path", "") or metadata.get("url", "")  # 空でない方
 
         st.divider()
         st.markdown("#### 本文")
@@ -186,8 +186,7 @@ def _render_query_results_image(title: str, result: dict[str, Any]) -> None:
 
     for doc in documents:
         metadata = doc.get("metadata", {})
-        source = metadata.get("file_path", "") + metadata.get("url", "")  # 空でない方
-        print(source)
+        source = metadata.get("file_path", "") or metadata.get("url", "")  # 空でない方
 
         st.divider()
         st.image(source, width="content")
@@ -195,7 +194,7 @@ def _render_query_results_image(title: str, result: dict[str, Any]) -> None:
         st.write(source)
 
         base_source = metadata.get("base_source", "")
-        if base_source != "":
+        if base_source:
             st.write(f"出典：{base_source}")
 
 

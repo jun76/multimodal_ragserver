@@ -4,8 +4,8 @@ import logging
 
 from ragserver.core.names import PROJECT_NAME
 
+# ログレベルは他のパッケージによって上書きされる場合があるため、main での起動完了後にセットすること
 logging.basicConfig(
-    level=logging.DEBUG,
     format="%(asctime)s - %(levelname)7s - %(name)-30s %(pathname)-80s %(funcName)-30s: %(message)s",
 )
 

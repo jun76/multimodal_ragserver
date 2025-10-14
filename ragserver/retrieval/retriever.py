@@ -45,7 +45,7 @@ async def query_text(
     if rerank is None:
         return nwss
 
-    nwss = await rerank.rerank(nodes=nwss, query=query)
+    nwss = await rerank.arerank(nodes=nwss, query=query)
     logger.info(f"reranked {len(nwss)} nodes")
 
     return nwss
@@ -90,7 +90,7 @@ async def query_text_multi(
     if rerank is None:
         return nwss
 
-    nwss = await rerank.rerank(nodes=nwss, query=query)
+    nwss = await rerank.arerank(nodes=nwss, query=query)
     logger.info(f"reranked {len(nwss)} nodes")
 
     return nwss

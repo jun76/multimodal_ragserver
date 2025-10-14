@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from types import CoroutineType
-from typing import Any
 
 from llama_index.core.base.embeddings.base import BaseEmbedding, Embedding
 
@@ -47,7 +45,7 @@ class EmbeddingManager(ABC):
             str: この埋め込み実装が生成する文書用ベクトルの空間キー
         """
 
-    async def embed_text(self, texts: list[str]) -> list[Embedding]:
+    async def aembed_text(self, texts: list[str]) -> list[Embedding]:
         """テキストの埋め込みベクトルを取得する。
 
         Args:

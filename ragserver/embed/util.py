@@ -33,7 +33,7 @@ def _sanitize_space_key(space_key: str) -> str:
         # 空入力は最短かつ有効な "000" を返す
         return "000"
 
-    allowed = set(
+    allowed = frozenset(
         "abcdefghijklmnopqrstuvwxyz" "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "0123456789" "_"
     )
 
