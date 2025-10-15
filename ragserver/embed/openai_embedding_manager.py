@@ -7,7 +7,6 @@ from llama_index.embeddings.openai.base import OpenAIEmbedding
 
 from ragserver.core.names import OPENAI_EMBED_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
-from ragserver.embed.util import EMBTYPE_TEXT, generate_space_key
 from ragserver.logger import logger
 
 
@@ -48,12 +47,3 @@ class OpenAIEmbeddingManager(EmbeddingManager):
             BaseEmbedding: 埋め込みモデル
         """
         return self._embed
-
-    @property
-    def space_key_text(self) -> str:
-        """OpenAI テキストベクトルの空間キー。
-
-        Returns:
-            str: 空間キー
-        """
-        return generate_space_key(OPENAI_EMBED_NAME, self._model_text, EMBTYPE_TEXT)

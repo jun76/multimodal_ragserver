@@ -6,7 +6,6 @@ from llama_index.embeddings.clip import ClipEmbedding
 
 from ragserver.core.names import CLIP_EMBED_NAME
 from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
-from ragserver.embed.util import EMBTYPE_IMAGE, EMBTYPE_TEXT, generate_space_key
 from ragserver.logger import logger
 
 
@@ -58,21 +57,3 @@ class ClipEmbeddingManager(MultiModalEmbeddingManager):
             MultiModalEmbedding: 埋め込みモデル
         """
         return self._embed_image
-
-    @property
-    def space_key_text(self) -> str:
-        """ローカル CLIP テキストベクトルの空間キー。
-
-        Returns:
-            str: 空間キー
-        """
-        return generate_space_key(CLIP_EMBED_NAME, self._model_text, EMBTYPE_TEXT)
-
-    @property
-    def space_key_multi(self) -> str:
-        """ローカル CLIP 画像ベクトルの空間キー。
-
-        Returns:
-            str: 空間キー
-        """
-        return generate_space_key(CLIP_EMBED_NAME, self._model_image, EMBTYPE_IMAGE)

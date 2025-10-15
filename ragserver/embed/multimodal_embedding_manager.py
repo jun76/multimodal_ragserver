@@ -7,6 +7,7 @@ from llama_index.core.embeddings.multi_modal_base import MultiModalEmbedding
 from llama_index.core.schema import ImageType
 
 from ragserver.embed.embedding_manager import EmbeddingManager
+from ragserver.embed.util import EMBTYPE_IMAGE, generate_space_key
 from ragserver.logger import logger
 
 
@@ -25,6 +26,15 @@ class MultiModalEmbeddingManager(EmbeddingManager):
 
     @property
     @abstractmethod
+    def name(self) -> str:
+        """プロバイダ名。
+
+        Returns:
+            str: プロバイダ名
+        """
+
+    @property
+    @abstractmethod
     def embedding_multi(self) -> MultiModalEmbedding:
         """マルチモーダル対応の埋め込みモデル。
 
@@ -33,13 +43,13 @@ class MultiModalEmbeddingManager(EmbeddingManager):
         """
 
     @property
-    @abstractmethod
     def space_key_multi(self) -> str:
-        """画像（インデックス用）ベクトルの空間キー。
+        """ローカル CLIP 画像ベクトルの空間キー。
 
         Returns:
-            str: この埋め込み実装が生成する画像用ベクトルの空間キー
+            str: 空間キー
         """
+        return generate_space_key(self.name, self._model_image, EMBTYPE_IMAGE)
 
     async def aembed_image(self, paths: list[ImageType]) -> list[Embedding]:
         """画像の埋め込みベクトルを取得する。

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 
 from llama_index.core.base.embeddings.base import BaseEmbedding, Embedding
 
+from ragserver.embed.util import EMBTYPE_TEXT, generate_space_key
 from ragserver.logger import logger
 
 
@@ -37,13 +38,13 @@ class EmbeddingManager(ABC):
         """
 
     @property
-    @abstractmethod
     def space_key_text(self) -> str:
-        """テキスト文書（インデックス用）ベクトルの空間キー。
+        """ローカル CLIP テキストベクトルの空間キー。
 
         Returns:
-            str: この埋め込み実装が生成する文書用ベクトルの空間キー
+            str: 空間キー
         """
+        return generate_space_key(self.name, self._model_text, EMBTYPE_TEXT)
 
     async def aembed_text(self, texts: list[str]) -> list[Embedding]:
         """テキストの埋め込みベクトルを取得する。
