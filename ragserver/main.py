@@ -7,12 +7,15 @@ from pathlib import Path
 from typing import Any, Optional
 
 import aiofiles
+import chromadb
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi_mcp.server import FastApiMCP
 from llama_index.core.schema import NodeWithScore
 from llama_index.embeddings.clip import ClipEmbedding
 from llama_index.embeddings.cohere.base import CohereEmbedding
 from llama_index.embeddings.openai.base import OpenAIEmbedding
+from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.vector_stores.postgres import PGVectorStore
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
@@ -30,9 +33,10 @@ from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.retrieval import retriever
 from ragserver.structured_store.sqlite_manager import SQLiteManager
 from ragserver.structured_store.structured_store_manager import StructuredStoreManager
-from ragserver.vector_store.chroma_manager import ChromaManager
-from ragserver.vector_store.pgvector_manager import PgVectorManager
-from ragserver.vector_store.vector_store_manager import VectorStoreManager
+from ragserver.vector_store.vector_store_manager import (
+    VectorStoreContainer,
+    VectorStoreManager,
+)
 
 __all__ = ["app"]
 
@@ -72,11 +76,8 @@ class URLRequest(BaseModel):
 app = FastAPI(title=names.PROJECT_NAME, version="1.0")
 
 
-def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
+def _create_embed() -> EmbeddingManager:
     """埋め込み管理インスタンスを生成する。
-
-    Args:
-        name (Optional[str], optional): 埋め込み管理名。Defaults to None.
 
     Raises:
         RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
@@ -92,67 +93,75 @@ def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
         traceback.print_exc()
         raise RuntimeError(f"failed to load configuration: {e}") from e
 
-    # if name:
-    #     cfg.text_embed_provider = name
+    try:
+        embeds = []
+        match cfg.text_embed_provider:
+            case names.OPENAI_EMBED_NAME:
+                embed_text = EmbeddingContainer(
+                    modality=Modality.TEXT,
+                    provider_name=names.OPENAI_EMBED_NAME,
+                    embedding=OpenAIEmbedding(
+                        model=cfg.openai_embed_model_text,
+                        api_base=cfg.openai_base_url,
+                    ),
+                )
+                embeds.append(embed_text)
 
-    embeds = []
-    match cfg.text_embed_provider:
-        case names.OPENAI_EMBED_NAME:
-            embed_text = EmbeddingContainer(
-                modality=Modality.TEXT,
-                provider_name=names.OPENAI_EMBED_NAME,
-                embedding=OpenAIEmbedding(
-                    model=cfg.openai_embed_model_text,
-                    api_base=cfg.openai_base_url,
-                ),
-            )
-            embeds.append(embed_text)
-        case names.COHERE_EMBED_NAME:
-            embed_text = EmbeddingContainer(
-                modality=Modality.TEXT,
-                provider_name=names.COHERE_EMBED_NAME,
-                embedding=CohereEmbedding(
-                    model_name=cfg.cohere_embed_model_text,
-                ),
-            )
-            embeds.append(embed_text)
-        case names.CLIP_EMBED_NAME:
-            embed_text = EmbeddingContainer(
-                modality=Modality.TEXT,
-                provider_name=names.CLIP_EMBED_NAME,
-                embedding=ClipEmbedding(
-                    model_name=cfg.clip_embed_model_text,
-                ),
-            )
-            embeds.append(embed_text)
-        case _:
-            raise ValueError(
-                f"unsupported text embed provider: {cfg.text_embed_provider}"
-            )
+            case names.COHERE_EMBED_NAME:
+                embed_text = EmbeddingContainer(
+                    modality=Modality.TEXT,
+                    provider_name=names.COHERE_EMBED_NAME,
+                    embedding=CohereEmbedding(
+                        model_name=cfg.cohere_embed_model_text,
+                    ),
+                )
+                embeds.append(embed_text)
 
-    match cfg.image_embed_provider:
-        case names.COHERE_EMBED_NAME:
-            embed_image = EmbeddingContainer(
-                modality=Modality.IMAGE,
-                provider_name=names.COHERE_EMBED_NAME,
-                embedding=CohereEmbedding(
-                    model_name=cfg.cohere_embed_model_image,
-                ),
-            )
-            embeds.append(embed_image)
-        case names.CLIP_EMBED_NAME:
-            embed_image = EmbeddingContainer(
-                modality=Modality.IMAGE,
-                provider_name=names.CLIP_EMBED_NAME,
-                embedding=ClipEmbedding(
-                    model_name=cfg.clip_embed_model_image,
-                ),
-            )
-            embeds.append(embed_image)
-        case _:
-            raise ValueError(
-                f"unsupported image embed provider: {cfg.image_embed_provider}"
-            )
+            case names.CLIP_EMBED_NAME:
+                embed_text = EmbeddingContainer(
+                    modality=Modality.TEXT,
+                    provider_name=names.CLIP_EMBED_NAME,
+                    embedding=ClipEmbedding(
+                        model_name=cfg.clip_embed_model_text,
+                    ),
+                )
+                embeds.append(embed_text)
+
+            case _:
+                raise ValueError(
+                    f"unsupported text embed provider: {cfg.text_embed_provider}"
+                )
+
+        if cfg.image_embed_provider:
+            match cfg.image_embed_provider:
+                case names.COHERE_EMBED_NAME:
+                    embed_image = EmbeddingContainer(
+                        modality=Modality.IMAGE,
+                        provider_name=names.COHERE_EMBED_NAME,
+                        embedding=CohereEmbedding(
+                            model_name=cfg.cohere_embed_model_image,
+                        ),
+                    )
+                    embeds.append(embed_image)
+
+                case names.CLIP_EMBED_NAME:
+                    embed_image = EmbeddingContainer(
+                        modality=Modality.IMAGE,
+                        provider_name=names.CLIP_EMBED_NAME,
+                        embedding=ClipEmbedding(
+                            model_name=cfg.clip_embed_model_image,
+                        ),
+                    )
+                    embeds.append(embed_image)
+
+                case _:
+                    raise ValueError(
+                        f"unsupported image embed provider: {cfg.image_embed_provider}"
+                    )
+
+    except Exception as e:
+        traceback.print_exc()
+        raise RuntimeError(f"failed to prepare embedding: {e}") from e
 
     return EmbeddingManager(embeds)
 
@@ -179,7 +188,7 @@ def _create_meta_store(embed: EmbeddingManager) -> StructuredStoreManager:
 
     try:
         meta_store = SQLiteManager(knowledgebase_name=cfg.knowledgebase_name)
-        if embed.get_embed(Modality.IMAGE):
+        if embed.get_container(Modality.IMAGE):
             meta_store.prepare_with(
                 space_key_text=embed.space_key_text,
                 space_key_image=embed.space_key_image,
@@ -199,13 +208,16 @@ _meta_store = _create_meta_store(_embed)
 
 
 def _create_vector_store(
-    embed: EmbeddingManager, name: Optional[str] = None
+    embed: EmbeddingManager,
+    meta_store: StructuredStoreManager,
+    knowledgebase_name: str = "default",
 ) -> VectorStoreManager:
     """ベクトルストアのインスタンスを生成する。
 
     Args:
         embed (EmbeddingManager): 埋め込み管理
-        name (Optional[str], optional): ベクトルストア名。Defaults to None.
+        meta_store (StructuredStoreManager): メタデータ管理
+        knowledgebase_name (str, optional): ナレッジベース（用途）名。Defaults to "default".
 
     Raises:
         RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
@@ -221,44 +233,87 @@ def _create_vector_store(
         traceback.print_exc()
         raise RuntimeError(f"failed to load configuration: {e}") from e
 
-    if name:
-        cfg.vector_store = name
-
     try:
+        stores = []
         match cfg.vector_store:
             case names.PGVECTOR_STORE_NAME:
-                vector_store = PgVectorManager(
-                    host=cfg.pg_host,
-                    port=cfg.pg_port,
-                    dbname=cfg.pg_database,
-                    user=cfg.pg_user,
-                    password=cfg.pg_password,
-                    check_update=cfg.check_update,
-                    knowledgebase_name=cfg.knowledgebase_name,
+                text_store = VectorStoreContainer(
+                    modality=Modality.TEXT,
+                    provider_name=names.PGVECTOR_STORE_NAME,
+                    store=PGVectorStore.from_params(
+                        host=cfg.pg_host,
+                        port=str(cfg.pg_port),
+                        database=cfg.pg_database,
+                        user=cfg.pg_user,
+                        password=cfg.pg_password,
+                        table_name=f"{names.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_text}",
+                    ),
                 )
+                stores.append(text_store)
+
+                image_store = VectorStoreContainer(
+                    modality=Modality.IMAGE,
+                    provider_name=names.PGVECTOR_STORE_NAME,
+                    store=PGVectorStore.from_params(
+                        host=cfg.pg_host,
+                        port=str(cfg.pg_port),
+                        database=cfg.pg_database,
+                        user=cfg.pg_user,
+                        password=cfg.pg_password,
+                        table_name=f"{names.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_image}",
+                    ),
+                )
+                stores.append(image_store)
+
             case names.CHROMA_STORE_NAME:
-                vector_store = ChromaManager(
-                    persist_directory=cfg.chroma_persist_dir,
-                    host=cfg.chroma_host,
-                    port=cfg.chroma_port,
-                    check_update=cfg.check_update,
-                    knowledgebase_name=cfg.knowledgebase_name,
+                if cfg.chroma_host is not None and cfg.chroma_port is not None:
+                    client = chromadb.HttpClient(
+                        host=cfg.chroma_host, port=cfg.chroma_port
+                    )
+                elif cfg.chroma_persist_dir:
+                    client = chromadb.PersistentClient(path=cfg.chroma_persist_dir)
+                else:
+                    raise RuntimeError(
+                        "persist_directory or host + port must be specified"
+                    )
+
+                text_collection = client.get_or_create_collection(
+                    name=f"{names.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_text}"
                 )
+                text_store = VectorStoreContainer(
+                    modality=Modality.TEXT,
+                    provider_name=names.PGVECTOR_STORE_NAME,
+                    store=ChromaVectorStore(chroma_collection=text_collection),
+                )
+                stores.append(text_store)
+
+                image_collection = client.get_or_create_collection(
+                    name=f"{names.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_image}"
+                )
+                image_store = VectorStoreContainer(
+                    modality=Modality.IMAGE,
+                    provider_name=names.PGVECTOR_STORE_NAME,
+                    store=ChromaVectorStore(chroma_collection=image_collection),
+                )
+                stores.append(image_store)
+
             case _:
                 raise RuntimeError(f"unsupported vector store: {cfg.vector_store}")
 
-        global _meta_store
-        vector_store.prepare_with(
-            embed=embed, meta_store=_meta_store, limit=cfg.load_limit
-        )
     except Exception as e:
         traceback.print_exc()
         raise RuntimeError(f"failed to prepare vector store: {e}") from e
 
-    return vector_store
+    return VectorStoreManager(
+        stores=stores,
+        embed=embed,
+        meta_store=meta_store,
+        load_limit=cfg.load_limit,
+        check_update=cfg.check_update,
+    )
 
 
-_vector_store = _create_vector_store(_embed)
+_vector_store = _create_vector_store(embed=_embed, meta_store=_meta_store)
 
 
 def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
@@ -329,7 +384,7 @@ async def health() -> dict[str, Any]:
 
     providers = []
     for mod in _embed.modality:
-        providers.append(f"{mod} = {_embed.get_embed(mod).provider_name}")
+        providers.append(f"{mod} = {_embed.get_container(mod).provider_name}")
 
     return {
         "status": "ok",
@@ -368,7 +423,7 @@ async def reload(payload: ReloadRequest) -> dict[str, Any]:
                     )
                 case "embed":
                     _embed = _create_embed(payload.name)
-                    if _embed.get_embed(Modality.IMAGE):
+                    if _embed.get_container(Modality.IMAGE):
                         _meta_store.prepare_with(
                             space_key_text=_embed.space_key_text,
                             space_key_image=_embed.space_key_image,
@@ -517,7 +572,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    if not _embed.get_embed(Modality.IMAGE):
+    if not _embed.get_container(Modality.IMAGE):
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
@@ -562,7 +617,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    if not _embed.get_embed(Modality.IMAGE):
+    if not _embed.get_container(Modality.IMAGE):
         traceback.print_exc()
         raise HTTPException(
             status_code=500,

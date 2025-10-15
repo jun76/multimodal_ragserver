@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Optional
 
 from llama_index.core.indices import VectorStoreIndex
@@ -20,66 +20,145 @@ from ragserver.logger import logger
 from ragserver.structured_store.structured_store_manager import StructuredStoreManager
 
 
-class VectorStoreManager(ABC):
-    def __init__(self, check_update: bool = True) -> None:
+@dataclass
+class VectorStoreContainer:
+    """モダリティ毎のベクトルストア関連パラメータを集約"""
+
+    modality: str
+    provider_name: str
+    store: BasePydanticVectorStore
+
+
+class VectorStoreManager:
+    def __init__(
+        self,
+        stores: list[VectorStoreContainer],
+        embed: EmbeddingManager,
+        meta_store: StructuredStoreManager,
+        load_limit: int,
+        check_update: bool = True,
+    ) -> None:
         """ベクトルストア管理クラスの抽象
 
         空間キーごとにテーブルを一つ割り当て、ノードを管理する想定。
 
         Args:
+            stores (list[VectorStoreContainer]): ベクトルストアコンテナのリスト
+            embed (EmbeddingManager): 埋め込み管理
+            meta_store (StructuredStoreManager): メタデータ管理
+            load_limit (int): キャッシュロード件数上限
             check_update (bool, optional): ファイルの更新チェック要否。Defaults to True.
         """
         logger.debug("trace")
 
+        self._vector_store_text: Optional[VectorStoreContainer] = None
+        self._vector_store_image: Optional[VectorStoreContainer] = None
+        self._modality: set[str] = set()
+
+        for store in stores:
+            match store.modality:
+                case Modality.TEXT:
+                    self._vector_store_text = store
+                case Modality.IMAGE:
+                    self._vector_store_image = store
+                case _:
+                    raise ValueError(f"unexpected modality: {store.modality}")
+
+            self._modality.add(store.modality)
+
+        self._embed = embed
         self._check_update = check_update
+        self._meta_store = meta_store
+        self._index = self._create_index()
 
-        self._text_store: Optional[BasePydanticVectorStore] = None
-        self._image_store: Optional[BasePydanticVectorStore] = None
-        self._index: Optional[VectorStoreIndex] = None
-        self._embed: Optional[EmbeddingManager] = None
-        self._meta_store: Optional[StructuredStoreManager] = None
-
-        # 各ストア（空間キー毎）の初期化時に同期し、以降は fingerprint チェックの度に追加
-        self._fp_cache: dict[str, str] = {}
+        # メタデータ専用ストアから fingerprint キャッシュを復元
+        self._fp_cache = self._load_fp_cache(load_limit)
 
     @property
-    @abstractmethod
-    def name(self) -> str:
-        """プロバイダ名。
-
-        Returns:
-            str: プロバイダ名
-        """
-
-    @property
-    def index(self) -> Optional[VectorStoreIndex]:
+    def index(self) -> VectorStoreIndex:
         """ストレージから生成したインデックス。
 
         Returns:
-            Optional[VectorStoreIndex]: インデックス
+            VectorStoreIndex: インデックス
         """
         return self._index
 
-    @abstractmethod
-    def prepare_with(
-        self, embed: EmbeddingManager, meta_store: StructuredStoreManager, limit: int
-    ) -> None:
-        """埋め込み管理に合わせてストアを初期化する。
+    @property
+    def modality(self) -> set[str]:
+        """このベクトルストアがサポートするモダリティ一覧。
+
+        Returns:
+            set[str]: モダリティ一覧
+        """
+        return self._modality
+
+    def get_container(self, modality: str) -> VectorStoreContainer:
+        """モダリティ別のベクトルストアコンテナを取得する。
 
         Args:
-            embed (EmbeddingManager): 埋め込み管理
-            meta_store (StructuredStoreManager): メタデータ管理
-            limit (int): メタデータ読み込み件数上限
+            modality (str): モダリティ
 
         Raises:
-            RuntimeError: ストア初期化失敗
-        """
+            ValueError: 予期せぬモダリティ
+            RuntimeError: 未初期化
 
-    def _load_fp_cache(self, limit: int) -> dict[str, str]:
+        Returns:
+            VectorStoreContainer: ベクトルストアコンテナ
+        """
+        logger.debug("trace")
+
+        match modality:
+            case Modality.TEXT:
+                if self._vector_store_text:
+                    return self._vector_store_text
+            case Modality.IMAGE:
+                if self._vector_store_image:
+                    return self._vector_store_image
+            case _:
+                raise ValueError(f"unexpected modality: {modality}")
+
+        raise RuntimeError(f"store {modality} is not initialized")
+
+    async def aupsert_nodes(self, nodes: list[BaseNode]) -> None:
+        """ノードを埋め込み、ストアに格納する。
+
+        Args:
+            nodes (list[BaseNode]): 対象ノード
+        """
+        logger.debug("trace")
+
+        # fingerprint が既存・同一のノードは upsert しない
+        nodes = self._filter_nodes_by_fp(nodes)
+        if len(nodes) == 0:
+            logger.info("skip upsert: all nodes already exist")
+            return
+
+        text_nodes, image_nodes = self._split_nodes_modality(nodes)
+        await self._aupsert_text(text_nodes)
+        await self._aupsert_image(image_nodes)
+
+        # キャッシュ登録
+        self._add_fp_cache(nodes)
+
+    def skip_update(self, source: str) -> bool:
+        """ソースが登録済みであり、更新処理が不要か。
+
+        Args:
+            source (str): 対象ソース
+
+        Returns:
+            bool: 更新処理不要の場合に True
+        """
+        # logger.debug("trace")
+
+        # check_update 指定がなく、かつソースが登録済み
+        return (not self._check_update) and (self._fp_cache.get(source) is not None)
+
+    def _load_fp_cache(self, load_limit: int) -> dict[str, str]:
         """メタデータ用ストアから fingerprint のキャッシュを読み込む。
 
         Args:
-            limit (int): メタデータ読み込み件数上限
+            load_limit (int): メタデータ読み込み件数上限
 
         Returns:
             dict[str, str]: ソース情報対 fingerprint の KVS
@@ -91,7 +170,7 @@ class VectorStoreManager(ABC):
             return {}
 
         rows = self._meta_store.select(
-            cols=[MK.FILE_PATH, MK.URL, MK.FINGERPRINT], limit=limit
+            cols=[MK.FILE_PATH, MK.URL, MK.FINGERPRINT], limit=load_limit
         )
 
         fp_cache = {}
@@ -160,18 +239,6 @@ class VectorStoreManager(ABC):
             logger.warning("empty list")
             return
 
-        if self._text_store is None:
-            logger.warning("text store is not initialized")
-            return
-
-        if self._embed is None:
-            logger.warning("embedding is not initialized")
-            return
-
-        if self._meta_store is None:
-            logger.warning("metadata store is not initialized")
-            return
-
         texts = []
         ids = []
         metas = []
@@ -199,8 +266,8 @@ class VectorStoreManager(ABC):
             for node, vec in zip(nodes, vecs):
                 node.embedding = vec
 
-            await self._text_store.adelete_nodes(ids)
-            await self._text_store.async_add(nodes)
+            await self.get_container(Modality.TEXT).store.adelete_nodes(ids)
+            await self.get_container(Modality.TEXT).store.async_add(nodes)
             await self._meta_store.aupsert_text_metas(metas=metas, fingerprints=fps)
         except Exception as e:
             raise RuntimeError("failed to upsert text") from e
@@ -220,18 +287,6 @@ class VectorStoreManager(ABC):
 
         if len(nodes) == 0:
             logger.warning("empty list")
-            return
-
-        if self._image_store is None:
-            logger.warning("image store is not initialized")
-            return
-
-        if self._embed is None:
-            logger.warning("embedding is not initialized")
-            return
-
-        if self._meta_store is None:
-            logger.warning("metadata store is not initialized")
             return
 
         file_paths = []
@@ -271,8 +326,8 @@ class VectorStoreManager(ABC):
             for node, vec in zip(nodes, vecs):
                 node.embedding = vec
 
-            await self._image_store.adelete_nodes(ids)
-            await self._image_store.async_add(nodes)
+            await self.get_container(Modality.IMAGE).store.adelete_nodes(ids)
+            await self.get_container(Modality.IMAGE).store.async_add(nodes)
             await self._meta_store.aupsert_image_metas(metas=metas, fingerprints=fps)
         except Exception as e:
             raise RuntimeError("failed to upsert text") from e
@@ -282,40 +337,28 @@ class VectorStoreManager(ABC):
 
         logger.info(f"{len(nodes)} nodes are upserted")
 
-    def _create_index(
-        self,
-        text_store: BasePydanticVectorStore,
-        image_store: Optional[BasePydanticVectorStore] = None,
-    ) -> Optional[VectorStoreIndex]:
+    def _create_index(self) -> VectorStoreIndex:
         """インデックスを生成する。
 
-        Args:
-            text_store (BasePydanticVectorStore): テキストストア
-            image_store (Optional[BasePydanticVectorStore], optional): 画像ストア。Defaults to None.
-
         Raises:
-            RuntimeError: 埋め込みコンテナ初期化
+            RuntimeError: コンテナ未初期化
 
         Returns:
-            Optional[VectorStoreIndex]: 生成したインデックス
+            VectorStoreIndex: 生成したインデックス
         """
         logger.debug("trace")
 
-        if self._embed is None:
-            logger.warning("embedding is not initialized")
-            return None
-
-        if image_store:
+        if Modality.IMAGE in self.modality:
             return MultiModalVectorStoreIndex.from_vector_store(
-                vector_store=text_store,
-                embed_model=self._embed.get_embed(Modality.TEXT).embedding,
-                image_vector_store=image_store,
-                image_embed_model=self._embed.get_embed(Modality.IMAGE).embedding,
+                vector_store=self.get_container(Modality.TEXT).store,
+                embed_model=self._embed.get_container(Modality.TEXT).embedding,
+                image_vector_store=self.get_container(Modality.IMAGE).store,
+                image_embed_model=self._embed.get_container(Modality.IMAGE).embedding,
             )
 
         return VectorStoreIndex.from_vector_store(
-            vector_store=text_store,
-            embed_model=self._embed.get_embed(Modality.TEXT).embedding,
+            vector_store=self.get_container(Modality.TEXT).store,
+            embed_model=self._embed.get_container(Modality.TEXT).embedding,
         )
 
     def _add_fp_cache(self, nodes: list[BaseNode]) -> None:
@@ -401,38 +444,3 @@ class VectorStoreManager(ABC):
             filtered.append(node)
 
         return filtered
-
-    async def aupsert_nodes(self, nodes: list[BaseNode]) -> None:
-        """ノードを埋め込み、ストアに格納する。
-
-        Args:
-            nodes (list[BaseNode]): 対象ノード
-        """
-        logger.debug("trace")
-
-        # fingerprint が既存・同一のノードは upsert しない
-        nodes = self._filter_nodes_by_fp(nodes)
-        if len(nodes) == 0:
-            logger.info("skip upsert: all nodes already exist")
-            return
-
-        text_nodes, image_nodes = self._split_nodes_modality(nodes)
-        await self._aupsert_text(text_nodes)
-        await self._aupsert_image(image_nodes)
-
-        # キャッシュ登録
-        self._add_fp_cache(nodes)
-
-    def skip_update(self, source: str) -> bool:
-        """ソースが登録済みであり、更新処理が不要か。
-
-        Args:
-            source (str): 対象ソース
-
-        Returns:
-            bool: 更新処理不要の場合に True
-        """
-        # logger.debug("trace")
-
-        # check_update 指定がなく、かつソースが登録済み
-        return (not self._check_update) and (self._fp_cache.get(source) is not None)

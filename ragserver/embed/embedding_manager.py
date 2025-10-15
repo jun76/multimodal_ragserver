@@ -28,7 +28,7 @@ class EmbeddingManager:
         """コンストラクタ
 
         Args:
-            embeds (list[Embed]): 埋め込みコンテナのリスト
+            embeds (list[EmbeddingContainer]): 埋め込みコンテナのリスト
 
         Raises:
             ValueError: 予期せぬモダリティ
@@ -55,6 +55,15 @@ class EmbeddingManager:
                     raise ValueError(f"unexpected modality: {embed.modality}")
 
             self._modality.add(embed.modality)
+
+    @property
+    def modality(self) -> set[str]:
+        """この埋め込み管理がサポートするモダリティ一覧。
+
+        Returns:
+            set[str]: モダリティ一覧
+        """
+        return self._modality
 
     def _sanitize_space_key(self, space_key: str) -> str:
         """制約にマッチするよう space_key 文字列を整形する。
@@ -118,40 +127,7 @@ class EmbeddingManager:
 
         return space_key
 
-    @property
-    def space_key_text(self) -> str:
-        """テキスト埋め込みの空間キー。
-
-        Raises:
-            RuntimeError: 未初期化
-
-        Returns:
-            str: 空間キー
-        """
-        return self.get_embed(Modality.TEXT).space_key
-
-    @property
-    def space_key_image(self) -> str:
-        """画像埋め込みの空間キー。
-
-        Raises:
-            RuntimeError: 未初期化
-
-        Returns:
-            str: 空間キー
-        """
-        return self.get_embed(Modality.IMAGE).space_key
-
-    @property
-    def modality(self) -> set[str]:
-        """この埋め込み管理がサポートするモダリティ一覧。
-
-        Returns:
-            set[str]: モダリティ一覧
-        """
-        return self._modality
-
-    def get_embed(self, modality: str) -> EmbeddingContainer:
+    def get_container(self, modality: str) -> EmbeddingContainer:
         """モダリティ別の埋め込みコンテナを取得する。
 
         Args:
@@ -178,6 +154,32 @@ class EmbeddingManager:
 
         raise RuntimeError(f"embed {modality} is not initialized")
 
+    ############################################################################
+    # 以下、参照の多いコンテナ要素への直接アクセサ
+    @property
+    def space_key_text(self) -> str:
+        """テキスト埋め込みの空間キー。
+
+        Raises:
+            RuntimeError: 未初期化
+
+        Returns:
+            str: 空間キー
+        """
+        return self.get_container(Modality.TEXT).space_key
+
+    @property
+    def space_key_image(self) -> str:
+        """画像埋め込みの空間キー。
+
+        Raises:
+            RuntimeError: 未初期化
+
+        Returns:
+            str: 空間キー
+        """
+        return self.get_container(Modality.IMAGE).space_key
+
     async def aembed_text(self, texts: list[str]) -> list[Embedding]:
         """テキストの埋め込みベクトルを取得する。
 
@@ -192,9 +194,9 @@ class EmbeddingManager:
         """
         logger.debug("trace")
 
-        return await self.get_embed(Modality.TEXT).embedding.aget_text_embedding_batch(
-            texts
-        )
+        return await self.get_container(
+            Modality.TEXT
+        ).embedding.aget_text_embedding_batch(texts)
 
     async def aembed_image(self, paths: list[ImageType]) -> list[Embedding]:
         """画像の埋め込みベクトルを取得する。
@@ -210,7 +212,7 @@ class EmbeddingManager:
         """
         logger.debug("trace")
 
-        embed = self.get_embed(Modality.IMAGE).embedding
+        embed = self.get_container(Modality.IMAGE).embedding
         if not isinstance(embed, MultiModalEmbedding):
             raise RuntimeError("multimodal embed model is required")
 
