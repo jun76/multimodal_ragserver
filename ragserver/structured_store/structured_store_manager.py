@@ -23,17 +23,17 @@ class StructuredStoreManager(ABC):
 
         self._knowledgebase_name = knowledgebase_name
         self._space_key_text = None
-        self._space_key_multi = None
+        self._space_key_image = None
 
     @abstractmethod
     def prepare_with(
-        self, space_key_text: str, space_key_multi: Optional[str] = None
+        self, space_key_text: str, space_key_image: Optional[str] = None
     ) -> None:
         """空間キーに合わせてストアを初期化する。
 
         Args:
             space_key_text (str): テキストベクトルの空間キー
-            space_key_multi (Optional[str], optional): 画像ベクトルの空間キー。Defaults to None.
+            space_key_image (Optional[str], optional): 画像ベクトルの空間キー。Defaults to None.
 
         Raises:
             RuntimeError: ストア初期化失敗

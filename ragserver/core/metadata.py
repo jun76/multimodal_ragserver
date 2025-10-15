@@ -109,3 +109,10 @@ class BasicMetaData:
         # logger.debug("trace")
 
         return asdict(self)
+
+
+# モダリティ
+# ! 字列を変更すると空間キーの字列が変わって別空間（ingest やり直し）になるので注意 !
+class Modality:
+    TEXT = "text"
+    IMAGE = "image"

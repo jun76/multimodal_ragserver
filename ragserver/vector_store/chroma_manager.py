@@ -6,8 +6,7 @@ import chromadb
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from ragserver.core.names import CHROMA_STORE_NAME, PROJECT_NAME
-from ragserver.embed.embedding_manager import EmbeddingManager
-from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
+from ragserver.embed.embedding_manager import EmbeddingManager, Modality
 from ragserver.logger import logger
 from ragserver.structured_store.structured_store_manager import StructuredStoreManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
@@ -85,13 +84,13 @@ class ChromaManager(VectorStoreManager):
 
         try:
             text_collection = self._client.get_or_create_collection(
-                name=f"{PROJECT_NAME}_{self._knowledgebase_name}_{embed.space_key_text}"
+                name=f"{PROJECT_NAME}__{self._knowledgebase_name}__{embed.space_key_text}"
             )
             self._text_store = ChromaVectorStore(chroma_collection=text_collection)
 
-            if isinstance(embed, MultiModalEmbeddingManager):
+            if Modality.IMAGE in embed.modality:
                 image_collection = self._client.get_or_create_collection(
-                    name=f"{PROJECT_NAME}_{self._knowledgebase_name}_{embed.space_key_multi}"
+                    name=f"{PROJECT_NAME}__{self._knowledgebase_name}__{embed.space_key_image}"
                 )
                 self._image_store = ChromaVectorStore(
                     chroma_collection=image_collection
@@ -102,7 +101,7 @@ class ChromaManager(VectorStoreManager):
                 )
                 self._meta_store.prepare_with(
                     space_key_text=embed.space_key_text,
-                    space_key_multi=embed.space_key_multi,
+                    space_key_image=embed.space_key_image,
                 )
             else:
                 self._index = self._create_index(text_store=self._text_store)

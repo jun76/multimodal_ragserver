@@ -10,16 +10,16 @@ import aiofiles
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi_mcp.server import FastApiMCP
 from llama_index.core.schema import NodeWithScore
+from llama_index.embeddings.clip import ClipEmbedding
+from llama_index.embeddings.cohere.base import CohereEmbedding
+from llama_index.embeddings.openai.base import OpenAIEmbedding
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
 from ragserver.config import get_config
 from ragserver.core import names
-from ragserver.embed.clip_embedding_manager import ClipEmbeddingManager
-from ragserver.embed.cohere_embedding_manager import CohereEmbeddingManager
-from ragserver.embed.embedding_manager import EmbeddingManager
-from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
-from ragserver.embed.openai_embedding_manager import OpenAIEmbeddingManager
+from ragserver.core.metadata import Modality
+from ragserver.embed.embedding_manager import EmbeddingContainer, EmbeddingManager
 from ragserver.ingest import ingest
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.html_loader import HTMLLoader
@@ -92,27 +92,69 @@ def _create_embed(name: Optional[str] = None) -> EmbeddingManager:
         traceback.print_exc()
         raise RuntimeError(f"failed to load configuration: {e}") from e
 
-    if name:
-        cfg.embed_provider = name
+    # if name:
+    #     cfg.text_embed_provider = name
 
-    match cfg.embed_provider:
+    embeds = []
+    match cfg.text_embed_provider:
         case names.OPENAI_EMBED_NAME:
-            return OpenAIEmbeddingManager(
-                model_text=cfg.openai_embed_model_text,
-                base_url=cfg.openai_base_url,
+            embed_text = EmbeddingContainer(
+                modality=Modality.TEXT,
+                provider_name=names.OPENAI_EMBED_NAME,
+                embedding=OpenAIEmbedding(
+                    model=cfg.openai_embed_model_text,
+                    api_base=cfg.openai_base_url,
+                ),
             )
+            embeds.append(embed_text)
         case names.COHERE_EMBED_NAME:
-            return CohereEmbeddingManager(
-                model_text=cfg.cohere_embed_model_text,
-                model_image=cfg.cohere_embed_model_image,
+            embed_text = EmbeddingContainer(
+                modality=Modality.TEXT,
+                provider_name=names.COHERE_EMBED_NAME,
+                embedding=CohereEmbedding(
+                    model_name=cfg.cohere_embed_model_text,
+                ),
             )
+            embeds.append(embed_text)
         case names.CLIP_EMBED_NAME:
-            return ClipEmbeddingManager(
-                model_text=cfg.clip_embed_model_text,
-                model_image=cfg.clip_embed_model_image,
+            embed_text = EmbeddingContainer(
+                modality=Modality.TEXT,
+                provider_name=names.CLIP_EMBED_NAME,
+                embedding=ClipEmbedding(
+                    model_name=cfg.clip_embed_model_text,
+                ),
             )
+            embeds.append(embed_text)
         case _:
-            raise RuntimeError(f"failed to create store")
+            raise ValueError(
+                f"unsupported text embed provider: {cfg.text_embed_provider}"
+            )
+
+    match cfg.image_embed_provider:
+        case names.COHERE_EMBED_NAME:
+            embed_image = EmbeddingContainer(
+                modality=Modality.IMAGE,
+                provider_name=names.COHERE_EMBED_NAME,
+                embedding=CohereEmbedding(
+                    model_name=cfg.cohere_embed_model_image,
+                ),
+            )
+            embeds.append(embed_image)
+        case names.CLIP_EMBED_NAME:
+            embed_image = EmbeddingContainer(
+                modality=Modality.IMAGE,
+                provider_name=names.CLIP_EMBED_NAME,
+                embedding=ClipEmbedding(
+                    model_name=cfg.clip_embed_model_image,
+                ),
+            )
+            embeds.append(embed_image)
+        case _:
+            raise ValueError(
+                f"unsupported image embed provider: {cfg.image_embed_provider}"
+            )
+
+    return EmbeddingManager(embeds)
 
 
 _embed = _create_embed()
@@ -137,10 +179,10 @@ def _create_meta_store(embed: EmbeddingManager) -> StructuredStoreManager:
 
     try:
         meta_store = SQLiteManager(knowledgebase_name=cfg.knowledgebase_name)
-        if isinstance(embed, MultiModalEmbeddingManager):
+        if embed.get_embed(Modality.IMAGE):
             meta_store.prepare_with(
                 space_key_text=embed.space_key_text,
-                space_key_multi=embed.space_key_multi,
+                space_key_image=embed.space_key_image,
             )
         else:
             meta_store.prepare_with(
@@ -285,10 +327,14 @@ async def health() -> dict[str, Any]:
     """
     logger.debug("trace")
 
+    providers = []
+    for mod in _embed.modality:
+        providers.append(f"{mod} = {_embed.get_embed(mod).provider_name}")
+
     return {
         "status": "ok",
         "store": _vector_store.name,
-        "embed": _embed.name,
+        "embed": ", ".join(providers),
         "rerank": _rerank.name if _rerank else "none",
     }
 
@@ -322,10 +368,10 @@ async def reload(payload: ReloadRequest) -> dict[str, Any]:
                     )
                 case "embed":
                     _embed = _create_embed(payload.name)
-                    if isinstance(_embed, MultiModalEmbeddingManager):
+                    if _embed.get_embed(Modality.IMAGE):
                         _meta_store.prepare_with(
                             space_key_text=_embed.space_key_text,
-                            space_key_multi=_embed.space_key_multi,
+                            space_key_image=_embed.space_key_image,
                         )
                     else:
                         _meta_store.prepare_with(
@@ -471,7 +517,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    if not isinstance(_embed, MultiModalEmbeddingManager):
+    if not _embed.get_embed(Modality.IMAGE):
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
@@ -516,7 +562,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    if not isinstance(_embed, MultiModalEmbeddingManager):
+    if not _embed.get_embed(Modality.IMAGE):
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
@@ -726,10 +772,6 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
 
 # ログレベルを設定
 logger.setLevel(logging.DEBUG)
-
-logger.info(f"embed: {_embed.name}")
-logger.info(f"vector store: {_vector_store.name}")
-logger.info(f"rerank: {_rerank.name if _rerank else "none"}")
 logger.info("now mcp server is starting up...")
 
 # FastAPI アプリを MCP サーバとして公開

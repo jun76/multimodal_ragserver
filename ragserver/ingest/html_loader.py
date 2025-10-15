@@ -223,7 +223,7 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
-        if Exts.endswith_exts(url, allowed_exts):
+        if not Exts.endswith_exts(url, allowed_exts):
             logger.warning(f"unsupported ext. {' '.join(allowed_exts)} are allowed.")
             return None
 

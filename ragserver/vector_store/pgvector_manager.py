@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from llama_index.vector_stores.postgres import PGVectorStore
 
+from ragserver.core.metadata import Modality
 from ragserver.core.names import PGVECTOR_STORE_NAME, PROJECT_NAME
 from ragserver.embed.embedding_manager import EmbeddingManager
-from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
 from ragserver.logger import logger
 from ragserver.structured_store.structured_store_manager import StructuredStoreManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
@@ -79,17 +79,17 @@ class PgVectorManager(VectorStoreManager):
                 database=self._dbname,
                 user=self._user,
                 password=self._password,
-                table_name=f"{PROJECT_NAME}_{self._knowledgebase_name}_{embed.space_key_text}",
+                table_name=f"{PROJECT_NAME}__{self._knowledgebase_name}__{embed.space_key_text}",
             )
 
-            if isinstance(embed, MultiModalEmbeddingManager):
+            if Modality.IMAGE in embed.modality:
                 self._image_store = PGVectorStore.from_params(
                     host=self._host,
                     port=str(self._port),
                     database=self._dbname,
                     user=self._user,
                     password=self._password,
-                    table_name=f"{PROJECT_NAME}_{self._knowledgebase_name}_{embed.space_key_multi}",
+                    table_name=f"{PROJECT_NAME}__{self._knowledgebase_name}__{embed.space_key_image}",
                 )
                 self._index = self._create_index(
                     text_store=self._text_store,
@@ -97,7 +97,7 @@ class PgVectorManager(VectorStoreManager):
                 )
                 self._meta_store.prepare_with(
                     space_key_text=embed.space_key_text,
-                    space_key_multi=embed.space_key_multi,
+                    space_key_image=embed.space_key_image,
                 )
             else:
                 self._index = self._create_index(text_store=self._text_store)

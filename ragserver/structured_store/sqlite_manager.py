@@ -159,13 +159,13 @@ class SQLiteManager(StructuredStoreManager):
             raise RuntimeError("failed to exec DDL queries") from e
 
     def prepare_with(
-        self, space_key_text: str, space_key_multi: Optional[str] = None
+        self, space_key_text: str, space_key_image: Optional[str] = None
     ) -> None:
         """空間キーに合わせてストアを初期化する。
 
         Args:
             space_key_text (str): テキストベクトルの空間キー
-            space_key_multi (Optional[str], optional): 画像ベクトルの空間キー。Defaults to None.
+            space_key_image (Optional[str], optional): 画像ベクトルの空間キー。Defaults to None.
 
         Raises:
             RuntimeError: ストア初期化失敗
@@ -175,9 +175,9 @@ class SQLiteManager(StructuredStoreManager):
         self._space_key_text = space_key_text
         self._prepare_with(space_key_text)
 
-        if space_key_multi:
-            self._space_key_multi = space_key_multi
-            self._prepare_with(space_key_multi)
+        if space_key_image:
+            self._space_key_image = space_key_image
+            self._prepare_with(space_key_image)
 
     async def _aupset_metadata_batch(
         self,
@@ -295,11 +295,11 @@ class SQLiteManager(StructuredStoreManager):
         """
         logger.debug("trace")
 
-        if self._space_key_multi is None:
+        if self._space_key_image is None:
             raise RuntimeError("space key(multi) is not initialized")
 
         await self._aupset(
-            metas=metas, fingerprints=fingerprints, space_key=self._space_key_multi
+            metas=metas, fingerprints=fingerprints, space_key=self._space_key_image
         )
 
     def select(self, cols: list[str], limit: int) -> list[tuple]:
@@ -318,11 +318,11 @@ class SQLiteManager(StructuredStoreManager):
             logger.warning("space key is not initialized")
             return []
 
-        if self._space_key_multi:
+        if self._space_key_image:
             query = DML_SELECT_MULTI.format(
                 col_list=", ".join(cols),
                 text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
-                image_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_multi}",
+                image_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_image}",
                 order_col=MK.NODE_LASTMOD_AT,
                 limit=limit,
             )

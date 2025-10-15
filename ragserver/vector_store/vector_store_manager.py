@@ -15,8 +15,7 @@ from ragserver.core.exts import Exts
 from ragserver.core.metadata import META_KEYS
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
-from ragserver.embed.embedding_manager import EmbeddingManager
-from ragserver.embed.multimodal_embedding_manager import MultiModalEmbeddingManager
+from ragserver.embed.embedding_manager import EmbeddingManager, Modality
 from ragserver.logger import logger
 from ragserver.structured_store.structured_store_manager import StructuredStoreManager
 
@@ -223,12 +222,12 @@ class VectorStoreManager(ABC):
             logger.warning("empty list")
             return
 
-        if not isinstance(self._embed, MultiModalEmbeddingManager):
-            logger.warning("multimodal embed model is required")
-            return
-
         if self._image_store is None:
             logger.warning("image store is not initialized")
+            return
+
+        if self._embed is None:
+            logger.warning("embedding is not initialized")
             return
 
         if self._meta_store is None:
@@ -295,7 +294,7 @@ class VectorStoreManager(ABC):
             image_store (Optional[BasePydanticVectorStore], optional): 画像ストア。Defaults to None.
 
         Raises:
-            RuntimeError: テキスト埋め込み管理に対してマルチモーダルストアの要求
+            RuntimeError: 埋め込みコンテナ初期化
 
         Returns:
             Optional[VectorStoreIndex]: 生成したインデックス
@@ -304,22 +303,19 @@ class VectorStoreManager(ABC):
 
         if self._embed is None:
             logger.warning("embedding is not initialized")
-            return
+            return None
 
         if image_store:
-            if not isinstance(self._embed, MultiModalEmbeddingManager):
-                raise RuntimeError("multimodal embed model is required")
-
             return MultiModalVectorStoreIndex.from_vector_store(
                 vector_store=text_store,
-                embed_model=self._embed.embedding,
+                embed_model=self._embed.get_embed(Modality.TEXT).embedding,
                 image_vector_store=image_store,
-                image_embed_model=self._embed.embedding_multi,
+                image_embed_model=self._embed.get_embed(Modality.IMAGE).embedding,
             )
 
         return VectorStoreIndex.from_vector_store(
             vector_store=text_store,
-            embed_model=self._embed.embedding,
+            embed_model=self._embed.get_embed(Modality.TEXT).embedding,
         )
 
     def _add_fp_cache(self, nodes: list[BaseNode]) -> None:
@@ -436,7 +432,7 @@ class VectorStoreManager(ABC):
         Returns:
             bool: 更新処理不要の場合に True
         """
-        logger.debug("trace")
+        # logger.debug("trace")
 
         # check_update 指定がなく、かつソースが登録済み
         return (not self._check_update) and (self._fp_cache.get(source) is not None)

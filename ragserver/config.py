@@ -45,7 +45,8 @@ class Config:
     pg_password: str
 
     # Embeddings
-    embed_provider: str  # clip|openai|cohere
+    text_embed_provider: str  # clip|openai|cohere
+    image_embed_provider: str  # clip|openai|cohere
     openai_embed_model_text: str
     openai_api_key: str
     openai_base_url: str | None
@@ -165,7 +166,10 @@ def _validate_config(cfg: Config) -> Config:
         raise ValueError("vector_store must be chroma or pgvector")
 
     allowed_embeds = {CLIP_EMBED_NAME, OPENAI_EMBED_NAME, COHERE_EMBED_NAME}
-    if cfg.embed_provider not in allowed_embeds:
+    if cfg.text_embed_provider not in allowed_embeds:
+        raise ValueError("unsupported embed provider")
+
+    if cfg.image_embed_provider not in allowed_embeds:
         raise ValueError("unsupported embed provider")
 
     allowed_rerank = {FLAGEMBEDDING_RERANK_NAME, COHERE_RERANK_NAME, "none"}
@@ -240,7 +244,8 @@ def get_config() -> Config:
         pg_user=os.getenv("PG_USER", PROJECT_NAME),
         pg_password=os.getenv("PG_PASSWORD", PROJECT_NAME),
         # Embeddings
-        embed_provider=os.getenv("EMBED_PROVIDER", CLIP_EMBED_NAME),
+        text_embed_provider=os.getenv("TEXT_EMBED_PROVIDER", CLIP_EMBED_NAME),
+        image_embed_provider=os.getenv("IMAGE_EMBED_PROVIDER", CLIP_EMBED_NAME),
         openai_embed_model_text=os.getenv(
             "OPENAI_EMBED_MODEL_TEXT", "text-embedding-3-small"
         ),
