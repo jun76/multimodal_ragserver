@@ -15,7 +15,7 @@ from ragserver.logger import logger
 class EmbeddingContainer:
     """モダリティ毎の埋め込み器関連パラメータを集約"""
 
-    modality: str
+    modality: Modality
     provider_name: str
     embedding: BaseEmbedding
     space_key: str = ""
@@ -37,7 +37,7 @@ class EmbeddingManager:
 
         self._embed_text: Optional[EmbeddingContainer] = None
         self._embed_image: Optional[EmbeddingContainer] = None
-        self._modality: set[str] = set()
+        self._modality: set[Modality] = set()
 
         for embed in embeds:
             embed.space_key = self._generate_space_key(
@@ -57,11 +57,11 @@ class EmbeddingManager:
             self._modality.add(embed.modality)
 
     @property
-    def modality(self) -> set[str]:
+    def modality(self) -> set[Modality]:
         """この埋め込み管理がサポートするモダリティ一覧。
 
         Returns:
-            set[str]: モダリティ一覧
+            set[Modality]: モダリティ一覧
         """
         return self._modality
 
@@ -109,13 +109,13 @@ class EmbeddingManager:
 
         return "".join(chars)
 
-    def _generate_space_key(self, provider: str, model: str, modality: str) -> str:
+    def _generate_space_key(self, provider: str, model: str, modality: Modality) -> str:
         """空間キー文字列を生成する。
 
         Args:
             provider (str): プロバイダ名
             model (str): モデル名
-            modality (str): モダリティ
+            modality (Modality): モダリティ
 
         Returns:
             str: 空間キー文字列
@@ -127,11 +127,11 @@ class EmbeddingManager:
 
         return space_key
 
-    def get_container(self, modality: str) -> EmbeddingContainer:
+    def get_container(self, modality: Modality) -> EmbeddingContainer:
         """モダリティ別の埋め込みコンテナを取得する。
 
         Args:
-            modality (str): モダリティ
+            modality (Modality): モダリティ
 
         Raises:
             ValueError: 予期せぬモダリティ

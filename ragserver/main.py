@@ -19,8 +19,11 @@ from llama_index.vector_stores.postgres import PGVectorStore
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from ragserver.config import get_config
-from ragserver.core import names
+from ragserver.config.embedding_config import EmbeddingConfig
+from ragserver.config.ingest_config import IngestConfig
+from ragserver.config.rerank_config import RerankConfig
+from ragserver.config.settings import Settings
+from ragserver.config.vector_store_config import VectorStoreConfig
 from ragserver.core.metadata import Modality
 from ragserver.embed.embedding_manager import EmbeddingContainer, EmbeddingManager
 from ragserver.ingest import ingest
@@ -73,14 +76,14 @@ class URLRequest(BaseModel):
 
 
 # uvicorn ragserver.main:app --host 0.0.0.0 --port 8000
-app = FastAPI(title=names.PROJECT_NAME, version="1.0")
+app = FastAPI(title=Settings.PROJECT_NAME, version="1.0")
 
 
 def _create_embed() -> EmbeddingManager:
     """埋め込み管理インスタンスを生成する。
 
     Raises:
-        RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
+        RuntimeError: インスタンス生成に失敗した場合
 
     Returns:
         EmbeddingsManager: 生成された埋め込み管理
@@ -88,75 +91,69 @@ def _create_embed() -> EmbeddingManager:
     logger.debug("trace")
 
     try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise RuntimeError(f"failed to load configuration: {e}") from e
-
-    try:
         embeds = []
-        match cfg.text_embed_provider:
-            case names.OPENAI_EMBED_NAME:
+        match EmbeddingConfig.text_embed_provider:
+            case Settings.OPENAI:
                 embed_text = EmbeddingContainer(
                     modality=Modality.TEXT,
-                    provider_name=names.OPENAI_EMBED_NAME,
+                    provider_name=Settings.OPENAI,
                     embedding=OpenAIEmbedding(
-                        model=cfg.openai_embed_model_text,
-                        api_base=cfg.openai_base_url,
+                        model=EmbeddingConfig.openai_embed_model_text,
+                        api_base=EmbeddingConfig.openai_base_url,
                     ),
                 )
                 embeds.append(embed_text)
 
-            case names.COHERE_EMBED_NAME:
+            case Settings.COHERE:
                 embed_text = EmbeddingContainer(
                     modality=Modality.TEXT,
-                    provider_name=names.COHERE_EMBED_NAME,
+                    provider_name=Settings.COHERE,
                     embedding=CohereEmbedding(
-                        model_name=cfg.cohere_embed_model_text,
+                        model_name=EmbeddingConfig.cohere_embed_model_text,
                     ),
                 )
                 embeds.append(embed_text)
 
-            case names.CLIP_EMBED_NAME:
+            case Settings.CLIP:
                 embed_text = EmbeddingContainer(
                     modality=Modality.TEXT,
-                    provider_name=names.CLIP_EMBED_NAME,
+                    provider_name=Settings.CLIP,
                     embedding=ClipEmbedding(
-                        model_name=cfg.clip_embed_model_text,
+                        model_name=EmbeddingConfig.clip_embed_model_text,
                     ),
                 )
                 embeds.append(embed_text)
 
             case _:
                 raise ValueError(
-                    f"unsupported text embed provider: {cfg.text_embed_provider}"
+                    f"unsupported text embed provider: {EmbeddingConfig.text_embed_provider}"
                 )
 
-        if cfg.image_embed_provider:
-            match cfg.image_embed_provider:
-                case names.COHERE_EMBED_NAME:
+        if EmbeddingConfig.image_embed_provider:
+            match EmbeddingConfig.image_embed_provider:
+                case Settings.COHERE:
                     embed_image = EmbeddingContainer(
                         modality=Modality.IMAGE,
-                        provider_name=names.COHERE_EMBED_NAME,
+                        provider_name=Settings.COHERE,
                         embedding=CohereEmbedding(
-                            model_name=cfg.cohere_embed_model_image,
+                            model_name=EmbeddingConfig.cohere_embed_model_image,
                         ),
                     )
                     embeds.append(embed_image)
 
-                case names.CLIP_EMBED_NAME:
+                case Settings.CLIP:
                     embed_image = EmbeddingContainer(
                         modality=Modality.IMAGE,
-                        provider_name=names.CLIP_EMBED_NAME,
+                        provider_name=Settings.CLIP,
                         embedding=ClipEmbedding(
-                            model_name=cfg.clip_embed_model_image,
+                            model_name=EmbeddingConfig.clip_embed_model_image,
                         ),
                     )
                     embeds.append(embed_image)
 
                 case _:
                     raise ValueError(
-                        f"unsupported image embed provider: {cfg.image_embed_provider}"
+                        f"unsupported image embed provider: {EmbeddingConfig.image_embed_provider}"
                     )
 
     except Exception as e:
@@ -173,7 +170,7 @@ def _create_meta_store(embed: EmbeddingManager) -> StructuredStoreManager:
     """メタデータ専用ストアのインスタンスを生成する。
 
     Raises:
-        RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
+        RuntimeError: インスタンス生成に失敗した場合
 
     Returns:
         StructuredStoreManager: 構造化ストア管理
@@ -181,13 +178,9 @@ def _create_meta_store(embed: EmbeddingManager) -> StructuredStoreManager:
     logger.debug("trace")
 
     try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise RuntimeError(f"failed to load configuration: {e}") from e
-
-    try:
-        meta_store = SQLiteManager(knowledgebase_name=cfg.knowledgebase_name)
+        meta_store = SQLiteManager(
+            knowledgebase_name=VectorStoreConfig.knowledgebase_name
+        )
         if embed.get_container(Modality.IMAGE):
             meta_store.prepare_with(
                 space_key_text=embed.space_key_text,
@@ -220,7 +213,7 @@ def _create_vector_store(
         knowledgebase_name (str, optional): ナレッジベース（用途）名。Defaults to "default".
 
     Raises:
-        RuntimeError: 設定の読み込み、インスタンス生成に失敗した場合
+        RuntimeError: インスタンス生成に失敗した場合
 
     Returns:
         VectorStoreManager: 新しいインスタンス
@@ -228,77 +221,79 @@ def _create_vector_store(
     logger.debug("trace")
 
     try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise RuntimeError(f"failed to load configuration: {e}") from e
-
-    try:
         stores = []
-        match cfg.vector_store:
-            case names.PGVECTOR_STORE_NAME:
+        match VectorStoreConfig.vector_store:
+            case Settings.PGVECTOR:
                 text_store = VectorStoreContainer(
                     modality=Modality.TEXT,
-                    provider_name=names.PGVECTOR_STORE_NAME,
+                    provider_name=Settings.PGVECTOR,
                     store=PGVectorStore.from_params(
-                        host=cfg.pg_host,
-                        port=str(cfg.pg_port),
-                        database=cfg.pg_database,
-                        user=cfg.pg_user,
-                        password=cfg.pg_password,
-                        table_name=f"{names.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_text}",
+                        host=VectorStoreConfig.pgvector_host,
+                        port=str(VectorStoreConfig.pgvector_port),
+                        database=VectorStoreConfig.pgvector_database,
+                        user=VectorStoreConfig.pgvector_user,
+                        password=VectorStoreConfig.pgvector_password,
+                        table_name=f"{Settings.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_text}",
                     ),
                 )
                 stores.append(text_store)
 
                 image_store = VectorStoreContainer(
                     modality=Modality.IMAGE,
-                    provider_name=names.PGVECTOR_STORE_NAME,
+                    provider_name=Settings.PGVECTOR,
                     store=PGVectorStore.from_params(
-                        host=cfg.pg_host,
-                        port=str(cfg.pg_port),
-                        database=cfg.pg_database,
-                        user=cfg.pg_user,
-                        password=cfg.pg_password,
-                        table_name=f"{names.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_image}",
+                        host=VectorStoreConfig.pgvector_host,
+                        port=str(VectorStoreConfig.pgvector_port),
+                        database=VectorStoreConfig.pgvector_database,
+                        user=VectorStoreConfig.pgvector_user,
+                        password=VectorStoreConfig.pgvector_password,
+                        table_name=f"{Settings.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_image}",
                     ),
                 )
                 stores.append(image_store)
 
-            case names.CHROMA_STORE_NAME:
-                if cfg.chroma_host is not None and cfg.chroma_port is not None:
+            case Settings.CHROMA:
+                if (
+                    VectorStoreConfig.chroma_host is not None
+                    and VectorStoreConfig.chroma_port is not None
+                ):
                     client = chromadb.HttpClient(
-                        host=cfg.chroma_host, port=cfg.chroma_port
+                        host=VectorStoreConfig.chroma_host,
+                        port=VectorStoreConfig.chroma_port,
                     )
-                elif cfg.chroma_persist_dir:
-                    client = chromadb.PersistentClient(path=cfg.chroma_persist_dir)
+                elif VectorStoreConfig.chroma_persist_dir:
+                    client = chromadb.PersistentClient(
+                        path=VectorStoreConfig.chroma_persist_dir
+                    )
                 else:
                     raise RuntimeError(
                         "persist_directory or host + port must be specified"
                     )
 
                 text_collection = client.get_or_create_collection(
-                    name=f"{names.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_text}"
+                    name=f"{Settings.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_text}"
                 )
                 text_store = VectorStoreContainer(
                     modality=Modality.TEXT,
-                    provider_name=names.PGVECTOR_STORE_NAME,
+                    provider_name=Settings.PGVECTOR,
                     store=ChromaVectorStore(chroma_collection=text_collection),
                 )
                 stores.append(text_store)
 
                 image_collection = client.get_or_create_collection(
-                    name=f"{names.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_image}"
+                    name=f"{Settings.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_image}"
                 )
                 image_store = VectorStoreContainer(
                     modality=Modality.IMAGE,
-                    provider_name=names.PGVECTOR_STORE_NAME,
+                    provider_name=Settings.PGVECTOR,
                     store=ChromaVectorStore(chroma_collection=image_collection),
                 )
                 stores.append(image_store)
 
             case _:
-                raise RuntimeError(f"unsupported vector store: {cfg.vector_store}")
+                raise RuntimeError(
+                    f"unsupported vector store: {VectorStoreConfig.vector_store}"
+                )
 
     except Exception as e:
         traceback.print_exc()
@@ -308,8 +303,8 @@ def _create_vector_store(
         stores=stores,
         embed=embed,
         meta_store=meta_store,
-        load_limit=cfg.load_limit,
-        check_update=cfg.check_update,
+        load_limit=VectorStoreConfig.load_limit,
+        check_update=VectorStoreConfig.check_update,
     )
 
 
@@ -322,30 +317,23 @@ def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
     Args:
         name (Optional[str], optional): リランク管理名。Defaults to None.
 
-    Raises:
-        RuntimeError: 設定の読み込みに失敗した場合
-
     Returns:
         Optional[RerankManager]: 生成されたリランク管理
     """
     logger.debug("trace")
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise RuntimeError(f"failed to load configuration: {e}") from e
-
     if name:
-        cfg.rerank_provider = name
+        RerankConfig.rerank_provider = name
 
-    match cfg.rerank_provider:
-        case names.FLAGEMBEDDING_RERANK_NAME:
+    match RerankConfig.rerank_provider:
+        case Settings.FLAGEMBEDDING:
             return FlagEmbeddingRerankManager(
-                model=cfg.flagembedding_rerank_model, topk=cfg.topk
+                model=RerankConfig.flagembedding_rerank_model, topk=RerankConfig.topk
             )
-        case names.COHERE_RERANK_NAME:
-            return CohereRerankManager(cfg.cohere_rerank_model, topk=cfg.topk)
+        case Settings.COHERE:
+            return CohereRerankManager(
+                RerankConfig.cohere_rerank_model, topk=RerankConfig.topk
+            )
         case _:
             return None
 
@@ -470,8 +458,7 @@ async def upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
     logger.debug("trace")
 
     try:
-        cfg = get_config()
-        upload_dir = Path(cfg.upload_dir)
+        upload_dir = Path(IngestConfig.upload_dir)
         upload_dir.mkdir(parents=True, exist_ok=True)
     except Exception as e:
         traceback.print_exc()
@@ -524,20 +511,12 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
         payload (QueryTextRequest): クエリ内容
 
     Raises:
-        HTTPException: 設定の読み込みに失敗した場合
+        HTTPException: 検索処理に失敗した場合
 
     Returns:
         dict[str, Any]: 検索結果
     """
     logger.debug("trace")
-
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
 
     await run_in_threadpool(_request_lock.acquire)
     try:
@@ -545,7 +524,7 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
             nodes = await retriever.aquery_text(
                 query=payload.query,
                 store=_vector_store,
-                topk=payload.topk or cfg.topk,
+                topk=payload.topk or RerankConfig.topk,
                 rerank=_rerank,
             )
         except Exception as e:
@@ -565,7 +544,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
         payload (QueryTextRequest): クエリ内容
 
     Raises:
-        HTTPException: 設定の読み込みに失敗、または検索処理に失敗した場合
+        HTTPException: 検索処理に失敗した場合
 
     Returns:
         dict[str, Any]: 検索結果
@@ -579,21 +558,13 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
             detail="multimodal embeddings is not supported",
         )
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
-
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
             nodes = await retriever.aquery_text_multi(
                 query=payload.query,
                 store=_vector_store,
-                topk=payload.topk or cfg.topk,
+                topk=payload.topk or RerankConfig.topk,
                 rerank=_rerank,
             )
         except Exception as e:
@@ -612,6 +583,9 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     Args:
         payload (QueryImageRequest): クエリ内容
 
+    Raises:
+        HTTPException: 検索処理に失敗した場合
+
     Returns:
         dict[str, Any]: 検索結果
     """
@@ -624,21 +598,13 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
             detail="multimodal embeddings is not supported",
         )
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
-
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
             nodes = await retriever.aquery_image(
                 path=payload.path,
                 store=_vector_store,
-                topk=payload.topk or cfg.topk,
+                topk=payload.topk or RerankConfig.topk,
             )
         except Exception as e:
             traceback.print_exc()
@@ -657,21 +623,18 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
     Args:
         payload (PathRequest): 対象パス
 
+    Raises:
+        HTTPException: 収集処理に失敗した場合
+
     Returns:
         dict[str, str]: 実行結果
     """
     logger.debug("trace")
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
-
     file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_vector_store
+        chunk_size=IngestConfig.chunk_size,
+        chunk_overlap=IngestConfig.chunk_overlap,
+        store=_vector_store,
     )
 
     await run_in_threadpool(_request_lock.acquire)
@@ -697,21 +660,18 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
     Args:
         payload (PathRequest): path リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
 
+    Raises:
+        HTTPException: 収集処理に失敗した場合
+
     Returns:
         dict[str, str]: 実行結果
     """
     logger.debug("trace")
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
-
     file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_vector_store
+        chunk_size=IngestConfig.chunk_size,
+        chunk_overlap=IngestConfig.chunk_overlap,
+        store=_vector_store,
     )
 
     await run_in_threadpool(_request_lock.acquire)
@@ -738,28 +698,25 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
     Args:
         payload (URLRequest): 対象 URL
 
+    Raises:
+        HTTPException: 収集処理に失敗した場合
+
     Returns:
         dict[str, str]: 実行結果
     """
     logger.debug("trace")
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
-
     file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_vector_store
+        chunk_size=IngestConfig.chunk_size,
+        chunk_overlap=IngestConfig.chunk_overlap,
+        store=_vector_store,
     )
     html_loader = HTMLLoader(
-        chunk_size=cfg.chunk_size,
-        chunk_overlap=cfg.chunk_overlap,
+        chunk_size=IngestConfig.chunk_size,
+        chunk_overlap=IngestConfig.chunk_overlap,
         file_loader=file_loader,
         store=_vector_store,
-        user_agent=cfg.user_agent,
+        user_agent=IngestConfig.user_agent,
     )
 
     await run_in_threadpool(_request_lock.acquire)
@@ -785,28 +742,25 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
     Args:
         payload (PathRequest): URL リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
 
+    Raises:
+        HTTPException: 収集処理に失敗した場合
+
     Returns:
         dict[str, str]: 実行結果
     """
     logger.debug("trace")
 
-    try:
-        cfg = get_config()
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500, detail=f"failed to load config: {e}"
-        ) from e
-
     file_loader = FileLoader(
-        chunk_size=cfg.chunk_size, chunk_overlap=cfg.chunk_overlap, store=_vector_store
+        chunk_size=IngestConfig.chunk_size,
+        chunk_overlap=IngestConfig.chunk_overlap,
+        store=_vector_store,
     )
     html_loader = HTMLLoader(
-        chunk_size=cfg.chunk_size,
-        chunk_overlap=cfg.chunk_overlap,
+        chunk_size=IngestConfig.chunk_size,
+        chunk_overlap=IngestConfig.chunk_overlap,
         file_loader=file_loader,
         store=_vector_store,
-        user_agent=cfg.user_agent,
+        user_agent=IngestConfig.user_agent,
     )
 
     await run_in_threadpool(_request_lock.acquire)
@@ -832,7 +786,7 @@ logger.info("now mcp server is starting up...")
 # FastAPI アプリを MCP サーバとして公開
 _mcp_server = FastApiMCP(
     app,
-    name=names.PROJECT_NAME,
+    name=Settings.PROJECT_NAME,
     include_operations=["query_text", "query_text_multi", "query_image"],
 )
 _mcp_server.mount_http()

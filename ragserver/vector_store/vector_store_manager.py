@@ -24,7 +24,7 @@ from ragserver.structured_store.structured_store_manager import StructuredStoreM
 class VectorStoreContainer:
     """モダリティ毎のベクトルストア関連パラメータを集約"""
 
-    modality: str
+    modality: Modality
     provider_name: str
     store: BasePydanticVectorStore
 
@@ -53,7 +53,7 @@ class VectorStoreManager:
 
         self._vector_store_text: Optional[VectorStoreContainer] = None
         self._vector_store_image: Optional[VectorStoreContainer] = None
-        self._modality: set[str] = set()
+        self._modality: set[Modality] = set()
 
         for store in stores:
             match store.modality:
@@ -84,19 +84,19 @@ class VectorStoreManager:
         return self._index
 
     @property
-    def modality(self) -> set[str]:
+    def modality(self) -> set[Modality]:
         """このベクトルストアがサポートするモダリティ一覧。
 
         Returns:
-            set[str]: モダリティ一覧
+            set[Modality]: モダリティ一覧
         """
         return self._modality
 
-    def get_container(self, modality: str) -> VectorStoreContainer:
+    def get_container(self, modality: Modality) -> VectorStoreContainer:
         """モダリティ別のベクトルストアコンテナを取得する。
 
         Args:
-            modality (str): モダリティ
+            modality (Modality): モダリティ
 
         Raises:
             ValueError: 予期せぬモダリティ

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from llama_index.postprocessor.flag_embedding_reranker import FlagEmbeddingReranker
 
-from ragserver.core.names import FLAGEMBEDDING_RERANK_NAME
+from ragserver.config.settings import Settings
 from ragserver.logger import logger
 from ragserver.rerank.rerank_manager import RerankManager
 
@@ -29,4 +29,4 @@ class FlagEmbeddingRerankManager(RerankManager):
         Returns:
             str: プロバイダ名
         """
-        return FLAGEMBEDDING_RERANK_NAME
+        return Settings.FLAGEMBEDDING

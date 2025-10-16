@@ -14,9 +14,9 @@ from llama_index.core.schema import BaseNode, TextNode
 from llama_index.readers.web.simple_web.base import SimpleWebPageReader
 from llama_index.readers.web.sitemap.base import SitemapReader
 
+from ragserver.config.settings import Settings
 from ragserver.core.exts import Exts
 from ragserver.core.metadata import BasicMetaData
-from ragserver.core.names import PROJECT_NAME
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.loader import Loader
 from ragserver.logger import logger
@@ -33,7 +33,7 @@ class HTMLLoader(Loader):
         load_asset: bool = True,
         req_per_sec: int = 2,
         timeout: int = 30,
-        user_agent: str = PROJECT_NAME,
+        user_agent: str = Settings.PROJECT_NAME,
         same_origin: bool = True,
     ):
         """HTML を読み込み、ノードを生成するためのクラス。
@@ -46,7 +46,7 @@ class HTMLLoader(Loader):
             load_asset (bool, optional): アセットを読み込むか。Defaults to True.
             req_per_sec (int): 秒間リクエスト数。Defaults to 2.
             timeout (int, optional): タイムアウト秒。Defaults to 30.
-            user_agent (str, optional): GET リクエスト時の user agent。Defaults to PROJECT_NAME.
+            user_agent (str, optional): GET リクエスト時の user agent。Defaults to Settings.PROJECT_NAME.
             same_origin (bool, optional): True なら同一オリジンのみ対象。Defaults to True.
         """
         logger.debug("trace")
@@ -243,7 +243,7 @@ class HTMLLoader(Loader):
         ext = os.path.splitext(url.split("?")[0])[1].lower()
         try:
             with tempfile.NamedTemporaryFile(
-                delete=False, prefix=f"{PROJECT_NAME}_", suffix=ext
+                delete=False, prefix=f"{Settings.PROJECT_NAME}_", suffix=ext
             ) as f:
                 f.write(body)
                 path = f.name

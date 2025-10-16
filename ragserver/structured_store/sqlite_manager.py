@@ -5,9 +5,9 @@ from typing import Any, Iterable, Optional, Sequence
 
 import aiosqlite
 
+from ragserver.config.settings import Settings
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
-from ragserver.core.names import PROJECT_NAME
 from ragserver.logger import logger
 from ragserver.structured_store.structured_store_manager import StructuredStoreManager
 
@@ -97,7 +97,7 @@ class SQLiteManager(StructuredStoreManager):
 
         super().__init__(knowledgebase_name)
 
-        self._db_path = f"{PROJECT_NAME}.db"
+        self._db_path = f"{Settings.PROJECT_NAME}.db"
 
         try:
             self._db = sqlite3.connect(self._db_path)
@@ -122,7 +122,7 @@ class SQLiteManager(StructuredStoreManager):
         """
         logger.debug("trace")
 
-        table_name = f"{PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
+        table_name = f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
         try:
             self._db.execute(
                 DDL_CREATE_METADATA.format(
@@ -257,7 +257,7 @@ class SQLiteManager(StructuredStoreManager):
             )
             rows.append(row)
 
-        table_name = f"{PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
+        table_name = f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
         await self._aupset_metadata_batch(table_name=table_name, rows=rows)
 
     async def aupsert_text_metas(
@@ -321,15 +321,15 @@ class SQLiteManager(StructuredStoreManager):
         if self._space_key_image:
             query = DML_SELECT_MULTI.format(
                 col_list=", ".join(cols),
-                text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
-                image_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_image}",
+                text_table=f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
+                image_table=f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_image}",
                 order_col=MK.NODE_LASTMOD_AT,
                 limit=limit,
             )
         else:
             query = DML_SELECT.format(
                 col_list=", ".join(cols),
-                text_table=f"{PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
+                text_table=f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
                 order_col=MK.NODE_LASTMOD_AT,
                 limit=limit,
             )
