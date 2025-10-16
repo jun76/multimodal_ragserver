@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from ragserver.logger import logger
-
 
 class Exts:
     # 基本的に reader(llama_index.core.readers.file.base._try_loading_included_file_formats)
@@ -57,8 +55,6 @@ class Exts:
         Returns:
             bool: 含まれる場合 True
         """
-        # logger.debug("trace")
-
         return any(s.lower().endswith(ext) for ext in exts)
 
     @classmethod
@@ -71,8 +67,6 @@ class Exts:
         Returns:
             bool: 対象ファイルなら True
         """
-        # logger.debug("trace")
-
         return cls.endswith_exts(uri, cls.IMAGE)
 
     @classmethod
@@ -85,6 +79,4 @@ class Exts:
         Returns:
             bool: サイトマップファイルなら True
         """
-        logger.debug("trace")
-
         return cls.endswith_exts(url, cls.SITEMAP)

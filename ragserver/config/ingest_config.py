@@ -1,11 +1,13 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from ragserver.config.settings import Settings
 
 
 @dataclass(kw_only=True)
 class IngestConfig:
-    chunk_size: int = field(default=Settings.CHUNK_SIZE)
-    chunk_overlap: int = field(default=Settings.CHUNK_OVERLAP)
-    user_agent: str = field(default=Settings.USER_AGENT)
-    upload_dir: str = field(default=Settings.UPLOAD_DIR)
+    """ドキュメント取り込み処理関連の設定用データクラス"""
+
+    chunk_size: int = Settings.CHUNK_SIZE
+    chunk_overlap: int = Settings.CHUNK_OVERLAP
+    user_agent: str = Settings.USER_AGENT
+    upload_dir: str = Settings.UPLOAD_DIR

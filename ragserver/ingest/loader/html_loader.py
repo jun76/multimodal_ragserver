@@ -90,8 +90,8 @@ class HTMLLoader(Loader):
             )
             res.raise_for_status()
         except requests.HTTPError as e:
-            text = res.text if res is not None else ""
-            raise requests.HTTPError(f"response={text}") from e
+            status = res.status_code if res is not None else "unknown"
+            raise requests.HTTPError(f"HTTP {status}") from e
         except requests.RequestException as e:
             raise RuntimeError("failed to fetch url") from e
         finally:
@@ -240,7 +240,8 @@ class HTMLLoader(Loader):
             )
             return None
 
-        ext = os.path.splitext(url.split("?")[0])[1].lower()
+        parsed = urlparse(url)
+        ext = os.path.splitext(parsed.path)[1].lower()
         try:
             with tempfile.NamedTemporaryFile(
                 delete=False, prefix=f"{GeneralConfig.project_name}_", suffix=ext

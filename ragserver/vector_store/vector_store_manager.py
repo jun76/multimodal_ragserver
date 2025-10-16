@@ -33,7 +33,7 @@ class VectorStoreManager:
 
     空間キーごとにテーブルを一つ割り当て、ノードを管理する想定。"""
 
-    def __init__(
+    async def __init__(
         self,
         conts: dict[Modality, VectorStoreContainer],
         embed: EmbedManager,
@@ -60,7 +60,7 @@ class VectorStoreManager:
         self._index = self._create_index()
 
         # メタデータ専用ストアから fingerprint キャッシュを復元
-        self._fp_cache = self._load_fp_cache(load_limit)
+        self._fp_cache = await self._aload_fp_cache(load_limit)
 
     @property
     def name(self) -> str:
@@ -94,7 +94,7 @@ class VectorStoreManager:
         """このベクトルストアが保持するテーブル名一覧。
 
         Returns:
-            list[str]: モダリティ一覧
+            list[str]: テーブル名一覧
         """
         return [cont.table_name for cont in self._conts.values()]
 
@@ -153,7 +153,7 @@ class VectorStoreManager:
         # check_update 指定がなく、かつソースが登録済み
         return (not self._check_update) and (self._fp_cache.get(source) is not None)
 
-    def _load_fp_cache(self, load_limit: int) -> dict[str, str]:
+    async def _aload_fp_cache(self, load_limit: int) -> dict[str, str]:
         """メタデータ用ストアから fingerprint のキャッシュを読み込む。
 
         Args:
@@ -164,7 +164,7 @@ class VectorStoreManager:
         """
         logger.debug("trace")
 
-        rows = self._meta_store.select(
+        rows = await self._meta_store.aselect(
             cols=[MK.FILE_PATH, MK.URL, MK.FINGERPRINT],
             table_names=self.table_names,
             limit=load_limit,

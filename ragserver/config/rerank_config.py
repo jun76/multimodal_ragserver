@@ -1,10 +1,12 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from ragserver.config.settings import Settings
 
 
 @dataclass(kw_only=True)
 class RerankConfig:
-    flagembedding_rerank_model: str = field(default=Settings.FLAGEMBEDDING_RERANK_MODEL)
-    cohere_rerank_model: str = field(default=Settings.COHERE_RERANK_MODEL)
-    topk: int = field(default=Settings.TOPK)
+    """リランク関連の設定用データクラス"""
+
+    flagembedding_rerank_model: str = Settings.FLAGEMBEDDING_RERANK_MODEL
+    cohere_rerank_model: str = Settings.COHERE_RERANK_MODEL
+    topk: int = Settings.TOPK

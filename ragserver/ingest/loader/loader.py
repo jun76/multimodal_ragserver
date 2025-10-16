@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Set
-
 from ragserver.logger import logger
 
 
@@ -21,7 +19,7 @@ class Loader:
         # 最上位の load_from_*_list() がループを回している間は一度もストアに書き出されないので
         # 同一ソースに対して何度もフェッチがかかる場合がある。それを避けるため、
         # Loader クラス内にも独自のキャッシュを持つ。
-        self._source_cache: Set[str] = set()
+        self._source_cache: set[str] = set()
 
     def _read_sources_from_file(self, path: str) -> list[str]:
         """空行・コメントを除外して source リストを読み込む。
@@ -38,11 +36,11 @@ class Loader:
         logger.debug("trace")
 
         try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(path, "r", encoding="utf-8") as f:
                 return [
-                    ln.strip()
+                    stripped
                     for ln in f
-                    if ln.strip() and not ln.strip().startswith("#")
+                    if (stripped := ln.strip()) and not stripped.startswith("#")
                 ]
         except OSError as e:
-            raise RuntimeError("failed to read source list") from e
+            raise RuntimeError(f"failed to read source list from {path}") from e

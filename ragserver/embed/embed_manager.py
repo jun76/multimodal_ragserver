@@ -26,7 +26,7 @@ class EmbedManager:
         """コンストラクタ
 
         Args:
-            conts (dict[Modality, EmbeddingContainer]): 埋め込みコンテナの辞書
+            conts (dict[Modality, EmbedContainer]): 埋め込みコンテナの辞書
         """
         logger.debug("trace")
 
@@ -38,7 +38,6 @@ class EmbedManager:
                 model=cont.embed.model_name,
                 modality=modality,
             )
-            conts[modality] = cont
 
     @property
     def name(self) -> str:
@@ -92,7 +91,7 @@ class EmbedManager:
             RuntimeError: 未初期化
 
         Returns:
-            EmbeddingContainer: 埋め込みコンテナ
+            EmbedContainer: 埋め込みコンテナ
         """
         logger.debug("trace")
 

@@ -25,14 +25,23 @@ class RerankProvider(StrEnum):
 
 
 class Settings:
+    """各種設定値の指定用クラス
+
+    以下の値を設定ファイルのように書き換えて使用する想定。
+    API キーやパスワード等は予め .env ファイルに記述しておく。
+
+    """
+
     # general
-    PROJECT_NAME = "ragserver"
+    PROJECT_NAME: str = "ragserver"
+    VERSION: str = "1.0"
     KNOWLEDGEBASE_NAME: str = "default"
     VECTOR_STORE: VectorStoreProvider = VectorStoreProvider.CHROMA
     TEXT_EMBED_PROVIDER: EmbedProvider = EmbedProvider.HUGGINGFACE
-    IMAGE_EMBED_PROVIDER: EmbedProvider = EmbedProvider.CLIP
+    IMAGE_EMBED_PROVIDER: Optional[EmbedProvider] = EmbedProvider.CLIP
     RERANK_PROVIDER: RerankProvider = RerankProvider.FLAGEMBEDDING
     DEVICE: str = "cuda"
+    LOG_LEVEL: str = "DEBUG"
 
     # vector store
     LOAD_LIMIT: int = 10000
@@ -47,11 +56,11 @@ class Settings:
     PGVECTOR_PORT: int = 5432
     PGVECTOR_DATABASE: str = PROJECT_NAME
     PGVECTOR_USER: str = PROJECT_NAME
-    PGVECTOR_PASSWORD: str = PROJECT_NAME
+    PGVECTOR_PASSWORD: Optional[str] = os.getenv("PG_PASSWORD")
 
     # embedding
     OPENAI_EMBED_MODEL_TEXT: str = "text-embedding-3-small"
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "dummy")
+    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     OPENAI_BASE_URL: Optional[str] = None
     COHERE_EMBED_MODEL_TEXT: str = "embed-v4.0"
     COHERE_EMBED_MODEL_IMAGE: str = "embed-v4.0"

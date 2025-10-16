@@ -110,9 +110,6 @@ async def aquery_image(
 
     Returns:
         list[NodeWithScore]: 検索結果のリスト
-
-    Raises:
-        RuntimeError: ストア操作や検索処理に失敗した場合
     """
     logger.debug("trace")
 
@@ -131,5 +128,6 @@ async def aquery_image(
 
     if len(nwss) == 0:
         logger.warning("empty nodes")
+        return []
 
     return nwss

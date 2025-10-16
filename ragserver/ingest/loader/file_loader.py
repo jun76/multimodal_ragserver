@@ -3,7 +3,6 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from llama_index.core import SimpleDirectoryReader
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.node_parser.interface import MetadataAwareTextSplitter
 from llama_index.core.readers.file.base import SimpleDirectoryReader
@@ -62,6 +61,7 @@ class FileLoader(Loader):
                 file_extractor=reader.file_extractor,
             )
 
+            all_nodes = []
             for doc in docs:
                 nodes = await splitter.aget_nodes_from_documents([doc])
                 for i, node in enumerate(nodes):
@@ -69,8 +69,12 @@ class FileLoader(Loader):
                     meta.chunk_no = i
                     meta.node_lastmod_at = time.time()
                     node.metadata = meta.to_dict()
+
+                all_nodes.append(nodes)
         except Exception as e:
             raise RuntimeError("failed to generate nodes from file") from e
+
+        logger.info(f"loaded {len(all_nodes)} nodes from {path}")
 
         return nodes
 

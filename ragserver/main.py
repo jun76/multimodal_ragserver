@@ -57,13 +57,37 @@ class URLRequest(BaseModel):
 
 
 # uvicorn ragserver.main:app --host 0.0.0.0 --port 8000
-app = FastAPI(title=GeneralConfig.project_name, version="1.0")
+app = FastAPI(title=GeneralConfig.project_name, version=GeneralConfig.version)
 
 
 _embed = create_embed_manager()
+logger.info(f"{_embed.name} embed initialized")
+
 _meta_store = create_meta_store()
+logger.info(f"meta store initialized")
+
 _vector_store = create_vector_store_manager(embed=_embed, meta_store=_meta_store)
+logger.info(f"{_vector_store.name} vector store initialized")
+
 _rerank = create_rerank_manager()
+logger.info(f"{_rerank.name} rerank initialized")
+
+_file_loader = FileLoader(
+    chunk_size=IngestConfig.chunk_size,
+    chunk_overlap=IngestConfig.chunk_overlap,
+    store=_vector_store,
+)
+logger.info(f"file loader initialized")
+
+_html_loader = HTMLLoader(
+    chunk_size=IngestConfig.chunk_size,
+    chunk_overlap=IngestConfig.chunk_overlap,
+    file_loader=_file_loader,
+    store=_vector_store,
+    user_agent=IngestConfig.user_agent,
+)
+logger.info(f"html loader initialized")
+
 _request_lock = threading.Lock()
 
 
@@ -288,18 +312,12 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
     """
     logger.debug("trace")
 
-    file_loader = FileLoader(
-        chunk_size=IngestConfig.chunk_size,
-        chunk_overlap=IngestConfig.chunk_overlap,
-        store=_vector_store,
-    )
-
     await run_in_threadpool(_request_lock.acquire)
     try:
         await ingest.aingest_from_path(
             path=payload.path,
             store=_vector_store,
-            file_loader=file_loader,
+            file_loader=_file_loader,
         )
     except Exception as e:
         traceback.print_exc()
@@ -325,18 +343,12 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
     """
     logger.debug("trace")
 
-    file_loader = FileLoader(
-        chunk_size=IngestConfig.chunk_size,
-        chunk_overlap=IngestConfig.chunk_overlap,
-        store=_vector_store,
-    )
-
     await run_in_threadpool(_request_lock.acquire)
     try:
         await ingest.aingest_from_path_list(
             list_path=payload.path,
             store=_vector_store,
-            file_loader=file_loader,
+            file_loader=_file_loader,
         )
     except Exception as e:
         traceback.print_exc()
@@ -363,25 +375,12 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
     """
     logger.debug("trace")
 
-    file_loader = FileLoader(
-        chunk_size=IngestConfig.chunk_size,
-        chunk_overlap=IngestConfig.chunk_overlap,
-        store=_vector_store,
-    )
-    html_loader = HTMLLoader(
-        chunk_size=IngestConfig.chunk_size,
-        chunk_overlap=IngestConfig.chunk_overlap,
-        file_loader=file_loader,
-        store=_vector_store,
-        user_agent=IngestConfig.user_agent,
-    )
-
     await run_in_threadpool(_request_lock.acquire)
     try:
         await ingest.aingest_from_url(
             url=payload.url,
             store=_vector_store,
-            html_loader=html_loader,
+            html_loader=_html_loader,
         )
     except Exception as e:
         traceback.print_exc()
@@ -407,25 +406,12 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
     """
     logger.debug("trace")
 
-    file_loader = FileLoader(
-        chunk_size=IngestConfig.chunk_size,
-        chunk_overlap=IngestConfig.chunk_overlap,
-        store=_vector_store,
-    )
-    html_loader = HTMLLoader(
-        chunk_size=IngestConfig.chunk_size,
-        chunk_overlap=IngestConfig.chunk_overlap,
-        file_loader=file_loader,
-        store=_vector_store,
-        user_agent=IngestConfig.user_agent,
-    )
-
     await run_in_threadpool(_request_lock.acquire)
     try:
         await ingest.aingest_from_url_list(
             list_path=payload.path,
             store=_vector_store,
-            html_loader=html_loader,
+            html_loader=_html_loader,
         )
     except Exception as e:
         traceback.print_exc()
@@ -437,7 +423,8 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
 
 
 # ログレベルを設定
-logger.setLevel(logging.DEBUG)
+log_level = getattr(logging, GeneralConfig.log_level.upper(), logging.DEBUG)
+logger.setLevel(log_level)
 logger.info("now mcp server is starting up...")
 
 # FastAPI アプリを MCP サーバとして公開

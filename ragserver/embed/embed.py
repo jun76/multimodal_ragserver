@@ -64,7 +64,7 @@ def _openai_text() -> EmbedContainer:
     """埋め込みコンテナ生成ヘルパー
 
     Returns:
-        EmbeddingContainer: コンテナ
+        EmbedContainer: コンテナ
     """
     logger.debug("trace")
 
@@ -73,7 +73,7 @@ def _openai_text() -> EmbedContainer:
         embed=OpenAIEmbedding(
             model=EmbedConfig.openai_embed_model_text,
             api_base=EmbedConfig.openai_base_url,
-            device=GeneralConfig.device,
+            # device=GeneralConfig.device,
         ),
     )
 
@@ -90,7 +90,7 @@ def _cohere_text() -> EmbedContainer:
         provider_name=EmbedProvider.COHERE,
         embed=CohereEmbedding(
             model_name=EmbedConfig.cohere_embed_model_text,
-            device=GeneralConfig.device,
+            # device=GeneralConfig.device,
         ),
     )
 

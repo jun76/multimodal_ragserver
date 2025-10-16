@@ -12,7 +12,7 @@ class Structured(ABC):
     """
 
     @abstractmethod
-    def _prepare_with(self, table_name: str) -> None:
+    async def _aprepare_with(self, table_name: str) -> None:
         """空間キーに合わせてストアを初期化する。
 
         Args:
@@ -35,7 +35,7 @@ class Structured(ABC):
         """
 
     @abstractmethod
-    def select(
+    async def aselect(
         self, cols: list[str], table_names: list[str], limit: int
     ) -> list[tuple]:
         """select 文を実行する。

@@ -29,10 +29,10 @@ def create_rerank_manager() -> RerankManager:
                 rerank = _flagembedding()
             case _:
                 rerank = None
+
+        return RerankManager(rerank)
     except Exception as e:
         raise RuntimeError(f"failed to create rerank: {e}") from e
-
-    return RerankManager(rerank)
 
 
 def _cohere() -> RerankContainer:

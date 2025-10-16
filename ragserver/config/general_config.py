@@ -1,4 +1,5 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Optional
 
 from ragserver.config.settings import (
     EmbedProvider,
@@ -10,10 +11,12 @@ from ragserver.config.settings import (
 
 @dataclass(kw_only=True)
 class GeneralConfig:
-    project_name: str = field(default=Settings.PROJECT_NAME)
-    knowledgebase_name: str = field(default=Settings.KNOWLEDGEBASE_NAME)
-    vector_store: VectorStoreProvider = field(default=Settings.VECTOR_STORE)
-    text_embed_provider: EmbedProvider = field(default=Settings.TEXT_EMBED_PROVIDER)
-    image_embed_provider: EmbedProvider = field(default=Settings.IMAGE_EMBED_PROVIDER)
-    rerank_provider: RerankProvider = field(default=Settings.RERANK_PROVIDER)
-    device: str = field(default=Settings.DEVICE)
+    project_name: str = Settings.PROJECT_NAME
+    version: str = Settings.VERSION
+    knowledgebase_name: str = Settings.KNOWLEDGEBASE_NAME
+    vector_store: VectorStoreProvider = Settings.VECTOR_STORE
+    text_embed_provider: EmbedProvider = Settings.TEXT_EMBED_PROVIDER
+    image_embed_provider: Optional[EmbedProvider] = Settings.IMAGE_EMBED_PROVIDER
+    rerank_provider: RerankProvider = Settings.RERANK_PROVIDER
+    device: str = Settings.DEVICE
+    log_level: str = Settings.LOG_LEVEL

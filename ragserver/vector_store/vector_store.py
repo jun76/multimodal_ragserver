@@ -26,7 +26,6 @@ def create_vector_store_manager(
     Args:
         embed (EmbeddingManager): 埋め込み管理
         meta_store (StructuredStoreManager): メタデータ管理
-        knowledgebase_name (str, optional): ナレッジベース（用途）名。Defaults to "default".
 
     Raises:
         RuntimeError: インスタンス生成に失敗
@@ -46,7 +45,7 @@ def create_vector_store_manager(
                 text_store = _chroma(table_name_text)
             case _:
                 raise RuntimeError(
-                    f"unsupported vector store: {VectorStoreConfig.vector_store}"
+                    f"unsupported vector store: {GeneralConfig.vector_store}"
                 )
         conts[Modality.TEXT] = text_store
 
@@ -59,7 +58,7 @@ def create_vector_store_manager(
                     image_store = _chroma(table_name_image)
                 case _:
                     raise RuntimeError(
-                        f"unsupported vector store: {VectorStoreConfig.vector_store}"
+                        f"unsupported vector store: {GeneralConfig.vector_store}"
                     )
             conts[Modality.IMAGE] = image_store
     except Exception as e:
@@ -145,7 +144,7 @@ def _chroma(table_name: str) -> VectorStoreContainer:
     collection = client.get_or_create_collection(table_name)
 
     return VectorStoreContainer(
-        provider_name=VectorStoreProvider.PGVECTOR,
+        provider_name=VectorStoreProvider.CHROMA,
         store=ChromaVectorStore(chroma_collection=collection),
         table_name=table_name,
     )

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 from typing import Any, Iterable, Sequence
 
 import aiosqlite
@@ -88,22 +87,9 @@ class SQLiteStructured(Structured):
         logger.debug("trace")
 
         self._db_path = f"{GeneralConfig.project_name}_metas.db"
-
-        try:
-            self._db = sqlite3.connect(self._db_path)
-        except Exception as e:
-            raise RuntimeError("failed to initialize") from e
-
         self._created: list[str] = []
 
-    def __del__(self):
-        """デストラクタ"""
-        logger.debug("trace")
-
-        if hasattr(self, "_db") and self._db is not None:
-            self._db.close()
-
-    def _prepare_with(self, table_name: str) -> None:
+    async def _aprepare_with(self, table_name: str) -> None:
         """空間キーに合わせてストアを初期化する。
 
         Args:
@@ -114,44 +100,46 @@ class SQLiteStructured(Structured):
         """
         logger.debug("trace")
 
-        try:
-            self._db.execute(
-                DDL_CREATE_METADATA.format(
-                    table_name=table_name,
-                    file_path=MK.FILE_PATH,
-                    file_type=MK.FILE_TYPE,
-                    file_size=MK.FILE_SIZE,
-                    file_created_at=MK.FILE_CREATED_AT,
-                    file_lastmod_at=MK.FILE_LASTMOD_AT,
-                    chunk_no=MK.CHUNK_NO,
-                    url=MK.URL,
-                    base_source=MK.BASE_SOURCE,
-                    node_lastmod_at=MK.NODE_LASTMOD_AT,
-                    fingerprint=MK.FINGERPRINT,
+        async with aiosqlite.connect(self._db_path) as db:
+            try:
+                await db.execute(
+                    DDL_CREATE_METADATA.format(
+                        table_name=table_name,
+                        file_path=MK.FILE_PATH,
+                        file_type=MK.FILE_TYPE,
+                        file_size=MK.FILE_SIZE,
+                        file_created_at=MK.FILE_CREATED_AT,
+                        file_lastmod_at=MK.FILE_LASTMOD_AT,
+                        chunk_no=MK.CHUNK_NO,
+                        url=MK.URL,
+                        base_source=MK.BASE_SOURCE,
+                        node_lastmod_at=MK.NODE_LASTMOD_AT,
+                        fingerprint=MK.FINGERPRINT,
+                    )
                 )
-            )
-            self._db.execute(
-                DDL_IDX_FINGERPRINT.format(
-                    table_name=table_name, fingerprint=MK.FINGERPRINT
+                await db.execute(
+                    DDL_IDX_FINGERPRINT.format(
+                        table_name=table_name, fingerprint=MK.FINGERPRINT
+                    )
                 )
-            )
-            self._db.execute(
-                DDL_IDX_NODE_LASTMOD_AT.format(
-                    table_name=table_name, node_lastmod_at=MK.NODE_LASTMOD_AT
+                await db.execute(
+                    DDL_IDX_NODE_LASTMOD_AT.format(
+                        table_name=table_name, node_lastmod_at=MK.NODE_LASTMOD_AT
+                    )
                 )
-            )
-            self._db.execute(
-                DDL_IDX_BASE_SOURCE.format(
-                    table_name=table_name,
-                    base_source=MK.BASE_SOURCE,
+                await db.execute(
+                    DDL_IDX_BASE_SOURCE.format(
+                        table_name=table_name,
+                        base_source=MK.BASE_SOURCE,
+                    )
                 )
-            )
-        except Exception as e:
-            raise RuntimeError("failed to exec DDL queries") from e
+                await db.commit()
+            except Exception as e:
+                raise RuntimeError("failed to exec DDL queries") from e
 
         self._created.append(table_name)
 
-    async def _aupset_metadata_batch(
+    async def _aupsert_metadata_batch(
         self,
         table_name: str,
         rows: Iterable[Sequence[Any]],
@@ -216,11 +204,8 @@ class SQLiteStructured(Structured):
         """
         logger.debug("trace")
 
-        try:
-            if table_name not in self._created:
-                self._prepare_with(table_name)
-        except Exception as e:
-            raise e
+        if table_name not in self._created:
+            await self._aprepare_with(table_name)
 
         rows = []
         for i, meta in enumerate(metas):
@@ -238,9 +223,9 @@ class SQLiteStructured(Structured):
             )
             rows.append(row)
 
-        await self._aupset_metadata_batch(table_name=table_name, rows=rows)
+        await self._aupsert_metadata_batch(table_name=table_name, rows=rows)
 
-    def select(
+    async def aselect(
         self, cols: list[str], table_names: list[str], limit: int
     ) -> list[tuple]:
         """select 文を実行する。
@@ -255,12 +240,9 @@ class SQLiteStructured(Structured):
         """
         logger.debug("trace")
 
-        try:
-            for table_name in table_names:
-                if table_name not in self._created:
-                    self._prepare_with(table_name)
-        except Exception as e:
-            raise e
+        for table_name in table_names:
+            if table_name not in self._created:
+                await self._aprepare_with(table_name)
 
         col_csv = ", ".join(cols)
         parts = [
@@ -274,14 +256,9 @@ class SQLiteStructured(Structured):
         )
 
         try:
-            with self._db:
-                cur = self._db.cursor()
-                try:
-                    cur.execute(query)
-                    res = cur.fetchall()
-                finally:
-                    cur.close()
+            async with aiosqlite.connect(self._db_path) as db:
+                rows = await db.execute_fetchall(query)
         except Exception as e:
             raise RuntimeError("failed to exec query") from e
 
-        return res
+        return [tuple(row) for row in rows]
