@@ -15,9 +15,12 @@ from ragserver.core.exts import Exts
 from ragserver.core.metadata import META_KEYS
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
-from ragserver.embed.embedding_manager import EmbeddingManager, Modality
+from ragserver.embed.embedding_modality_manager import (
+    EmbeddingModalityManager,
+    Modality,
+)
 from ragserver.logger import logger
-from ragserver.structured_store.structured_store_manager import StructuredStoreManager
+from ragserver.structured_store.structured_store_abst import StructuredStoreAbst
 
 
 @dataclass
@@ -27,20 +30,23 @@ class VectorStoreContainer:
     modality: Modality
     provider_name: str
     store: BasePydanticVectorStore
+    table_name: str
 
 
-class VectorStoreManager:
+class VectorStoreModalityManager:
+    """ベクトルストア（に紐づく埋め込み）モダリティの管理クラス。
+
+    空間キーごとにテーブルを一つ割り当て、ノードを管理する想定。"""
+
     def __init__(
         self,
         stores: list[VectorStoreContainer],
-        embed: EmbeddingManager,
-        meta_store: StructuredStoreManager,
+        embed: EmbeddingModalityManager,
+        meta_store: StructuredStoreAbst,
         load_limit: int,
         check_update: bool = True,
     ) -> None:
-        """ベクトルストア管理クラスの抽象
-
-        空間キーごとにテーブルを一つ割り当て、ノードを管理する想定。
+        """コンストラクタ
 
         Args:
             stores (list[VectorStoreContainer]): ベクトルストアコンテナのリスト
@@ -54,6 +60,7 @@ class VectorStoreManager:
         self._vector_store_text: Optional[VectorStoreContainer] = None
         self._vector_store_image: Optional[VectorStoreContainer] = None
         self._modality: set[Modality] = set()
+        self._table_names: list[str] = []
 
         for store in stores:
             match store.modality:
@@ -65,10 +72,11 @@ class VectorStoreManager:
                     raise ValueError(f"unexpected modality: {store.modality}")
 
             self._modality.add(store.modality)
+            self._table_names.append(store.table_name)
 
         self._embed = embed
-        self._check_update = check_update
         self._meta_store = meta_store
+        self._check_update = check_update
         self._index = self._create_index()
 
         # メタデータ専用ストアから fingerprint キャッシュを復元
@@ -91,6 +99,15 @@ class VectorStoreManager:
             set[Modality]: モダリティ一覧
         """
         return self._modality
+
+    @property
+    def table_names(self) -> list[str]:
+        """このベクトルストアが保持するテーブル名一覧。
+
+        Returns:
+            list[str]: モダリティ一覧
+        """
+        return self._table_names
 
     def get_container(self, modality: Modality) -> VectorStoreContainer:
         """モダリティ別のベクトルストアコンテナを取得する。
@@ -165,12 +182,10 @@ class VectorStoreManager:
         """
         logger.debug("trace")
 
-        if self._meta_store is None:
-            logger.warning("metadata store is not initialized")
-            return {}
-
         rows = self._meta_store.select(
-            cols=[MK.FILE_PATH, MK.URL, MK.FINGERPRINT], limit=load_limit
+            cols=[MK.FILE_PATH, MK.URL, MK.FINGERPRINT],
+            table_names=self.table_names,
+            limit=load_limit,
         )
 
         fp_cache = {}
@@ -266,9 +281,12 @@ class VectorStoreManager:
             for node, vec in zip(nodes, vecs):
                 node.embedding = vec
 
-            await self.get_container(Modality.TEXT).store.adelete_nodes(ids)
-            await self.get_container(Modality.TEXT).store.async_add(nodes)
-            await self._meta_store.aupsert_text_metas(metas=metas, fingerprints=fps)
+            cont = self.get_container(Modality.TEXT)
+            await cont.store.adelete_nodes(ids)
+            await cont.store.async_add(nodes)
+            await self._meta_store.aupsert(
+                metas=metas, fingerprints=fps, table_name=cont.table_name
+            )
         except Exception as e:
             raise RuntimeError("failed to upsert text") from e
 
@@ -326,9 +344,12 @@ class VectorStoreManager:
             for node, vec in zip(nodes, vecs):
                 node.embedding = vec
 
-            await self.get_container(Modality.IMAGE).store.adelete_nodes(ids)
-            await self.get_container(Modality.IMAGE).store.async_add(nodes)
-            await self._meta_store.aupsert_image_metas(metas=metas, fingerprints=fps)
+            cont = self.get_container(Modality.IMAGE)
+            await cont.store.adelete_nodes(ids)
+            await cont.store.async_add(nodes)
+            await self._meta_store.aupsert(
+                metas=metas, fingerprints=fps, table_name=cont.table_name
+            )
         except Exception as e:
             raise RuntimeError("failed to upsert text") from e
         finally:

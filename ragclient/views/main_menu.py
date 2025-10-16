@@ -143,8 +143,8 @@ def _render_status_section(
     st.subheader("🩺 サービスステータス")
     texts = st.session_state["status_texts"]
     st.write(f"RAG サーバー: {texts['ragserver']}")
-    st.write(f"ローカル埋め込みサービス: {texts['embed']}")
-    st.write(f"ローカルリランクサービス: {texts['rerank']}")
+    # st.write(f"ローカル埋め込みサービス: {texts['embed']}")
+    # st.write(f"ローカルリランクサービス: {texts['rerank']}")
     st.button(
         "🔄 最新情報を取得",
         on_click=_refresh_status,

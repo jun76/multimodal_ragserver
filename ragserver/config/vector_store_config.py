@@ -6,10 +6,8 @@ from ragserver.config.settings import Settings
 
 @dataclass(kw_only=True)
 class VectorStoreConfig:
-    vector_store: str = field(default=Settings.VECTOR_STORE)
     load_limit: int = field(default=Settings.LOAD_LIMIT)
     check_update: bool = field(default=Settings.CHECK_UPDATE)
-    knowledgebase_name: str = field(default=Settings.KNOWLEDGEBASE_NAME)
     chroma_persist_dir: str = field(default=Settings.CHROMA_PERSIST_DIR)
     chroma_host: Optional[str] = field(default=Settings.CHROMA_HOST)
     chroma_port: Optional[int] = field(default=Settings.CHROMA_PORT)

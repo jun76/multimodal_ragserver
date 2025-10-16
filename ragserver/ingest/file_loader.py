@@ -12,7 +12,9 @@ from llama_index.core.schema import BaseNode
 from ragserver.core.metadata import BasicMetaData
 from ragserver.ingest.loader import Loader
 from ragserver.logger import logger
-from ragserver.vector_store.vector_store_manager import VectorStoreManager
+from ragserver.vector_store.vector_store_modality_manager import (
+    VectorStoreModalityManager,
+)
 
 
 class FileLoader(Loader):
@@ -20,7 +22,7 @@ class FileLoader(Loader):
         self,
         chunk_size: int,
         chunk_overlap: int,
-        store: VectorStoreManager,
+        store: VectorStoreModalityManager,
     ) -> None:
         """ローカルファイルを読み込み、ノードを生成するためのクラス。
 

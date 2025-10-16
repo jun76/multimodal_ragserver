@@ -7,38 +7,28 @@ from pathlib import Path
 from typing import Any, Optional
 
 import aiofiles
-import chromadb
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi_mcp.server import FastApiMCP
 from llama_index.core.schema import NodeWithScore
-from llama_index.embeddings.clip import ClipEmbedding
-from llama_index.embeddings.cohere.base import CohereEmbedding
-from llama_index.embeddings.openai.base import OpenAIEmbedding
-from llama_index.vector_stores.chroma import ChromaVectorStore
-from llama_index.vector_stores.postgres import PGVectorStore
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from ragserver.config.embedding_config import EmbeddingConfig
+from ragserver.config.general_config import GeneralConfig
 from ragserver.config.ingest_config import IngestConfig
 from ragserver.config.rerank_config import RerankConfig
-from ragserver.config.settings import Settings
-from ragserver.config.vector_store_config import VectorStoreConfig
+from ragserver.config.settings import EmbedProvider, RerankProvider
 from ragserver.core.metadata import Modality
-from ragserver.embed.embedding_manager import EmbeddingContainer, EmbeddingManager
+from ragserver.embed.embedding_provider_manager import EmbeddingProviderManager
 from ragserver.ingest import ingest
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.html_loader import HTMLLoader
 from ragserver.logger import logger
-from ragserver.rerank.cohere_rerank_manager import CohereRerankManager
-from ragserver.rerank.flagembedding_rerank_manager import FlagEmbeddingRerankManager
-from ragserver.rerank.rerank_manager import RerankManager
+from ragserver.rerank.rerank_provider_manager import RerankProviderManager
 from ragserver.retrieval import retriever
 from ragserver.structured_store.sqlite_manager import SQLiteManager
-from ragserver.structured_store.structured_store_manager import StructuredStoreManager
-from ragserver.vector_store.vector_store_manager import (
-    VectorStoreContainer,
-    VectorStoreManager,
+from ragserver.structured_store.structured_store_abst import StructuredStoreAbst
+from ragserver.vector_store.vector_store_provider_manager import (
+    VectorStoreProviderManager,
 )
 
 __all__ = ["app"]
@@ -54,7 +44,7 @@ logging.getLogger("unstructured.trace").setLevel(logging.WARNING)
 
 class ReloadRequest(BaseModel):
     target: str
-    name: str
+    name: str  # 凍結中
 
 
 class QueryTextRequest(BaseModel):
@@ -76,120 +66,25 @@ class URLRequest(BaseModel):
 
 
 # uvicorn ragserver.main:app --host 0.0.0.0 --port 8000
-app = FastAPI(title=Settings.PROJECT_NAME, version="1.0")
+app = FastAPI(title=GeneralConfig.project_name, version="1.0")
 
 
-def _create_embed() -> EmbeddingManager:
-    """埋め込み管理インスタンスを生成する。
+_embed = EmbeddingProviderManager().create()
+
+
+def _create_meta_store() -> StructuredStoreAbst:
+    """メタデータ用ストアのインスタンスを生成する。
 
     Raises:
-        RuntimeError: インスタンス生成に失敗した場合
+        RuntimeError: インスタンス生成に失敗
 
     Returns:
-        EmbeddingsManager: 生成された埋め込み管理
+        StructuredStoreManager: メタデータ用ストア
     """
     logger.debug("trace")
 
     try:
-        embeds = []
-        match EmbeddingConfig.text_embed_provider:
-            case Settings.OPENAI:
-                embed_text = EmbeddingContainer(
-                    modality=Modality.TEXT,
-                    provider_name=Settings.OPENAI,
-                    embedding=OpenAIEmbedding(
-                        model=EmbeddingConfig.openai_embed_model_text,
-                        api_base=EmbeddingConfig.openai_base_url,
-                    ),
-                )
-                embeds.append(embed_text)
-
-            case Settings.COHERE:
-                embed_text = EmbeddingContainer(
-                    modality=Modality.TEXT,
-                    provider_name=Settings.COHERE,
-                    embedding=CohereEmbedding(
-                        model_name=EmbeddingConfig.cohere_embed_model_text,
-                    ),
-                )
-                embeds.append(embed_text)
-
-            case Settings.CLIP:
-                embed_text = EmbeddingContainer(
-                    modality=Modality.TEXT,
-                    provider_name=Settings.CLIP,
-                    embedding=ClipEmbedding(
-                        model_name=EmbeddingConfig.clip_embed_model_text,
-                    ),
-                )
-                embeds.append(embed_text)
-
-            case _:
-                raise ValueError(
-                    f"unsupported text embed provider: {EmbeddingConfig.text_embed_provider}"
-                )
-
-        if EmbeddingConfig.image_embed_provider:
-            match EmbeddingConfig.image_embed_provider:
-                case Settings.COHERE:
-                    embed_image = EmbeddingContainer(
-                        modality=Modality.IMAGE,
-                        provider_name=Settings.COHERE,
-                        embedding=CohereEmbedding(
-                            model_name=EmbeddingConfig.cohere_embed_model_image,
-                        ),
-                    )
-                    embeds.append(embed_image)
-
-                case Settings.CLIP:
-                    embed_image = EmbeddingContainer(
-                        modality=Modality.IMAGE,
-                        provider_name=Settings.CLIP,
-                        embedding=ClipEmbedding(
-                            model_name=EmbeddingConfig.clip_embed_model_image,
-                        ),
-                    )
-                    embeds.append(embed_image)
-
-                case _:
-                    raise ValueError(
-                        f"unsupported image embed provider: {EmbeddingConfig.image_embed_provider}"
-                    )
-
-    except Exception as e:
-        traceback.print_exc()
-        raise RuntimeError(f"failed to prepare embedding: {e}") from e
-
-    return EmbeddingManager(embeds)
-
-
-_embed = _create_embed()
-
-
-def _create_meta_store(embed: EmbeddingManager) -> StructuredStoreManager:
-    """メタデータ専用ストアのインスタンスを生成する。
-
-    Raises:
-        RuntimeError: インスタンス生成に失敗した場合
-
-    Returns:
-        StructuredStoreManager: 構造化ストア管理
-    """
-    logger.debug("trace")
-
-    try:
-        meta_store = SQLiteManager(
-            knowledgebase_name=VectorStoreConfig.knowledgebase_name
-        )
-        if embed.get_container(Modality.IMAGE):
-            meta_store.prepare_with(
-                space_key_text=embed.space_key_text,
-                space_key_image=embed.space_key_image,
-            )
-        else:
-            meta_store.prepare_with(
-                space_key_text=embed.space_key_text,
-            )
+        meta_store = SQLiteManager()
     except Exception as e:
         traceback.print_exc()
         raise RuntimeError(f"failed to prepare metadata store: {e}") from e
@@ -197,148 +92,15 @@ def _create_meta_store(embed: EmbeddingManager) -> StructuredStoreManager:
     return meta_store
 
 
-_meta_store = _create_meta_store(_embed)
+_meta_store = _create_meta_store()
 
 
-def _create_vector_store(
-    embed: EmbeddingManager,
-    meta_store: StructuredStoreManager,
-    knowledgebase_name: str = "default",
-) -> VectorStoreManager:
-    """ベクトルストアのインスタンスを生成する。
-
-    Args:
-        embed (EmbeddingManager): 埋め込み管理
-        meta_store (StructuredStoreManager): メタデータ管理
-        knowledgebase_name (str, optional): ナレッジベース（用途）名。Defaults to "default".
-
-    Raises:
-        RuntimeError: インスタンス生成に失敗した場合
-
-    Returns:
-        VectorStoreManager: 新しいインスタンス
-    """
-    logger.debug("trace")
-
-    try:
-        stores = []
-        match VectorStoreConfig.vector_store:
-            case Settings.PGVECTOR:
-                text_store = VectorStoreContainer(
-                    modality=Modality.TEXT,
-                    provider_name=Settings.PGVECTOR,
-                    store=PGVectorStore.from_params(
-                        host=VectorStoreConfig.pgvector_host,
-                        port=str(VectorStoreConfig.pgvector_port),
-                        database=VectorStoreConfig.pgvector_database,
-                        user=VectorStoreConfig.pgvector_user,
-                        password=VectorStoreConfig.pgvector_password,
-                        table_name=f"{Settings.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_text}",
-                    ),
-                )
-                stores.append(text_store)
-
-                image_store = VectorStoreContainer(
-                    modality=Modality.IMAGE,
-                    provider_name=Settings.PGVECTOR,
-                    store=PGVectorStore.from_params(
-                        host=VectorStoreConfig.pgvector_host,
-                        port=str(VectorStoreConfig.pgvector_port),
-                        database=VectorStoreConfig.pgvector_database,
-                        user=VectorStoreConfig.pgvector_user,
-                        password=VectorStoreConfig.pgvector_password,
-                        table_name=f"{Settings.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_image}",
-                    ),
-                )
-                stores.append(image_store)
-
-            case Settings.CHROMA:
-                if (
-                    VectorStoreConfig.chroma_host is not None
-                    and VectorStoreConfig.chroma_port is not None
-                ):
-                    client = chromadb.HttpClient(
-                        host=VectorStoreConfig.chroma_host,
-                        port=VectorStoreConfig.chroma_port,
-                    )
-                elif VectorStoreConfig.chroma_persist_dir:
-                    client = chromadb.PersistentClient(
-                        path=VectorStoreConfig.chroma_persist_dir
-                    )
-                else:
-                    raise RuntimeError(
-                        "persist_directory or host + port must be specified"
-                    )
-
-                text_collection = client.get_or_create_collection(
-                    name=f"{Settings.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_text}"
-                )
-                text_store = VectorStoreContainer(
-                    modality=Modality.TEXT,
-                    provider_name=Settings.PGVECTOR,
-                    store=ChromaVectorStore(chroma_collection=text_collection),
-                )
-                stores.append(text_store)
-
-                image_collection = client.get_or_create_collection(
-                    name=f"{Settings.PROJECT_NAME}__{knowledgebase_name}__{embed.space_key_image}"
-                )
-                image_store = VectorStoreContainer(
-                    modality=Modality.IMAGE,
-                    provider_name=Settings.PGVECTOR,
-                    store=ChromaVectorStore(chroma_collection=image_collection),
-                )
-                stores.append(image_store)
-
-            case _:
-                raise RuntimeError(
-                    f"unsupported vector store: {VectorStoreConfig.vector_store}"
-                )
-
-    except Exception as e:
-        traceback.print_exc()
-        raise RuntimeError(f"failed to prepare vector store: {e}") from e
-
-    return VectorStoreManager(
-        stores=stores,
-        embed=embed,
-        meta_store=meta_store,
-        load_limit=VectorStoreConfig.load_limit,
-        check_update=VectorStoreConfig.check_update,
-    )
+_vector_store = VectorStoreProviderManager().create(
+    embed=_embed, meta_store=_meta_store
+)
 
 
-_vector_store = _create_vector_store(embed=_embed, meta_store=_meta_store)
-
-
-def _create_rerank(name: Optional[str] = None) -> Optional[RerankManager]:
-    """リランク管理インスタンスを生成する。
-
-    Args:
-        name (Optional[str], optional): リランク管理名。Defaults to None.
-
-    Returns:
-        Optional[RerankManager]: 生成されたリランク管理
-    """
-    logger.debug("trace")
-
-    if name:
-        RerankConfig.rerank_provider = name
-
-    match RerankConfig.rerank_provider:
-        case Settings.FLAGEMBEDDING:
-            return FlagEmbeddingRerankManager(
-                model=RerankConfig.flagembedding_rerank_model, topk=RerankConfig.topk
-            )
-        case Settings.COHERE:
-            return CohereRerankManager(
-                RerankConfig.cohere_rerank_model, topk=RerankConfig.topk
-            )
-        case _:
-            return None
-
-
-_rerank = _create_rerank()
+_rerank = RerankProviderManager().create()
 
 
 _request_lock = threading.Lock()
@@ -376,7 +138,7 @@ async def health() -> dict[str, Any]:
 
     return {
         "status": "ok",
-        "store": _vector_store.name,
+        "store": GeneralConfig.vector_store,
         "embed": ", ".join(providers),
         "rerank": _rerank.name if _rerank else "none",
     }
@@ -387,56 +149,44 @@ async def reload(payload: ReloadRequest) -> dict[str, Any]:
     """各種インスタンスをリロードする。
 
     Args:
-        payload (ReloadRequest): リロード内容
+        payload (ReloadRequest): リロード対象
 
     Raises:
-        HTTPException(500): 初期化やファイル作成に失敗した場合
+        HTTPException(500): リロードに失敗
 
     Returns:
         dict[str, Any]: 結果
     """
     logger.debug("trace")
 
-    global _meta_store
-    global _vector_store
-    global _embed
-    global _rerank
-    await run_in_threadpool(_request_lock.acquire)
-    try:
-        try:
-            match payload.target:
-                case "store":
-                    _vector_store = _create_vector_store(
-                        embed=_embed, name=payload.name
-                    )
-                case "embed":
-                    _embed = _create_embed(payload.name)
-                    if _embed.get_container(Modality.IMAGE):
-                        _meta_store.prepare_with(
-                            space_key_text=_embed.space_key_text,
-                            space_key_image=_embed.space_key_image,
-                        )
-                    else:
-                        _meta_store.prepare_with(
-                            space_key_text=_embed.space_key_text,
-                        )
-
-                    cfg = get_config()
-                    _vector_store.prepare_with(
-                        embed=_embed, meta_store=_meta_store, limit=cfg.load_limit
-                    )
-                case "rerank":
-                    _rerank = _create_rerank(payload.name)
-                case _:
-                    traceback.print_exc()
-                    raise ValueError(
-                        "invalid argument. specify store | embed | rerank ."
-                    )
-        except Exception as e:
-            traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"reload failure: {e}") from e
-    finally:
-        _request_lock.release()
+    # global _meta_store
+    # global _vector_store
+    # global _embed
+    # global _rerank
+    # await run_in_threadpool(_request_lock.acquire)
+    # try:
+    #     try:
+    #         match payload.target:
+    #             case "store":
+    #                 _embed = _create_embed()
+    #                 _meta_store = _create_meta_store()
+    #                 _vector_store = _create_vector_store(
+    #                     embed=_embed, meta_store=_meta_store
+    #                 )
+    #             case "embed":
+    #                 _embed = _create_embed()
+    #             case "rerank":
+    #                 _rerank = _create_rerank()
+    #             case _:
+    #                 traceback.print_exc()
+    #                 raise ValueError(
+    #                     "invalid argument. specify store | embed | rerank ."
+    #                 )
+    #     except Exception as e:
+    #         traceback.print_exc()
+    #         raise HTTPException(status_code=500, detail=f"reload failure: {e}") from e
+    # finally:
+    #     _request_lock.release()
 
     return {"status": "ok"}
 
@@ -449,8 +199,8 @@ async def upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
         files (list[UploadFile], optional): ファイル群。Defaults to File(...).
 
     Raises:
-        HTTPException(500): 初期化やファイル作成に失敗した場合
-        HTTPException(400): ファイル名が空の場合
+        HTTPException(500): 初期化やファイル作成に失敗
+        HTTPException(400): ファイル名が空
 
     Returns:
         dict[str, Any]: 結果
@@ -511,7 +261,7 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
         payload (QueryTextRequest): クエリ内容
 
     Raises:
-        HTTPException: 検索処理に失敗した場合
+        HTTPException: 検索処理に失敗
 
     Returns:
         dict[str, Any]: 検索結果
@@ -544,14 +294,14 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
         payload (QueryTextRequest): クエリ内容
 
     Raises:
-        HTTPException: 検索処理に失敗した場合
+        HTTPException: 検索処理に失敗
 
     Returns:
         dict[str, Any]: 検索結果
     """
     logger.debug("trace")
 
-    if not _embed.get_container(Modality.IMAGE):
+    if Modality.IMAGE not in _embed.modality:
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
@@ -584,14 +334,14 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
         payload (QueryImageRequest): クエリ内容
 
     Raises:
-        HTTPException: 検索処理に失敗した場合
+        HTTPException: 検索処理に失敗
 
     Returns:
         dict[str, Any]: 検索結果
     """
     logger.debug("trace")
 
-    if not _embed.get_container(Modality.IMAGE):
+    if Modality.IMAGE not in _embed.modality:
         traceback.print_exc()
         raise HTTPException(
             status_code=500,
@@ -624,7 +374,7 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
         payload (PathRequest): 対象パス
 
     Raises:
-        HTTPException: 収集処理に失敗した場合
+        HTTPException: 収集処理に失敗
 
     Returns:
         dict[str, str]: 実行結果
@@ -661,7 +411,7 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
         payload (PathRequest): path リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
 
     Raises:
-        HTTPException: 収集処理に失敗した場合
+        HTTPException: 収集処理に失敗
 
     Returns:
         dict[str, str]: 実行結果
@@ -699,7 +449,7 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
         payload (URLRequest): 対象 URL
 
     Raises:
-        HTTPException: 収集処理に失敗した場合
+        HTTPException: 収集処理に失敗
 
     Returns:
         dict[str, str]: 実行結果
@@ -743,7 +493,7 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
         payload (PathRequest): URL リストのパス（テキストファイル。# で始まるコメント行・空行はスキップ）
 
     Raises:
-        HTTPException: 収集処理に失敗した場合
+        HTTPException: 収集処理に失敗
 
     Returns:
         dict[str, str]: 実行結果
@@ -786,7 +536,7 @@ logger.info("now mcp server is starting up...")
 # FastAPI アプリを MCP サーバとして公開
 _mcp_server = FastApiMCP(
     app,
-    name=Settings.PROJECT_NAME,
+    name=GeneralConfig.project_name,
     include_operations=["query_text", "query_text_multi", "query_image"],
 )
 _mcp_server.mount_http()

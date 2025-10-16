@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Iterable, Sequence
 
 import aiosqlite
 
-from ragserver.config.settings import Settings
+from ragserver.config.general_config import GeneralConfig
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
 from ragserver.logger import logger
-from ragserver.structured_store.structured_store_manager import StructuredStoreManager
+from ragserver.structured_store.structured_store_abst import StructuredStoreAbst
 
 # メタデータ管理テーブルの create 用
 DDL_CREATE_METADATA = """
@@ -30,13 +30,22 @@ CREATE TABLE IF NOT EXISTS {table_name} (
 
 # 同じソース塊（ファイル x URL x チャンク）を常に 1 行に保つ
 # 内容が変われば同じ行を上書き（fingerprint も更新）
-DDL_IDX_FINGERPRINT = "CREATE UNIQUE INDEX IF NOT EXISTS idx_{table_name}_fingerprint ON {table_name}({fingerprint});"
+DDL_IDX_FINGERPRINT = """
+CREATE UNIQUE INDEX IF NOT EXISTS
+  idx_{table_name}_fingerprint ON {table_name}({fingerprint});
+"""
 
 # システム起動時の fingerprint キャッシュロード時に効く
-DDL_IDX_NODE_LASTMOD_AT = "CREATE INDEX IF NOT EXISTS idx_{table_name}_{node_lastmod_at} ON {table_name}({node_lastmod_at} DESC);"
+DDL_IDX_NODE_LASTMOD_AT = """
+CREATE INDEX IF NOT EXISTS 
+  idx_{table_name}_{node_lastmod_at} ON {table_name}({node_lastmod_at} DESC);
+"""
 
 # DELETE FROM table WHERE base_source = ?; 等に効く
-DDL_IDX_BASE_SOURCE = "CREATE INDEX IF NOT EXISTS idx_{table_name}_{base_source} ON {table_name}({base_source});"
+DDL_IDX_BASE_SOURCE = """
+CREATE INDEX IF NOT EXISTS
+  idx_{table_name}_{base_source} ON {table_name}({base_source});
+"""
 
 # メタデータ管理テーブルの upsert 用
 DML_UPSERT_METADATA = """
@@ -62,47 +71,30 @@ ON CONFLICT({file_path},{url},{chunk_no}) DO UPDATE SET
 """
 
 # select 用
-DML_SELECT = """
-SELECT {col_list}, {order_col} AS _ord FROM {text_table}
-ORDER BY _ord DESC
-LIMIT {limit}
-"""
-
-DML_SELECT_MULTI = """
-SELECT {col_list}
-FROM (
-  SELECT {col_list}, {order_col} AS _ord FROM {text_table}
-  UNION ALL
-  SELECT {col_list}, {order_col} AS _ord FROM {image_table}
-) AS _u
-ORDER BY _ord DESC
-LIMIT {limit}
-"""
+DML_SELECT = "SELECT {col_csv}, {order_col} AS _ord FROM {table}"
+DML_SELECT_MULTI = (
+    "SELECT {col_csv} FROM ({union_all}) AS _u ORDER BY _ord DESC LIMIT {limit}"
+)
+UNION_ALL = " UNION ALL "
 
 
-class SQLiteManager(StructuredStoreManager):
-    def __init__(
-        self,
-        knowledgebase_name: str = "default",
-    ) -> None:
+class SQLiteManager(StructuredStoreAbst):
+    def __init__(self) -> None:
         """SQLite3 管理クラス
-
-        Args:
-            knowledgebase_name (str, optional): ナレッジベース（用途）名。Defaults to "default".
 
         Raises:
             RuntimeError: 初期化失敗
         """
         logger.debug("trace")
 
-        super().__init__(knowledgebase_name)
-
-        self._db_path = f"{Settings.PROJECT_NAME}.db"
+        self._db_path = f"{GeneralConfig.project_name}_metas.db"
 
         try:
             self._db = sqlite3.connect(self._db_path)
         except Exception as e:
             raise RuntimeError("failed to initialize") from e
+
+        self._created: list[str] = []
 
     def __del__(self):
         """デストラクタ"""
@@ -111,18 +103,17 @@ class SQLiteManager(StructuredStoreManager):
         if hasattr(self, "_db") and self._db is not None:
             self._db.close()
 
-    def _prepare_with(self, space_key: str) -> None:
+    def _prepare_with(self, table_name: str) -> None:
         """空間キーに合わせてストアを初期化する。
 
         Args:
-            space_key (str): 空間キー
+            table_name (str): テーブル名
 
         Raises:
             RuntimeError: ストア初期化失敗
         """
         logger.debug("trace")
 
-        table_name = f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
         try:
             self._db.execute(
                 DDL_CREATE_METADATA.format(
@@ -157,27 +148,6 @@ class SQLiteManager(StructuredStoreManager):
             )
         except Exception as e:
             raise RuntimeError("failed to exec DDL queries") from e
-
-    def prepare_with(
-        self, space_key_text: str, space_key_image: Optional[str] = None
-    ) -> None:
-        """空間キーに合わせてストアを初期化する。
-
-        Args:
-            space_key_text (str): テキストベクトルの空間キー
-            space_key_image (Optional[str], optional): 画像ベクトルの空間キー。Defaults to None.
-
-        Raises:
-            RuntimeError: ストア初期化失敗
-        """
-        logger.debug("trace")
-
-        self._space_key_text = space_key_text
-        self._prepare_with(space_key_text)
-
-        if space_key_image:
-            self._space_key_image = space_key_image
-            self._prepare_with(space_key_image)
 
     async def _aupset_metadata_batch(
         self,
@@ -229,17 +199,27 @@ class SQLiteManager(StructuredStoreManager):
                 await db.rollback()
                 raise RuntimeError("failed to upsert batch") from e
 
-    async def _aupset(
-        self, metas: list[BasicMetaData], fingerprints: list[str], space_key: str
+    async def aupsert(
+        self, metas: list[BasicMetaData], fingerprints: list[str], table_name: str
     ) -> None:
         """メタデータをストアに格納する。
 
         Args:
             metas (list[BasicMetaData]): メタデータ
             fingerprints (list[str]): fingerprint 文字列
-            space_key (str): 空間キー
+            table_name (str): テーブル名
+
+        Raises:
+            RuntimeError: upsert 失敗
         """
         logger.debug("trace")
+
+        try:
+            if table_name not in self._created:
+                self._prepare_with(table_name)
+                self._created.append(table_name)
+        except Exception as e:
+            raise e
 
         rows = []
         for i, meta in enumerate(metas):
@@ -257,56 +237,16 @@ class SQLiteManager(StructuredStoreManager):
             )
             rows.append(row)
 
-        table_name = f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{space_key}"
         await self._aupset_metadata_batch(table_name=table_name, rows=rows)
 
-    async def aupsert_text_metas(
-        self, metas: list[BasicMetaData], fingerprints: list[str]
-    ) -> None:
-        """テキストノードのメタデータをストアに格納する。
-
-        Raises:
-            RuntimeError: space key が初期化されていない場合
-
-        Args:
-            metas (list[BasicMetaData]): メタデータ
-            fingerprints (list[str]): fingerprint 文字列
-        """
-        logger.debug("trace")
-
-        if self._space_key_text is None:
-            raise RuntimeError("space key(text) is not initialized")
-
-        await self._aupset(
-            metas=metas, fingerprints=fingerprints, space_key=self._space_key_text
-        )
-
-    async def aupsert_image_metas(
-        self, metas: list[BasicMetaData], fingerprints: list[str]
-    ) -> None:
-        """画像ノードのメタデータをストアに格納する。
-
-        Raises:
-            RuntimeError: space key が初期化されていない場合
-
-        Args:
-            metas (list[BasicMetaData]): メタデータ
-            fingerprints (list[str]): fingerprint 文字列
-        """
-        logger.debug("trace")
-
-        if self._space_key_image is None:
-            raise RuntimeError("space key(multi) is not initialized")
-
-        await self._aupset(
-            metas=metas, fingerprints=fingerprints, space_key=self._space_key_image
-        )
-
-    def select(self, cols: list[str], limit: int) -> list[tuple]:
+    def select(
+        self, cols: list[str], table_names: list[str], limit: int
+    ) -> list[tuple]:
         """select 文を実行する。
 
         Args:
             cols (list[str]): 取得する列
+            table_names (list[str]): テーブル名のリスト
             limit (int): 件数上限
 
         Returns:
@@ -314,25 +254,16 @@ class SQLiteManager(StructuredStoreManager):
         """
         logger.debug("trace")
 
-        if self._space_key_text is None:
-            logger.warning("space key is not initialized")
-            return []
-
-        if self._space_key_image:
-            query = DML_SELECT_MULTI.format(
-                col_list=", ".join(cols),
-                text_table=f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
-                image_table=f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_image}",
-                order_col=MK.NODE_LASTMOD_AT,
-                limit=limit,
+        col_csv = ", ".join(cols)
+        parts = [
+            DML_SELECT.format(
+                col_csv=col_csv, order_col=MK.NODE_LASTMOD_AT, table=table_name
             )
-        else:
-            query = DML_SELECT.format(
-                col_list=", ".join(cols),
-                text_table=f"{Settings.PROJECT_NAME}_{self._knowledgebase_name}_{self._space_key_text}",
-                order_col=MK.NODE_LASTMOD_AT,
-                limit=limit,
-            )
+            for table_name in table_names
+        ]
+        query = DML_SELECT_MULTI.format(
+            col_csv=col_csv, union_all=UNION_ALL.join(parts), limit=limit
+        )
 
         try:
             with self._db:

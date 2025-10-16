@@ -3,7 +3,9 @@ from __future__ import annotations
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.html_loader import HTMLLoader
 from ragserver.logger import logger
-from ragserver.vector_store.vector_store_manager import VectorStoreManager
+from ragserver.vector_store.vector_store_modality_manager import (
+    VectorStoreModalityManager,
+)
 
 __all__ = [
     "aingest_from_path",
@@ -15,7 +17,7 @@ __all__ = [
 
 async def aingest_from_path(
     path: str,
-    store: VectorStoreManager,
+    store: VectorStoreModalityManager,
     file_loader: FileLoader,
 ) -> None:
     """ローカルパス（ディレクトリ、ファイル）からコンテンツを収集、埋め込み、ストアに格納する。
@@ -34,7 +36,7 @@ async def aingest_from_path(
 
 async def aingest_from_path_list(
     list_path: str,
-    store: VectorStoreManager,
+    store: VectorStoreModalityManager,
     file_loader: FileLoader,
 ) -> None:
     """path リストに記載の複数パスからコンテンツを収集、埋め込み、ストアに格納する。
@@ -52,7 +54,7 @@ async def aingest_from_path_list(
 
 async def aingest_from_url(
     url: str,
-    store: VectorStoreManager,
+    store: VectorStoreModalityManager,
     html_loader: HTMLLoader,
 ) -> None:
     """URL からコンテンツを収集、埋め込み、ストアに格納する。
@@ -71,7 +73,7 @@ async def aingest_from_url(
 
 async def aingest_from_url_list(
     list_path: str,
-    store: VectorStoreManager,
+    store: VectorStoreModalityManager,
     html_loader: HTMLLoader,
 ) -> None:
     """URL リストに記載の複数サイトからコンテンツを収集、埋め込み、ストアに格納する。

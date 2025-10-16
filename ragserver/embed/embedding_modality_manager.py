@@ -21,8 +21,8 @@ class EmbeddingContainer:
     space_key: str = ""
 
 
-class EmbeddingManager:
-    """マルチモーダル埋め込み管理クラス"""
+class EmbeddingModalityManager:
+    """埋め込みモダリティの管理クラス。"""
 
     def __init__(self, embeds: list[EmbeddingContainer]) -> None:
         """コンストラクタ
@@ -45,7 +45,6 @@ class EmbeddingManager:
                 model=embed.embedding.model_name,
                 modality=embed.modality,
             )
-
             match embed.modality:
                 case Modality.TEXT:
                     self._embed_text = embed
@@ -64,6 +63,95 @@ class EmbeddingManager:
             set[Modality]: モダリティ一覧
         """
         return self._modality
+
+    @property
+    def space_key_text(self) -> str:
+        """テキスト埋め込みの空間キー。
+
+        Raises:
+            RuntimeError: 未初期化
+
+        Returns:
+            str: 空間キー
+        """
+        return self.get_container(Modality.TEXT).space_key
+
+    @property
+    def space_key_image(self) -> str:
+        """画像埋め込みの空間キー。
+
+        Raises:
+            RuntimeError: 未初期化
+
+        Returns:
+            str: 空間キー
+        """
+        return self.get_container(Modality.IMAGE).space_key
+
+    def get_container(self, modality: Modality) -> EmbeddingContainer:
+        """モダリティ別の埋め込みコンテナを取得する。
+
+        Args:
+            modality (Modality): モダリティ
+
+        Raises:
+            ValueError: 予期せぬモダリティ
+            RuntimeError: 未初期化
+
+        Returns:
+            EmbeddingContainer: 埋め込みコンテナ
+        """
+        logger.debug("trace")
+
+        match modality:
+            case Modality.TEXT:
+                if self._embed_text:
+                    return self._embed_text
+            case Modality.IMAGE:
+                if self._embed_image:
+                    return self._embed_image
+            case _:
+                raise ValueError(f"unexpected modality: {modality}")
+
+        raise RuntimeError(f"embed {modality} is not initialized")
+
+    async def aembed_text(self, texts: list[str]) -> list[Embedding]:
+        """テキストの埋め込みベクトルを取得する。
+
+        Args:
+            texts (list[str]): テキスト
+
+        Raises:
+            RuntimeError: 未初期化
+
+        Returns:
+            list[Embedding]: 埋め込みベクトル
+        """
+        logger.debug("trace")
+
+        return await self.get_container(
+            Modality.TEXT
+        ).embedding.aget_text_embedding_batch(texts)
+
+    async def aembed_image(self, paths: list[ImageType]) -> list[Embedding]:
+        """画像の埋め込みベクトルを取得する。
+
+        Args:
+            paths (list[ImageType]): 画像のパス（または base64 画像の直渡しでも OK）
+
+        Raises:
+            RuntimeError: 未初期化または画像埋め込み器でない
+
+        Returns:
+            list[Embedding]: 埋め込みベクトル
+        """
+        logger.debug("trace")
+
+        embed = self.get_container(Modality.IMAGE).embedding
+        if not isinstance(embed, MultiModalEmbedding):
+            raise RuntimeError("multimodal embed model is required")
+
+        return await embed.aget_image_embedding_batch(img_file_paths=paths)
 
     def _sanitize_space_key(self, space_key: str) -> str:
         """制約にマッチするよう space_key 文字列を整形する。
@@ -126,94 +214,3 @@ class EmbeddingManager:
         logger.info(f"space_key [{space_key}] generated")
 
         return space_key
-
-    def get_container(self, modality: Modality) -> EmbeddingContainer:
-        """モダリティ別の埋め込みコンテナを取得する。
-
-        Args:
-            modality (Modality): モダリティ
-
-        Raises:
-            ValueError: 予期せぬモダリティ
-            RuntimeError: 未初期化
-
-        Returns:
-            EmbeddingContainer: 埋め込みコンテナ
-        """
-        logger.debug("trace")
-
-        match modality:
-            case Modality.TEXT:
-                if self._embed_text:
-                    return self._embed_text
-            case Modality.IMAGE:
-                if self._embed_image:
-                    return self._embed_image
-            case _:
-                raise ValueError(f"unexpected modality: {modality}")
-
-        raise RuntimeError(f"embed {modality} is not initialized")
-
-    ############################################################################
-    # 以下、参照の多いコンテナ要素への直接アクセサ
-    @property
-    def space_key_text(self) -> str:
-        """テキスト埋め込みの空間キー。
-
-        Raises:
-            RuntimeError: 未初期化
-
-        Returns:
-            str: 空間キー
-        """
-        return self.get_container(Modality.TEXT).space_key
-
-    @property
-    def space_key_image(self) -> str:
-        """画像埋め込みの空間キー。
-
-        Raises:
-            RuntimeError: 未初期化
-
-        Returns:
-            str: 空間キー
-        """
-        return self.get_container(Modality.IMAGE).space_key
-
-    async def aembed_text(self, texts: list[str]) -> list[Embedding]:
-        """テキストの埋め込みベクトルを取得する。
-
-        Args:
-            texts (list[str]): テキスト
-
-        Raises:
-            RuntimeError: 未初期化
-
-        Returns:
-            list[Embedding]: 埋め込みベクトル
-        """
-        logger.debug("trace")
-
-        return await self.get_container(
-            Modality.TEXT
-        ).embedding.aget_text_embedding_batch(texts)
-
-    async def aembed_image(self, paths: list[ImageType]) -> list[Embedding]:
-        """画像の埋め込みベクトルを取得する。
-
-        Args:
-            paths (list[ImageType]): 画像のパス（または base64 画像の直渡しでも OK）
-
-        Raises:
-            RuntimeError: 未初期化または画像埋め込み器でない
-
-        Returns:
-            list[Embedding]: 埋め込みベクトル
-        """
-        logger.debug("trace")
-
-        embed = self.get_container(Modality.IMAGE).embedding
-        if not isinstance(embed, MultiModalEmbedding):
-            raise RuntimeError("multimodal embed model is required")
-
-        return await embed.aget_image_embedding_batch(img_file_paths=paths)

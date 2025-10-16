@@ -5,9 +5,7 @@ from ragserver.config.settings import Settings
 
 
 @dataclass(kw_only=True)
-class EmbeddingConfig:
-    text_embed_provider: str = field(default=Settings.TEXT_EMBED_PROVIDER)
-    image_embed_provider: str = field(default=Settings.IMAGE_EMBED_PROVIDER)
+class EmbedConfig:
     openai_embed_model_text: str = field(default=Settings.OPENAI_EMBED_MODEL_TEXT)
     openai_api_key: str = field(default=Settings.OPENAI_API_KEY)
     openai_base_url: Optional[str] = field(default=Settings.OPENAI_BASE_URL)

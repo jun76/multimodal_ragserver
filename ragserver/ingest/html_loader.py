@@ -14,13 +14,15 @@ from llama_index.core.schema import BaseNode, TextNode
 from llama_index.readers.web.simple_web.base import SimpleWebPageReader
 from llama_index.readers.web.sitemap.base import SitemapReader
 
-from ragserver.config.settings import Settings
+from ragserver.config.general_config import GeneralConfig
 from ragserver.core.exts import Exts
 from ragserver.core.metadata import BasicMetaData
 from ragserver.ingest.file_loader import FileLoader
 from ragserver.ingest.loader import Loader
 from ragserver.logger import logger
-from ragserver.vector_store.vector_store_manager import VectorStoreManager
+from ragserver.vector_store.vector_store_modality_manager import (
+    VectorStoreModalityManager,
+)
 
 
 class HTMLLoader(Loader):
@@ -29,11 +31,11 @@ class HTMLLoader(Loader):
         chunk_size: int,
         chunk_overlap: int,
         file_loader: FileLoader,
-        store: VectorStoreManager,
+        store: VectorStoreModalityManager,
         load_asset: bool = True,
         req_per_sec: int = 2,
         timeout: int = 30,
-        user_agent: str = Settings.PROJECT_NAME,
+        user_agent: str = GeneralConfig.project_name,
         same_origin: bool = True,
     ):
         """HTML を読み込み、ノードを生成するためのクラス。
@@ -46,7 +48,7 @@ class HTMLLoader(Loader):
             load_asset (bool, optional): アセットを読み込むか。Defaults to True.
             req_per_sec (int): 秒間リクエスト数。Defaults to 2.
             timeout (int, optional): タイムアウト秒。Defaults to 30.
-            user_agent (str, optional): GET リクエスト時の user agent。Defaults to Settings.PROJECT_NAME.
+            user_agent (str, optional): GET リクエスト時の user agent。Defaults to GeneralConfig.project_name.
             same_origin (bool, optional): True なら同一オリジンのみ対象。Defaults to True.
         """
         logger.debug("trace")
@@ -243,7 +245,7 @@ class HTMLLoader(Loader):
         ext = os.path.splitext(url.split("?")[0])[1].lower()
         try:
             with tempfile.NamedTemporaryFile(
-                delete=False, prefix=f"{Settings.PROJECT_NAME}_", suffix=ext
+                delete=False, prefix=f"{GeneralConfig.project_name}_", suffix=ext
             ) as f:
                 f.write(body)
                 path = f.name
