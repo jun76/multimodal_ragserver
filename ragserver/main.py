@@ -16,20 +16,16 @@ from starlette.concurrency import run_in_threadpool
 from ragserver.config.general_config import GeneralConfig
 from ragserver.config.ingest_config import IngestConfig
 from ragserver.config.rerank_config import RerankConfig
-from ragserver.config.settings import EmbedProvider, RerankProvider
 from ragserver.core.metadata import Modality
-from ragserver.embed.embedding_provider_manager import EmbeddingProviderManager
+from ragserver.embed.embed import create_embed_manager
 from ragserver.ingest import ingest
-from ragserver.ingest.file_loader import FileLoader
-from ragserver.ingest.html_loader import HTMLLoader
+from ragserver.ingest.loader.file_loader import FileLoader
+from ragserver.ingest.loader.html_loader import HTMLLoader
 from ragserver.logger import logger
-from ragserver.rerank.rerank_provider_manager import RerankProviderManager
-from ragserver.retrieval import retriever
-from ragserver.structured_store.sqlite_manager import SQLiteManager
-from ragserver.structured_store.structured_store_abst import StructuredStoreAbst
-from ragserver.vector_store.vector_store_provider_manager import (
-    VectorStoreProviderManager,
-)
+from ragserver.meta_store.meta_store import create_meta_store
+from ragserver.rerank.rerank import create_rerank_manager
+from ragserver.retrieve import retrieve
+from ragserver.vector_store.vector_store import create_vector_store_manager
 
 __all__ = ["app"]
 
@@ -40,11 +36,6 @@ logging.getLogger("PIL.Image").setLevel(logging.WARNING)
 logging.getLogger("PIL.PngImagePlugin").setLevel(logging.WARNING)
 logging.getLogger("openai._base_client").setLevel(logging.WARNING)
 logging.getLogger("unstructured.trace").setLevel(logging.WARNING)
-
-
-class ReloadRequest(BaseModel):
-    target: str
-    name: str  # 凍結中
 
 
 class QueryTextRequest(BaseModel):
@@ -69,40 +60,10 @@ class URLRequest(BaseModel):
 app = FastAPI(title=GeneralConfig.project_name, version="1.0")
 
 
-_embed = EmbeddingProviderManager().create()
-
-
-def _create_meta_store() -> StructuredStoreAbst:
-    """メタデータ用ストアのインスタンスを生成する。
-
-    Raises:
-        RuntimeError: インスタンス生成に失敗
-
-    Returns:
-        StructuredStoreManager: メタデータ用ストア
-    """
-    logger.debug("trace")
-
-    try:
-        meta_store = SQLiteManager()
-    except Exception as e:
-        traceback.print_exc()
-        raise RuntimeError(f"failed to prepare metadata store: {e}") from e
-
-    return meta_store
-
-
-_meta_store = _create_meta_store()
-
-
-_vector_store = VectorStoreProviderManager().create(
-    embed=_embed, meta_store=_meta_store
-)
-
-
-_rerank = RerankProviderManager().create()
-
-
+_embed = create_embed_manager()
+_meta_store = create_meta_store()
+_vector_store = create_vector_store_manager(embed=_embed, meta_store=_meta_store)
+_rerank = create_rerank_manager()
 _request_lock = threading.Lock()
 
 
@@ -132,63 +93,12 @@ async def health() -> dict[str, Any]:
     """
     logger.debug("trace")
 
-    providers = []
-    for mod in _embed.modality:
-        providers.append(f"{mod} = {_embed.get_container(mod).provider_name}")
-
     return {
         "status": "ok",
-        "store": GeneralConfig.vector_store,
-        "embed": ", ".join(providers),
-        "rerank": _rerank.name if _rerank else "none",
+        "store": _vector_store.name,
+        "embed": _embed.name,
+        "rerank": _rerank.name,
     }
-
-
-@app.post("/v1/reload", operation_id="reload")
-async def reload(payload: ReloadRequest) -> dict[str, Any]:
-    """各種インスタンスをリロードする。
-
-    Args:
-        payload (ReloadRequest): リロード対象
-
-    Raises:
-        HTTPException(500): リロードに失敗
-
-    Returns:
-        dict[str, Any]: 結果
-    """
-    logger.debug("trace")
-
-    # global _meta_store
-    # global _vector_store
-    # global _embed
-    # global _rerank
-    # await run_in_threadpool(_request_lock.acquire)
-    # try:
-    #     try:
-    #         match payload.target:
-    #             case "store":
-    #                 _embed = _create_embed()
-    #                 _meta_store = _create_meta_store()
-    #                 _vector_store = _create_vector_store(
-    #                     embed=_embed, meta_store=_meta_store
-    #                 )
-    #             case "embed":
-    #                 _embed = _create_embed()
-    #             case "rerank":
-    #                 _rerank = _create_rerank()
-    #             case _:
-    #                 traceback.print_exc()
-    #                 raise ValueError(
-    #                     "invalid argument. specify store | embed | rerank ."
-    #                 )
-    #     except Exception as e:
-    #         traceback.print_exc()
-    #         raise HTTPException(status_code=500, detail=f"reload failure: {e}") from e
-    # finally:
-    #     _request_lock.release()
-
-    return {"status": "ok"}
 
 
 @app.post("/v1/upload", operation_id="upload")
@@ -219,7 +129,6 @@ async def upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
         results = []
         for f in files:
             if f.filename is None:
-                traceback.print_exc()
                 raise HTTPException(status_code=400, detail="filename is not specified")
 
             try:
@@ -271,7 +180,7 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            nodes = await retriever.aquery_text(
+            nodes = await retrieve.aquery_text(
                 query=payload.query,
                 store=_vector_store,
                 topk=payload.topk or RerankConfig.topk,
@@ -302,7 +211,6 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     logger.debug("trace")
 
     if Modality.IMAGE not in _embed.modality:
-        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail="multimodal embeddings is not supported",
@@ -311,7 +219,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            nodes = await retriever.aquery_text_multi(
+            nodes = await retrieve.aquery_text_multi(
                 query=payload.query,
                 store=_vector_store,
                 topk=payload.topk or RerankConfig.topk,
@@ -342,7 +250,6 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     logger.debug("trace")
 
     if Modality.IMAGE not in _embed.modality:
-        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail="multimodal embeddings is not supported",
@@ -351,7 +258,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            nodes = await retriever.aquery_image(
+            nodes = await retrieve.aquery_image(
                 path=payload.path,
                 store=_vector_store,
                 topk=payload.topk or RerankConfig.topk,

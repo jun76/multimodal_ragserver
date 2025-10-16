@@ -3,16 +3,13 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from ragserver.core.metadata import BasicMetaData
-from ragserver.logger import logger
 
 
-class StructuredStoreAbst(ABC):
-    def __init__(self) -> None:
-        """構造化ストア管理クラスの抽象
+class Structured(ABC):
+    """構造化ストア管理クラスの抽象
 
-        空間キーごとにテーブルを一つ割り当て、メタ情報を管理する想定。
-        """
-        logger.debug("trace")
+    空間キーごとにテーブルを一つ割り当て、メタ情報を管理する想定。
+    """
 
     @abstractmethod
     def _prepare_with(self, table_name: str) -> None:

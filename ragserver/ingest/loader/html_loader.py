@@ -17,12 +17,10 @@ from llama_index.readers.web.sitemap.base import SitemapReader
 from ragserver.config.general_config import GeneralConfig
 from ragserver.core.exts import Exts
 from ragserver.core.metadata import BasicMetaData
-from ragserver.ingest.file_loader import FileLoader
-from ragserver.ingest.loader import Loader
+from ragserver.ingest.loader.file_loader import FileLoader
+from ragserver.ingest.loader.loader import Loader
 from ragserver.logger import logger
-from ragserver.vector_store.vector_store_modality_manager import (
-    VectorStoreModalityManager,
-)
+from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 
 class HTMLLoader(Loader):
@@ -31,7 +29,7 @@ class HTMLLoader(Loader):
         chunk_size: int,
         chunk_overlap: int,
         file_loader: FileLoader,
-        store: VectorStoreModalityManager,
+        store: VectorStoreManager,
         load_asset: bool = True,
         req_per_sec: int = 2,
         timeout: int = 30,

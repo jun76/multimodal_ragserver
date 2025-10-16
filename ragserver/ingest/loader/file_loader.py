@@ -10,11 +10,9 @@ from llama_index.core.readers.file.base import SimpleDirectoryReader
 from llama_index.core.schema import BaseNode
 
 from ragserver.core.metadata import BasicMetaData
-from ragserver.ingest.loader import Loader
+from ragserver.ingest.loader.loader import Loader
 from ragserver.logger import logger
-from ragserver.vector_store.vector_store_modality_manager import (
-    VectorStoreModalityManager,
-)
+from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 
 class FileLoader(Loader):
@@ -22,7 +20,7 @@ class FileLoader(Loader):
         self,
         chunk_size: int,
         chunk_overlap: int,
-        store: VectorStoreModalityManager,
+        store: VectorStoreManager,
     ) -> None:
         """ローカルファイルを読み込み、ノードを生成するためのクラス。
 
@@ -55,7 +53,7 @@ class FileLoader(Loader):
         Returns:
             list[BaseNode]: 生成したノード
         """
-        logger.debug("trace")
+        # logger.debug("trace")
 
         try:
             docs = await reader.aload_file(

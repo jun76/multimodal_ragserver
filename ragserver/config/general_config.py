@@ -16,3 +16,4 @@ class GeneralConfig:
     text_embed_provider: EmbedProvider = field(default=Settings.TEXT_EMBED_PROVIDER)
     image_embed_provider: EmbedProvider = field(default=Settings.IMAGE_EMBED_PROVIDER)
     rerank_provider: RerankProvider = field(default=Settings.RERANK_PROVIDER)
+    device: str = field(default=Settings.DEVICE)

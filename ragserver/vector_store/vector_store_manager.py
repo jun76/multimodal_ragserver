@@ -4,7 +4,6 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 from llama_index.core.indices import VectorStoreIndex
 from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
@@ -15,41 +14,37 @@ from ragserver.core.exts import Exts
 from ragserver.core.metadata import META_KEYS
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
-from ragserver.embed.embedding_modality_manager import (
-    EmbeddingModalityManager,
-    Modality,
-)
+from ragserver.embed.embed_manager import EmbedManager, Modality
 from ragserver.logger import logger
-from ragserver.structured_store.structured_store_abst import StructuredStoreAbst
+from ragserver.meta_store.structured.structured import Structured
 
 
 @dataclass
 class VectorStoreContainer:
     """モダリティ毎のベクトルストア関連パラメータを集約"""
 
-    modality: Modality
     provider_name: str
     store: BasePydanticVectorStore
     table_name: str
 
 
-class VectorStoreModalityManager:
-    """ベクトルストア（に紐づく埋め込み）モダリティの管理クラス。
+class VectorStoreManager:
+    """ベクトルストアの管理クラス。
 
     空間キーごとにテーブルを一つ割り当て、ノードを管理する想定。"""
 
     def __init__(
         self,
-        stores: list[VectorStoreContainer],
-        embed: EmbeddingModalityManager,
-        meta_store: StructuredStoreAbst,
+        conts: dict[Modality, VectorStoreContainer],
+        embed: EmbedManager,
+        meta_store: Structured,
         load_limit: int,
         check_update: bool = True,
     ) -> None:
         """コンストラクタ
 
         Args:
-            stores (list[VectorStoreContainer]): ベクトルストアコンテナのリスト
+            conts (dict[Modality, VectorStoreContainer]): ベクトルストアコンテナの辞書
             embed (EmbeddingManager): 埋め込み管理
             meta_store (StructuredStoreManager): メタデータ管理
             load_limit (int): キャッシュロード件数上限
@@ -57,30 +52,24 @@ class VectorStoreModalityManager:
         """
         logger.debug("trace")
 
-        self._vector_store_text: Optional[VectorStoreContainer] = None
-        self._vector_store_image: Optional[VectorStoreContainer] = None
-        self._modality: set[Modality] = set()
-        self._table_names: list[str] = []
-
-        for store in stores:
-            match store.modality:
-                case Modality.TEXT:
-                    self._vector_store_text = store
-                case Modality.IMAGE:
-                    self._vector_store_image = store
-                case _:
-                    raise ValueError(f"unexpected modality: {store.modality}")
-
-            self._modality.add(store.modality)
-            self._table_names.append(store.table_name)
-
+        self._conts = conts
         self._embed = embed
         self._meta_store = meta_store
         self._check_update = check_update
+
         self._index = self._create_index()
 
         # メタデータ専用ストアから fingerprint キャッシュを復元
         self._fp_cache = self._load_fp_cache(load_limit)
+
+    @property
+    def name(self) -> str:
+        """プロバイダ名。
+
+        Returns:
+            str: プロバイダ名
+        """
+        return ", ".join([cont.provider_name for cont in self._conts.values()])
 
     @property
     def index(self) -> VectorStoreIndex:
@@ -98,7 +87,7 @@ class VectorStoreModalityManager:
         Returns:
             set[Modality]: モダリティ一覧
         """
-        return self._modality
+        return set(self._conts.keys())
 
     @property
     def table_names(self) -> list[str]:
@@ -107,7 +96,7 @@ class VectorStoreModalityManager:
         Returns:
             list[str]: モダリティ一覧
         """
-        return self._table_names
+        return [cont.table_name for cont in self._conts.values()]
 
     def get_container(self, modality: Modality) -> VectorStoreContainer:
         """モダリティ別のベクトルストアコンテナを取得する。
@@ -116,7 +105,6 @@ class VectorStoreModalityManager:
             modality (Modality): モダリティ
 
         Raises:
-            ValueError: 予期せぬモダリティ
             RuntimeError: 未初期化
 
         Returns:
@@ -124,17 +112,11 @@ class VectorStoreModalityManager:
         """
         logger.debug("trace")
 
-        match modality:
-            case Modality.TEXT:
-                if self._vector_store_text:
-                    return self._vector_store_text
-            case Modality.IMAGE:
-                if self._vector_store_image:
-                    return self._vector_store_image
-            case _:
-                raise ValueError(f"unexpected modality: {modality}")
+        cont = self._conts.get(modality)
+        if cont is None:
+            raise RuntimeError(f"store {modality} is not initialized")
 
-        raise RuntimeError(f"store {modality} is not initialized")
+        return cont
 
     async def aupsert_nodes(self, nodes: list[BaseNode]) -> None:
         """ノードを埋め込み、ストアに格納する。
@@ -195,6 +177,8 @@ class VectorStoreModalityManager:
             if source and fp:
                 fp_cache[path or url] = fp
 
+        logger.info(f"loaded {len(fp_cache)} fingerprint caches")
+
         return fp_cache
 
     def _split_nodes_modality(
@@ -232,7 +216,7 @@ class VectorStoreModalityManager:
         Returns:
             bool: 画像ノードなら True
         """
-        logger.debug("trace")
+        # logger.debug("trace")
 
         # ファイルパスか URL の末尾に画像ファイルの拡張子が含まれるものを画像ノードとする
         return Exts.is_image_file(
@@ -372,14 +356,14 @@ class VectorStoreModalityManager:
         if Modality.IMAGE in self.modality:
             return MultiModalVectorStoreIndex.from_vector_store(
                 vector_store=self.get_container(Modality.TEXT).store,
-                embed_model=self._embed.get_container(Modality.TEXT).embedding,
+                embed_model=self._embed.get_container(Modality.TEXT).embed,
                 image_vector_store=self.get_container(Modality.IMAGE).store,
-                image_embed_model=self._embed.get_container(Modality.IMAGE).embedding,
+                image_embed_model=self._embed.get_container(Modality.IMAGE).embed,
             )
 
         return VectorStoreIndex.from_vector_store(
             vector_store=self.get_container(Modality.TEXT).store,
-            embed_model=self._embed.get_container(Modality.TEXT).embedding,
+            embed_model=self._embed.get_container(Modality.TEXT).embed,
         )
 
     def _add_fp_cache(self, nodes: list[BaseNode]) -> None:
@@ -417,7 +401,7 @@ class VectorStoreModalityManager:
         Returns:
             str: fingerprint 文字列
         """
-        logger.debug("trace")
+        # logger.debug("trace")
 
         # Web ページの場合、現状 URL しかチェックしない
         fp_data = {

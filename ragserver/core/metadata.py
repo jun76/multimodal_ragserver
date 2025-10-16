@@ -68,7 +68,7 @@ class BasicMetaData:
 
     # メタデータの中身
     # 追加・削除する場合、ノードのインスタンスを生成する loader 系の実装と
-    # メタ情報を管理する structured_store 系の実装とも整合させること
+    # メタ情報を管理する meta_store 系の実装とも整合させること
     #
     file_path: str = ""  # 取得元ファイルパス
     file_type: str = ""  # ファイル種別（mimetype）

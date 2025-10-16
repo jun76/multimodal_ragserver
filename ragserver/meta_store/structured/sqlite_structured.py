@@ -9,7 +9,7 @@ from ragserver.config.general_config import GeneralConfig
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
 from ragserver.logger import logger
-from ragserver.structured_store.structured_store_abst import StructuredStoreAbst
+from ragserver.meta_store.structured.structured import Structured
 
 # メタデータ管理テーブルの create 用
 DDL_CREATE_METADATA = """
@@ -78,7 +78,7 @@ DML_SELECT_MULTI = (
 UNION_ALL = " UNION ALL "
 
 
-class SQLiteManager(StructuredStoreAbst):
+class SQLiteStructured(Structured):
     def __init__(self) -> None:
         """SQLite3 管理クラス
 
@@ -149,6 +149,8 @@ class SQLiteManager(StructuredStoreAbst):
         except Exception as e:
             raise RuntimeError("failed to exec DDL queries") from e
 
+        self._created.append(table_name)
+
     async def _aupset_metadata_batch(
         self,
         table_name: str,
@@ -217,7 +219,6 @@ class SQLiteManager(StructuredStoreAbst):
         try:
             if table_name not in self._created:
                 self._prepare_with(table_name)
-                self._created.append(table_name)
         except Exception as e:
             raise e
 
@@ -253,6 +254,13 @@ class SQLiteManager(StructuredStoreAbst):
             list[tuple]: 取得したレコード群
         """
         logger.debug("trace")
+
+        try:
+            for table_name in table_names:
+                if table_name not in self._created:
+                    self._prepare_with(table_name)
+        except Exception as e:
+            raise e
 
         col_csv = ", ".join(cols)
         parts = [

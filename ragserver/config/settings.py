@@ -16,6 +16,7 @@ class EmbedProvider(StrEnum):
     CLIP = "clip"
     OPENAI = "openai"
     COHERE = "cohere"
+    HUGGINGFACE = "huggingface"
 
 
 class RerankProvider(StrEnum):
@@ -28,9 +29,10 @@ class Settings:
     PROJECT_NAME = "ragserver"
     KNOWLEDGEBASE_NAME: str = "default"
     VECTOR_STORE: VectorStoreProvider = VectorStoreProvider.CHROMA
-    TEXT_EMBED_PROVIDER: EmbedProvider = EmbedProvider.CLIP
+    TEXT_EMBED_PROVIDER: EmbedProvider = EmbedProvider.HUGGINGFACE
     IMAGE_EMBED_PROVIDER: EmbedProvider = EmbedProvider.CLIP
     RERANK_PROVIDER: RerankProvider = RerankProvider.FLAGEMBEDDING
+    DEVICE: str = "cuda"
 
     # vector store
     LOAD_LIMIT: int = 10000
@@ -56,6 +58,8 @@ class Settings:
     COHERE_API_KEY: Optional[str] = os.getenv("COHERE_API_KEY")
     CLIP_EMBED_MODEL_TEXT: str = "ViT-B/32"
     CLIP_EMBED_MODEL_IMAGE: str = "ViT-B/32"
+    HUGGINGFACE_EMBED_MODEL_TEXT: str = "intfloat/multilingual-e5-base"
+    # HUGGINGFACE_EMBED_MODEL_IMAGE: str = "openai/clip-vit-base-patch32"
 
     # ingest
     CHUNK_SIZE: int = 500

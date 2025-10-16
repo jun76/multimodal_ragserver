@@ -7,4 +7,5 @@ upload
 AGENTS.md
 .coderabbit.yaml
 temp
-ragserver.db
+ragserver_db
+ragserver_metas.db

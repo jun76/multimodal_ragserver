@@ -6,19 +6,17 @@ from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
 from llama_index.core.schema import NodeWithScore
 
 from ragserver.logger import logger
-from ragserver.rerank.rerank_provider_manager import RerankProviderManager
-from ragserver.vector_store.vector_store_modality_manager import (
-    VectorStoreModalityManager,
-)
+from ragserver.rerank.rerank_manager import RerankManager
+from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
 __all__ = ["aquery_text", "aquery_text_multi", "aquery_image"]
 
 
 async def aquery_text(
     query: str,
-    store: VectorStoreModalityManager,
+    store: VectorStoreManager,
     topk: int = 10,
-    rerank: Optional[RerankProviderManager] = None,
+    rerank: Optional[RerankManager] = None,
 ) -> list[NodeWithScore]:
     """クエリ文字列によるテキストドキュメント検索。
 
@@ -55,9 +53,9 @@ async def aquery_text(
 
 async def aquery_text_multi(
     query: str,
-    store: VectorStoreModalityManager,
+    store: VectorStoreManager,
     topk: int = 10,
-    rerank: Optional[RerankProviderManager] = None,
+    rerank: Optional[RerankManager] = None,
 ) -> list[NodeWithScore]:
     """クエリ文字列によるマルチモーダルドキュメント検索。
 
@@ -100,7 +98,7 @@ async def aquery_text_multi(
 
 async def aquery_image(
     path: str,
-    store: VectorStoreModalityManager,
+    store: VectorStoreManager,
     topk: int = 10,
 ) -> list[NodeWithScore]:
     """クエリ画像によるマルチモーダルドキュメント検索。

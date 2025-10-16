@@ -71,7 +71,7 @@ class Exts:
         Returns:
             bool: 対象ファイルなら True
         """
-        logger.debug("trace")
+        # logger.debug("trace")
 
         return cls.endswith_exts(uri, cls.IMAGE)
 

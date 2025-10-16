@@ -14,3 +14,9 @@ class EmbedConfig:
     cohere_api_key: Optional[str] = field(default=Settings.COHERE_API_KEY)
     clip_embed_model_text: str = field(default=Settings.CLIP_EMBED_MODEL_TEXT)
     clip_embed_model_image: str = field(default=Settings.CLIP_EMBED_MODEL_IMAGE)
+    huggingface_embed_model_text: str = field(
+        default=Settings.HUGGINGFACE_EMBED_MODEL_TEXT
+    )
+    # huggingface_embed_model_image: str = field(
+    #     default=Settings.HUGGINGFACE_EMBED_MODEL_IMAGE
+    # )

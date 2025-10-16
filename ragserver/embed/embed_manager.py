@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from llama_index.core.base.embeddings.base import BaseEmbedding, Embedding
 from llama_index.core.embeddings.multi_modal_base import MultiModalEmbedding
@@ -12,48 +11,43 @@ from ragserver.logger import logger
 
 
 @dataclass
-class EmbeddingContainer:
-    """モダリティ毎の埋め込み器関連パラメータを集約"""
+class EmbedContainer:
+    """モダリティ毎の埋め込み関連パラメータを集約"""
 
-    modality: Modality
     provider_name: str
-    embedding: BaseEmbedding
+    embed: BaseEmbedding
     space_key: str = ""
 
 
-class EmbeddingModalityManager:
-    """埋め込みモダリティの管理クラス。"""
+class EmbedManager:
+    """埋め込みの管理クラス。"""
 
-    def __init__(self, embeds: list[EmbeddingContainer]) -> None:
+    def __init__(self, conts: dict[Modality, EmbedContainer]) -> None:
         """コンストラクタ
 
         Args:
-            embeds (list[EmbeddingContainer]): 埋め込みコンテナのリスト
-
-        Raises:
-            ValueError: 予期せぬモダリティ
+            conts (dict[Modality, EmbeddingContainer]): 埋め込みコンテナの辞書
         """
         logger.debug("trace")
 
-        self._embed_text: Optional[EmbeddingContainer] = None
-        self._embed_image: Optional[EmbeddingContainer] = None
-        self._modality: set[Modality] = set()
+        self._conts = conts
 
-        for embed in embeds:
-            embed.space_key = self._generate_space_key(
-                provider=embed.provider_name,
-                model=embed.embedding.model_name,
-                modality=embed.modality,
+        for modality, cont in conts.items():
+            cont.space_key = self._generate_space_key(
+                provider=cont.provider_name,
+                model=cont.embed.model_name,
+                modality=modality,
             )
-            match embed.modality:
-                case Modality.TEXT:
-                    self._embed_text = embed
-                case Modality.IMAGE:
-                    self._embed_image = embed
-                case _:
-                    raise ValueError(f"unexpected modality: {embed.modality}")
+            conts[modality] = cont
 
-            self._modality.add(embed.modality)
+    @property
+    def name(self) -> str:
+        """プロバイダ名。
+
+        Returns:
+            str: プロバイダ名
+        """
+        return ", ".join([cont.provider_name for cont in self._conts.values()])
 
     @property
     def modality(self) -> set[Modality]:
@@ -62,7 +56,7 @@ class EmbeddingModalityManager:
         Returns:
             set[Modality]: モダリティ一覧
         """
-        return self._modality
+        return set(self._conts.keys())
 
     @property
     def space_key_text(self) -> str:
@@ -88,14 +82,13 @@ class EmbeddingModalityManager:
         """
         return self.get_container(Modality.IMAGE).space_key
 
-    def get_container(self, modality: Modality) -> EmbeddingContainer:
+    def get_container(self, modality: Modality) -> EmbedContainer:
         """モダリティ別の埋め込みコンテナを取得する。
 
         Args:
             modality (Modality): モダリティ
 
         Raises:
-            ValueError: 予期せぬモダリティ
             RuntimeError: 未初期化
 
         Returns:
@@ -103,17 +96,11 @@ class EmbeddingModalityManager:
         """
         logger.debug("trace")
 
-        match modality:
-            case Modality.TEXT:
-                if self._embed_text:
-                    return self._embed_text
-            case Modality.IMAGE:
-                if self._embed_image:
-                    return self._embed_image
-            case _:
-                raise ValueError(f"unexpected modality: {modality}")
+        cont = self._conts.get(modality)
+        if cont is None:
+            raise RuntimeError(f"embed {modality} is not initialized")
 
-        raise RuntimeError(f"embed {modality} is not initialized")
+        return cont
 
     async def aembed_text(self, texts: list[str]) -> list[Embedding]:
         """テキストの埋め込みベクトルを取得する。
@@ -129,9 +116,9 @@ class EmbeddingModalityManager:
         """
         logger.debug("trace")
 
-        return await self.get_container(
-            Modality.TEXT
-        ).embedding.aget_text_embedding_batch(texts)
+        embed = self.get_container(Modality.TEXT).embed
+
+        return await embed.aget_text_embedding_batch(texts)
 
     async def aembed_image(self, paths: list[ImageType]) -> list[Embedding]:
         """画像の埋め込みベクトルを取得する。
@@ -147,7 +134,7 @@ class EmbeddingModalityManager:
         """
         logger.debug("trace")
 
-        embed = self.get_container(Modality.IMAGE).embedding
+        embed = self.get_container(Modality.IMAGE).embed
         if not isinstance(embed, MultiModalEmbedding):
             raise RuntimeError("multimodal embed model is required")
 
