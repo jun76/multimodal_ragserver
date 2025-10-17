@@ -65,6 +65,9 @@ async def aquery_text_multi(
         topk (int, optional): 取得件数。Defaults to 10.
         rerank (Optional[RerankManager], optional): リランカー管理。Defaults to None.
 
+    Raises:
+        RuntimeError: テキスト --> 画像埋め込み非対応
+
     Returns:
         list[NodeWithScore]: 検索結果のリスト
     """
@@ -81,7 +84,13 @@ async def aquery_text_multi(
     retriever_engine = store.index.as_retriever(
         similarity_top_k=topk, image_similarity_top_k=topk
     )
-    nwss = await retriever_engine.atext_to_image_retrieve(query)
+
+    try:
+        nwss = await retriever_engine.atext_to_image_retrieve(query)
+    except Exception as e:
+        raise RuntimeError(
+            "this embed model may not support text --> image embedding"
+        ) from e
 
     if len(nwss) == 0:
         logger.warning("empty nodes")

@@ -91,6 +91,7 @@ def _generate_table_name(space_key: str) -> str:
     )
 
 
+# 以下、プロバイダ毎のコンテナ生成ヘルパー
 def _pgvector(table_name: str) -> VectorStoreContainer:
     """ベクトルストアコンテナ生成ヘルパー
 

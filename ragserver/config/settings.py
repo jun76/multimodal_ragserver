@@ -70,7 +70,7 @@ class Settings:
     CLIP_EMBED_MODEL_TEXT: str = "ViT-B/32"
     CLIP_EMBED_MODEL_IMAGE: str = "ViT-B/32"
     HUGGINGFACE_EMBED_MODEL_TEXT: str = "intfloat/multilingual-e5-base"
-    # HUGGINGFACE_EMBED_MODEL_IMAGE: str = "openai/clip-vit-base-patch32"
+    HUGGINGFACE_EMBED_MODEL_IMAGE: str = "llamaindex/vdr-2b-multi-v1"
 
     # ingest
     CHUNK_SIZE: int = 500

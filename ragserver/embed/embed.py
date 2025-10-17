@@ -49,8 +49,8 @@ def create_embed_manager() -> EmbedManager:
                     cont = _cohere_image()
                 case EmbedProvider.CLIP:
                     cont = _clip_image()
-                # case EmbedProvider.HUGGINGFACE:
-                #     cont = _huggingface_image()
+                case EmbedProvider.HUGGINGFACE:
+                    cont = _huggingface_image()
                 case _:
                     raise ValueError(
                         f"unsupported image embed provider: {GeneralConfig.image_embed_provider}"
@@ -62,14 +62,8 @@ def create_embed_manager() -> EmbedManager:
     return EmbedManager(conts)
 
 
+# 以下、プロバイダ毎のコンテナ生成ヘルパー
 def _openai_text() -> EmbedContainer:
-    """埋め込みコンテナ生成ヘルパー
-
-    Returns:
-        EmbedContainer: コンテナ
-    """
-    logger.debug("trace")
-
     return EmbedContainer(
         provider_name=EmbedProvider.OPENAI,
         embed=OpenAIEmbedding(
@@ -81,13 +75,6 @@ def _openai_text() -> EmbedContainer:
 
 
 def _cohere_text() -> EmbedContainer:
-    """埋め込みコンテナ生成ヘルパー
-
-    Returns:
-        EmbeddingContainer: コンテナ
-    """
-    logger.debug("trace")
-
     return EmbedContainer(
         provider_name=EmbedProvider.COHERE,
         embed=CohereEmbedding(
@@ -98,13 +85,6 @@ def _cohere_text() -> EmbedContainer:
 
 
 def _cohere_image() -> EmbedContainer:
-    """埋め込みコンテナ生成ヘルパー
-
-    Returns:
-        EmbeddingContainer: コンテナ
-    """
-    logger.debug("trace")
-
     return EmbedContainer(
         provider_name=EmbedProvider.COHERE,
         embed=CohereEmbedding(
@@ -115,13 +95,6 @@ def _cohere_image() -> EmbedContainer:
 
 
 def _clip_text() -> EmbedContainer:
-    """埋め込みコンテナ生成ヘルパー
-
-    Returns:
-        EmbeddingContainer: コンテナ
-    """
-    logger.debug("trace")
-
     return EmbedContainer(
         provider_name=EmbedProvider.CLIP,
         embed=ClipEmbedding(
@@ -132,13 +105,6 @@ def _clip_text() -> EmbedContainer:
 
 
 def _clip_image() -> EmbedContainer:
-    """埋め込みコンテナ生成ヘルパー
-
-    Returns:
-        EmbeddingContainer: コンテナ
-    """
-    logger.debug("trace")
-
     return EmbedContainer(
         provider_name=EmbedProvider.CLIP,
         embed=ClipEmbedding(
@@ -149,13 +115,6 @@ def _clip_image() -> EmbedContainer:
 
 
 def _huggingface_text() -> EmbedContainer:
-    """埋め込みコンテナ生成ヘルパー
-
-    Returns:
-        EmbeddingContainer: コンテナ
-    """
-    logger.debug("trace")
-
     return EmbedContainer(
         provider_name=EmbedProvider.HUGGINGFACE,
         embed=HuggingFaceEmbedding(
@@ -165,20 +124,12 @@ def _huggingface_text() -> EmbedContainer:
     )
 
 
-# https://github.com/run-llama/llama_index/issues/15519?utm_source=chatgpt.com
-#
-# def _huggingface_image() -> EmbedContainer:
-#     """埋め込みコンテナ生成ヘルパー
-
-#     Returns:
-#         EmbeddingContainer: コンテナ
-#     """
-#     logger.debug("trace")
-
-#     return EmbedContainer(
-#         provider_name=EmbedProvider.HUGGINGFACE,
-#         embed=HuggingFaceEmbedding(
-#             model_name=EmbedConfig.huggingface_embed_model_image,
-#             device=GeneralConfig.device,
-#         ),
-#     )
+def _huggingface_image() -> EmbedContainer:
+    return EmbedContainer(
+        provider_name=EmbedProvider.HUGGINGFACE,
+        embed=HuggingFaceEmbedding(
+            model_name=EmbedConfig.huggingface_embed_model_image,
+            device=GeneralConfig.device,
+            trust_remote_code=True,
+        ),
+    )
