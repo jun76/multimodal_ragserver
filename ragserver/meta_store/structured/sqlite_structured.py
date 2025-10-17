@@ -115,6 +115,7 @@ class SQLiteStructured(Structured):
         logger.debug("trace")
 
         try:
+            self._sync_db.execute("BEGIN")
             self._sync_db.execute(
                 DDL_CREATE_METADATA.format(
                     table_name=table_name,
@@ -150,6 +151,7 @@ class SQLiteStructured(Structured):
             )
             self._sync_db.commit()
         except Exception as e:
+            self._sync_db.rollback()
             raise RuntimeError("failed to exec DDL queries") from e
 
         self._created.append(table_name)

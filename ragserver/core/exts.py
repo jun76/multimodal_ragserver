@@ -68,12 +68,12 @@ class Exts:
 
         Args:
             s (str): 文字列
-            exts (str): チェック対象の拡張子
+            ext (str): チェック対象の拡張子
 
         Returns:
             bool: 含まれる場合 True
         """
-        return cls.endswith_exts(s, {ext})
+        return s.lower().endswith(ext.lower())
 
     @classmethod
     def get_ext(cls, uri: str) -> str:

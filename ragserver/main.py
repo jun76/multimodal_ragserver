@@ -422,7 +422,7 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
 
 
 # ログレベルを設定
-log_level = getattr(logging, GeneralConfig.log_level.upper(), logging.DEBUG)
+log_level = getattr(logging, GeneralConfig.log_level.upper(), logging.INFO)
 logger.setLevel(log_level)
 logger.info("now mcp server is starting up...")
 

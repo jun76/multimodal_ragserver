@@ -5,6 +5,7 @@ from pathlib import Path
 
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.core.node_parser.interface import MetadataAwareTextSplitter
+from llama_index.core.readers.base import BaseReader
 from llama_index.core.readers.file.base import SimpleDirectoryReader
 from llama_index.core.schema import BaseNode
 
@@ -34,6 +35,9 @@ class FileLoader(Loader):
 
         Loader.__init__(self, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._store = store
+
+        # 独自 reader の辞書。後段で SimpleDirectoryReader に渡す
+        self._readers: dict[str, BaseReader] = {Exts.PDF: MultiPDFReader()}
 
     async def _aload_from_file(
         self,
@@ -101,7 +105,7 @@ class FileLoader(Loader):
                 input_dir=root if path.is_dir() else None,
                 input_files=[root] if path.is_file() else None,
                 recursive=True,
-                file_extractor={Exts.PDF: MultiPDFReader()},
+                file_extractor=self._readers,
             )
 
             splitter = SentenceSplitter(
