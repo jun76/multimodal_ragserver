@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import ClassVar, FrozenSet
+
 
 class Exts:
     # 基本的に reader(llama_index.core.readers.file.base._try_loading_included_file_formats)
@@ -8,14 +10,16 @@ class Exts:
     # 読み込もうとするため、逆に .txt 等のテキストファイルの拡張子は明記されていない点に注意。
 
     # base64 エンコーディングしてマルチモーダル（画像）の埋め込みモデルに渡せる拡張子
-    IMAGE = frozenset({".gif", ".jpg", ".png", ".jpeg", ".webp"})
+    IMAGE: ClassVar[FrozenSet[str]] = frozenset(
+        {".gif", ".jpg", ".png", ".jpeg", ".webp"}
+    )
 
     # サイトマップの抽出判定に使用する拡張子
-    SITEMAP = frozenset({".xml"})
+    SITEMAP: ClassVar[FrozenSet[str]] = frozenset({".xml"})
 
     # Web ページから予想外のファイルや巨大な動画ファイルをフェッチしてこないように絞る
     # 専用の reader が存在するもの
-    _DEFAULT_FETCH_TARGET = frozenset(
+    _DEFAULT_FETCH_TARGET: ClassVar[FrozenSet[str]] = frozenset(
         {
             ".hwp",
             ".pdf",
@@ -33,7 +37,7 @@ class Exts:
     )
 
     # その他にフェッチしたいもの
-    _ADDITIONAL_FETCH_TARGET = frozenset(
+    _ADDITIONAL_FETCH_TARGET: ClassVar[FrozenSet[str]] = frozenset(
         {
             ".txt",
             ".text",
@@ -42,7 +46,9 @@ class Exts:
         }
     )
 
-    FETCH_TARGET = IMAGE | SITEMAP | _DEFAULT_FETCH_TARGET | _ADDITIONAL_FETCH_TARGET
+    FETCH_TARGET: ClassVar[FrozenSet[str]] = (
+        IMAGE | SITEMAP | _DEFAULT_FETCH_TARGET | _ADDITIONAL_FETCH_TARGET
+    )
 
     @classmethod
     def endswith_exts(cls, s: str, exts: frozenset[str]) -> bool:

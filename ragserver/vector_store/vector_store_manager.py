@@ -304,7 +304,9 @@ class VectorStoreManager:
                 # フェッチした一時ファイル
                 file_paths.append(temp)
                 temp_file_paths.append(temp)
+                meta.file_path = ""
                 meta.temp_file_path = ""
+                node.metadata = meta.to_dict()
             else:
                 file_path = meta.file_path
                 if file_path:

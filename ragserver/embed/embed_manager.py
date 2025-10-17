@@ -116,6 +116,7 @@ class EmbedManager:
         logger.debug("trace")
 
         embed = self.get_container(Modality.TEXT).embed
+        logger.info("now batch embedding...")
 
         return await embed.aget_text_embedding_batch(texts)
 
@@ -136,6 +137,8 @@ class EmbedManager:
         embed = self.get_container(Modality.IMAGE).embed
         if not isinstance(embed, MultiModalEmbedding):
             raise RuntimeError("multimodal embed model is required")
+
+        logger.info("now batch embedding...")
 
         return await embed.aget_image_embedding_batch(img_file_paths=paths)
 

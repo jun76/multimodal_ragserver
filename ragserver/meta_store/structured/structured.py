@@ -12,6 +12,17 @@ class Structured(ABC):
     """
 
     @abstractmethod
+    def _prepare_with(self, table_name: str) -> None:
+        """指定のテーブルが存在しない場合、予め作成する。
+
+        Args:
+            table_name (str): テーブル名
+
+        Raises:
+            RuntimeError: テーブル作成失敗
+        """
+
+    @abstractmethod
     async def aupsert(
         self, metas: list[BasicMetaData], fingerprints: list[str], table_name: str
     ) -> None:
@@ -21,6 +32,9 @@ class Structured(ABC):
             metas (list[BasicMetaData]): メタデータ
             fingerprints (list[str]): fingerprint 文字列
             table_name (str): テーブル名
+
+        Raises:
+            RuntimeError: upsert 失敗
         """
 
     @abstractmethod

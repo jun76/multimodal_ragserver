@@ -97,13 +97,13 @@ class SQLiteStructured(Structured):
         self._created: list[str] = []
 
     def _prepare_with(self, table_name: str) -> None:
-        """空間キーに合わせてストアを初期化する。
+        """指定のテーブルが存在しない場合、予め作成する。
 
         Args:
             table_name (str): テーブル名
 
         Raises:
-            RuntimeError: ストア初期化失敗
+            RuntimeError: テーブル作成失敗
         """
         logger.debug("trace")
 
