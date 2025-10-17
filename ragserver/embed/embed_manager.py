@@ -6,7 +6,7 @@ from llama_index.core.base.embeddings.base import BaseEmbedding, Embedding
 from llama_index.core.embeddings.multi_modal_base import MultiModalEmbedding
 from llama_index.core.schema import ImageType
 
-from ragserver.core.metadata import Modality
+from ragserver.llama.core.schema import Modality
 from ragserver.logger import logger
 
 
@@ -81,6 +81,18 @@ class EmbedManager:
         """
         return self.get_container(Modality.IMAGE).space_key
 
+    @property
+    def space_key_audio(self) -> str:
+        """音声埋め込みの空間キー。
+
+        Raises:
+            RuntimeError: 未初期化
+
+        Returns:
+            str: 空間キー
+        """
+        return self.get_container(Modality.AUDIO).space_key
+
     def get_container(self, modality: Modality) -> EmbedContainer:
         """モダリティ別の埋め込みコンテナを取得する。
 
@@ -141,6 +153,22 @@ class EmbedManager:
         logger.info(f"now batch embedding {len(paths)} images...")
 
         return await embed.aget_image_embedding_batch(img_file_paths=paths)
+
+    async def aembed_audio(self, paths: list[str]) -> list[Embedding]:
+        """画像の埋め込みベクトルを取得する。
+
+        Args:
+            paths (list[str]): 音声のパス
+
+        Raises:
+            RuntimeError: 未初期化または音声埋め込み器でない
+
+        Returns:
+            list[Embedding]: 埋め込みベクトル
+        """
+        logger.debug("trace")
+
+        raise NotImplementedError("audio embedding is not implemented")
 
     def _sanitize_space_key(self, space_key: str) -> str:
         """制約にマッチするよう space_key 文字列を整形する。

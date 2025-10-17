@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from enum import StrEnum
 from typing import Any, Optional
 
 from ragserver.logger import logger
@@ -116,10 +115,3 @@ class BasicMetaData:
         # logger.debug("trace")
 
         return asdict(self)
-
-
-# モダリティ
-# ! 字列を変更すると空間キーの字列が変わって別空間（ingest やり直し）になるので注意 !
-class Modality(StrEnum):
-    TEXT = "text"
-    IMAGE = "image"

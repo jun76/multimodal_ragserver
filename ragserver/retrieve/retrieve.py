@@ -5,14 +5,19 @@ from typing import Optional
 from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
 from llama_index.core.schema import NodeWithScore
 
+from ragserver.llama.core.indices.multi_modal.retriever import (
+    AudioEncoders,
+    AudioRetriever,
+)
+from ragserver.llama.core.schema import Modality
 from ragserver.logger import logger
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
-__all__ = ["aquery_text", "aquery_text_multi", "aquery_image"]
+__all__ = ["aquery_text_text", "aquery_text_image", "aquery_image_image"]
 
 
-async def aquery_text(
+async def aquery_text_text(
     query: str,
     store: VectorStoreManager,
     topk: int = 10,
@@ -31,11 +36,12 @@ async def aquery_text(
     """
     logger.debug("trace")
 
-    if store.index is None:
+    index = store.get_index(Modality.TEXT)
+    if index is None:
         logger.error("store is not initialized")
         return []
 
-    retriever_engine = store.index.as_retriever(similarity_top_k=topk)
+    retriever_engine = index.as_retriever(similarity_top_k=topk)
     nwss = await retriever_engine.aretrieve(query)
 
     if len(nwss) == 0:
@@ -51,13 +57,13 @@ async def aquery_text(
     return nwss
 
 
-async def aquery_text_multi(
+async def aquery_text_image(
     query: str,
     store: VectorStoreManager,
     topk: int = 10,
     rerank: Optional[RerankManager] = None,
 ) -> list[NodeWithScore]:
-    """クエリ文字列によるマルチモーダルドキュメント検索。
+    """クエリ文字列による画像ドキュメント検索。
 
     Args:
         query (str): クエリ文字列
@@ -73,15 +79,16 @@ async def aquery_text_multi(
     """
     logger.debug("trace")
 
-    if store.index is None:
+    index = store.get_index(Modality.IMAGE)
+    if index is None:
         logger.error("store is not initialized")
         return []
 
-    if not isinstance(store.index, MultiModalVectorStoreIndex):
+    if not isinstance(index, MultiModalVectorStoreIndex):
         logger.error("multimodal index is required")
         return []
 
-    retriever_engine = store.index.as_retriever(
+    retriever_engine = index.as_retriever(
         similarity_top_k=topk, image_similarity_top_k=topk
     )
 
@@ -89,7 +96,7 @@ async def aquery_text_multi(
         nwss = await retriever_engine.atext_to_image_retrieve(query)
     except Exception as e:
         raise RuntimeError(
-            "this embed model may not support text --> image embedding"
+            f"this embed model may not support text --> image embedding"
         ) from e
 
     if len(nwss) == 0:
@@ -105,12 +112,12 @@ async def aquery_text_multi(
     return nwss
 
 
-async def aquery_image(
+async def aquery_image_image(
     path: str,
     store: VectorStoreManager,
     topk: int = 10,
 ) -> list[NodeWithScore]:
-    """クエリ画像によるマルチモーダルドキュメント検索。
+    """クエリ画像による画像ドキュメント検索。
 
     Args:
         path (str): クエリ画像の ローカルパス
@@ -122,18 +129,107 @@ async def aquery_image(
     """
     logger.debug("trace")
 
-    if store.index is None:
+    index = store.get_index(Modality.IMAGE)
+    if index is None:
         logger.error("store is not initialized")
         return []
 
-    if not isinstance(store.index, MultiModalVectorStoreIndex):
+    if not isinstance(index, MultiModalVectorStoreIndex):
         logger.error("multimodal index is required")
         return []
 
-    retriever_engine = store.index.as_retriever(
+    retriever_engine = index.as_retriever(
         similarity_top_k=topk, image_similarity_top_k=topk
     )
     nwss = await retriever_engine.aimage_to_image_retrieve(path)
+
+    if len(nwss) == 0:
+        logger.warning("empty nodes")
+        return []
+
+    return nwss
+
+
+async def aquery_text_audio(
+    query: str,
+    store: VectorStoreManager,
+    topk: int = 10,
+    rerank: Optional[RerankManager] = None,
+) -> list[NodeWithScore]:
+    """クエリ文字列による音声ドキュメント検索。
+
+    Args:
+        query (str): クエリ文字列
+        store (VectorStoreManager): ベクトルストア
+        topk (int, optional): 取得件数。Defaults to 10.
+        rerank (Optional[RerankManager], optional): リランカー管理。Defaults to None.
+
+    Raises:
+        RuntimeError: テキスト --> 音声埋め込み非対応
+
+    Returns:
+        list[NodeWithScore]: 検索結果のリスト
+    """
+    logger.debug("trace")
+
+    index = store.get_index(Modality.AUDIO)
+    if index is None:
+        logger.error("store is not initialized")
+        return []
+
+    raise NotImplementedError("audio retriever is not implemented")
+
+    enc = AudioEncoders()
+    retriever_engine = AudioRetriever(index=index, enc=enc, top_k=topk)
+
+    try:
+        nwss = await retriever_engine.atext_to_audio_retrieve(query)
+    except Exception as e:
+        raise RuntimeError(
+            f"this embed model may not support text --> audio embedding"
+        ) from e
+
+    if len(nwss) == 0:
+        logger.warning("empty nodes")
+        return []
+
+    if rerank is None:
+        return nwss
+
+    nwss = await rerank.arerank(nodes=nwss, query=query)
+    logger.info(f"reranked {len(nwss)} nodes")
+
+    return nwss
+
+
+async def aquery_audio_audio(
+    path: str,
+    store: VectorStoreManager,
+    topk: int = 10,
+) -> list[NodeWithScore]:
+    """クエリ音声による音声ドキュメント検索。
+
+    Args:
+        path (str): クエリ音声の ローカルパス
+        store (VectorStoreManager): ベクトルストア
+        topk (int, optional): 取得件数。Defaults to 10.
+
+    Returns:
+        list[NodeWithScore]: 検索結果のリスト
+    """
+    logger.debug("trace")
+
+    index = store.get_index(Modality.AUDIO)
+    if index is None:
+        logger.error("store is not initialized")
+        return []
+
+    raise NotImplementedError("audio retriever is not implemented")
+
+    enc = AudioEncoders()
+    retriever_engine = AudioRetriever(index=index, enc=enc, top_k=topk)
+
+    nwss = await retriever_engine.aaudio_to_audio_retrieve(path)
 
     if len(nwss) == 0:
         logger.warning("empty nodes")

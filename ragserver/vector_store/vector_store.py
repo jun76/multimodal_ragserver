@@ -7,8 +7,8 @@ from llama_index.vector_stores.postgres import PGVectorStore
 from ragserver.config.general_config import GeneralConfig
 from ragserver.config.settings import VectorStoreProvider
 from ragserver.config.vector_store_config import VectorStoreConfig
-from ragserver.core.metadata import Modality
 from ragserver.embed.embed_manager import EmbedManager
+from ragserver.llama.core.schema import Modality
 from ragserver.logger import logger
 from ragserver.meta_store.structured.structured import Structured
 from ragserver.vector_store.vector_store_manager import (

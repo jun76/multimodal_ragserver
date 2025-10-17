@@ -41,6 +41,7 @@ class Settings:
     VECTOR_STORE: VectorStoreProvider = VectorStoreProvider.CHROMA
     TEXT_EMBED_PROVIDER: EmbedProvider = EmbedProvider.HUGGINGFACE
     IMAGE_EMBED_PROVIDER: Optional[EmbedProvider] = EmbedProvider.CLIP
+    AUDIO_EMBED_PROVIDER: Optional[EmbedProvider] = None
     RERANK_PROVIDER: RerankProvider = RerankProvider.FLAGEMBEDDING
     DEVICE: str = "cuda"
     LOG_LEVEL: str = "DEBUG"

@@ -8,8 +8,8 @@ from llama_index.embeddings.openai.base import OpenAIEmbedding
 from ragserver.config.embed_config import EmbedConfig
 from ragserver.config.general_config import GeneralConfig
 from ragserver.config.settings import EmbedProvider
-from ragserver.core.metadata import Modality
 from ragserver.embed.embed_manager import EmbedContainer, EmbedManager
+from ragserver.llama.core.schema import Modality
 from ragserver.logger import logger
 
 __all__ = ["create_embed_manager"]
@@ -56,6 +56,14 @@ def create_embed_manager() -> EmbedManager:
                         f"unsupported image embed provider: {GeneralConfig.image_embed_provider}"
                     )
             conts[Modality.IMAGE] = cont
+
+        if GeneralConfig.audio_embed_provider:
+            match GeneralConfig.audio_embed_provider:
+                case _:
+                    raise ValueError(
+                        f"unsupported audio embed provider: {GeneralConfig.image_embed_provider}"
+                    )
+            conts[Modality.AUDIO] = cont
     except Exception as e:
         raise RuntimeError(f"failed to create embedding: {e}") from e
 

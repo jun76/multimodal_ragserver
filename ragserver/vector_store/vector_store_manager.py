@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
+from typing import Callable, Optional, Sequence
 
 from llama_index.core.indices import VectorStoreIndex
 from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
@@ -15,6 +16,7 @@ from ragserver.core.metadata import META_KEYS
 from ragserver.core.metadata import META_KEYS as MK
 from ragserver.core.metadata import BasicMetaData
 from ragserver.embed.embed_manager import EmbedManager, Modality
+from ragserver.llama.core.schema import AudioNode
 from ragserver.logger import logger
 from ragserver.meta_store.structured.structured import Structured
 
@@ -26,6 +28,7 @@ class VectorStoreContainer:
     provider_name: str
     store: BasePydanticVectorStore
     table_name: str
+    index: Optional[VectorStoreIndex] = None
 
 
 class VectorStoreManager:
@@ -57,7 +60,8 @@ class VectorStoreManager:
         self._meta_store = meta_store
         self._check_update = check_update
 
-        self._index = self._create_index()
+        for modality, cont in self._conts.items():
+            cont.index = self._create_index(modality)
 
         # メタデータ専用ストアから fingerprint キャッシュを復元
         self._fp_cache = self._load_fp_cache(load_limit)
@@ -70,15 +74,6 @@ class VectorStoreManager:
             str: プロバイダ名
         """
         return ", ".join([cont.provider_name for cont in self._conts.values()])
-
-    @property
-    def index(self) -> VectorStoreIndex:
-        """ストレージから生成したインデックス。
-
-        Returns:
-            VectorStoreIndex: インデックス
-        """
-        return self._index
 
     @property
     def modality(self) -> set[Modality]:
@@ -97,6 +92,23 @@ class VectorStoreManager:
             list[str]: テーブル名一覧
         """
         return [cont.table_name for cont in self._conts.values()]
+
+    def get_index(self, modality: Modality) -> VectorStoreIndex:
+        """ストレージから生成したインデックス。
+
+        Raises:
+            RuntimeError: 未初期化
+
+        Returns:
+            VectorStoreIndex: インデックス
+        """
+        logger.debug("trace")
+
+        index = self.get_container(modality).index
+        if index is None:
+            raise RuntimeError(f"index for {modality} is not initialized")
+
+        return index
 
     def get_container(self, modality: Modality) -> VectorStoreContainer:
         """モダリティ別のベクトルストアコンテナを取得する。
@@ -132,9 +144,10 @@ class VectorStoreManager:
             logger.info("skip upsert: no new nodes")
             return
 
-        text_nodes, image_nodes = self._split_nodes_modality(nodes)
+        text_nodes, image_nodes, audio_nodes = self._split_nodes_modality(nodes)
         await self._aupsert_text(text_nodes)
         await self._aupsert_image(image_nodes)
+        await self._aupsert_audio(audio_nodes)
 
         # キャッシュ登録
         self._add_fp_cache(nodes)
@@ -184,28 +197,32 @@ class VectorStoreManager:
     def _split_nodes_modality(
         self,
         nodes: list[BaseNode],
-    ) -> tuple[list[TextNode], list[ImageNode]]:
+    ) -> tuple[list[TextNode], list[ImageNode], list[AudioNode]]:
         """ノードをモダリティ別に分ける。
 
         Args:
             nodes (list[BaseNode]): 入力ノード
 
         Returns:
-            tuple[list[TextNode], list[ImageNode]]: テキストノード、画像ノード
+            tuple[list[TextNode], list[ImageNode], list[AudioNode]]:
+                テキストノード、画像ノード、音声ノード
         """
         logger.debug("trace")
 
         text_nodes = []
         image_nodes = []
+        audio_nodes = []
         for node in nodes:
             if isinstance(node, TextNode) and self._is_image_node(node):
                 image_nodes.append(ImageNode(text=node.text, metadata=node.metadata))
             elif isinstance(node, TextNode):
                 text_nodes.append(node)
+            elif isinstance(node, AudioNode):
+                audio_nodes.append(node)
             else:
                 logger.warning(f"unexpected node type {type(node)}, skipped")
 
-        return text_nodes, image_nodes
+        return text_nodes, image_nodes, audio_nodes
 
     def _is_image_node(self, node: BaseNode) -> bool:
         """画像ノードか。
@@ -229,6 +246,27 @@ class VectorStoreManager:
             Exts.endswith_exts(path, Exts.IMAGE)
             or Exts.endswith_exts(url, Exts.IMAGE)
             or Exts.endswith_exts(temp_file_path, Exts.IMAGE)
+        )
+
+    def _is_audio_node(self, node: BaseNode) -> bool:
+        """音声ノードか。
+
+        Args:
+            node (BaseNode): 対象ノード
+
+        Returns:
+            bool: 音声ノードなら True
+        """
+        # logger.debug("trace")
+
+        path = node.metadata.get(META_KEYS.FILE_PATH, "")
+        url = node.metadata.get(META_KEYS.URL, "")
+        temp_file_path = node.metadata.get(META_KEYS.TEMP_FILE_PATH, "")
+
+        return (
+            Exts.endswith_exts(path, Exts.AUDIO)
+            or Exts.endswith_exts(url, Exts.AUDIO)
+            or Exts.endswith_exts(temp_file_path, Exts.AUDIO)
         )
 
     async def _aupsert_text(self, nodes: list[TextNode]) -> None:
@@ -282,14 +320,16 @@ class VectorStoreManager:
 
         logger.info(f"{len(nodes)} nodes are upserted")
 
-    async def _aupsert_image(self, nodes: list[ImageNode]) -> None:
-        """画像を埋め込み、ストアに格納する。
+    async def _aupsert_fetched_content(
+        self, nodes: Sequence[BaseNode], modality: Modality, aembed_func: Callable
+    ) -> None:
+        """一時ファイルに保存されたコンテンツを埋め込み、ストアに格納する。
 
         Raises:
             RuntimeError: upsert 失敗
 
         Args:
-            nodes (list[ImageNode]): 対象ノード
+            nodes (Itarable[BaseNode]): 対象ノード
         """
         logger.debug("trace")
 
@@ -324,7 +364,7 @@ class VectorStoreManager:
                     # ローカルファイル
                     file_paths.append(file_path)
                 else:
-                    logger.warning("image is not found, skipped")
+                    logger.warning(f"{modality} is not found, skipped")
                     continue
 
             ids.append(node.node_id)
@@ -332,7 +372,7 @@ class VectorStoreManager:
             fps.append(self._get_lazy_fp(meta))
 
         try:
-            vecs = await self._embed.aembed_image(file_paths)
+            vecs = await aembed_func(file_paths)
             if len(vecs) != len(nodes):
                 raise RuntimeError(
                     f"embedding count mismatch: expected {len(nodes)}, got {len(vecs)}"
@@ -341,22 +381,55 @@ class VectorStoreManager:
             for node, vec in zip(nodes, vecs):
                 node.embedding = vec
 
-            cont = self.get_container(Modality.IMAGE)
+            cont = self.get_container(modality)
             await cont.store.adelete_nodes(ids)
             await cont.store.async_add(nodes)
             await self._meta_store.aupsert(
                 metas=metas, fingerprints=fps, table_name=cont.table_name
             )
         except Exception as e:
-            raise RuntimeError("failed to upsert text") from e
+            raise RuntimeError(f"failed to upsert {modality}") from e
         finally:
             for path in temp_file_paths:
                 os.remove(path)
 
         logger.info(f"{len(nodes)} nodes are upserted")
 
-    def _create_index(self) -> VectorStoreIndex:
+    async def _aupsert_image(self, nodes: list[ImageNode]) -> None:
+        """画像を埋め込み、ストアに格納する。
+
+        Raises:
+            RuntimeError: upsert 失敗
+
+        Args:
+            nodes (list[ImageNode]): 対象ノード
+        """
+        logger.debug("trace")
+
+        await self._aupsert_fetched_content(
+            nodes=nodes, modality=Modality.IMAGE, aembed_func=self._embed.aembed_image
+        )
+
+    async def _aupsert_audio(self, nodes: list[AudioNode]) -> None:
+        """音声を埋め込み、ストアに格納する。
+
+        Raises:
+            RuntimeError: upsert 失敗
+
+        Args:
+            nodes (list[AudioNode]): 対象ノード
+        """
+        logger.debug("trace")
+
+        await self._aupsert_fetched_content(
+            nodes=nodes, modality=Modality.AUDIO, aembed_func=self._embed.aembed_audio
+        )
+
+    def _create_index(self, modality: Modality) -> VectorStoreIndex:
         """インデックスを生成する。
+
+        Args:
+            modality (Modality): モダリティ
 
         Raises:
             RuntimeError: コンテナ未初期化
@@ -366,18 +439,26 @@ class VectorStoreManager:
         """
         logger.debug("trace")
 
-        if Modality.IMAGE in self.modality:
-            return MultiModalVectorStoreIndex.from_vector_store(
-                vector_store=self.get_container(Modality.TEXT).store,
-                embed_model=self._embed.get_container(Modality.TEXT).embed,
-                image_vector_store=self.get_container(Modality.IMAGE).store,
-                image_embed_model=self._embed.get_container(Modality.IMAGE).embed,
-            )
-
-        return VectorStoreIndex.from_vector_store(
-            vector_store=self.get_container(Modality.TEXT).store,
-            embed_model=self._embed.get_container(Modality.TEXT).embed,
-        )
+        match modality:
+            case Modality.TEXT:
+                return VectorStoreIndex.from_vector_store(
+                    vector_store=self.get_container(Modality.TEXT).store,
+                    embed_model=self._embed.get_container(Modality.TEXT).embed,
+                )
+            case Modality.IMAGE:
+                return MultiModalVectorStoreIndex.from_vector_store(
+                    vector_store=self.get_container(Modality.TEXT).store,
+                    embed_model=self._embed.get_container(Modality.TEXT).embed,
+                    image_vector_store=self.get_container(Modality.IMAGE).store,
+                    image_embed_model=self._embed.get_container(Modality.IMAGE).embed,
+                )
+            case Modality.AUDIO:
+                return VectorStoreIndex.from_vector_store(
+                    vector_store=self.get_container(Modality.AUDIO).store,
+                    embed_model=self._embed.get_container(Modality.AUDIO).embed,
+                )
+            case _:
+                raise RuntimeError("unexpected modality")
 
     def _add_fp_cache(self, nodes: list[BaseNode]) -> None:
         """ノードを fingerprint キャッシュに追加する。

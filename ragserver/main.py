@@ -16,11 +16,11 @@ from starlette.concurrency import run_in_threadpool
 from ragserver.config.general_config import GeneralConfig
 from ragserver.config.ingest_config import IngestConfig
 from ragserver.config.rerank_config import RerankConfig
-from ragserver.core.metadata import Modality
 from ragserver.embed.embed import create_embed_manager
 from ragserver.ingest import ingest
 from ragserver.ingest.loader.file_loader import FileLoader
 from ragserver.ingest.loader.html_loader import HTMLLoader
+from ragserver.llama.core.schema import Modality
 from ragserver.logger import logger
 from ragserver.meta_store.meta_store import create_meta_store
 from ragserver.rerank.rerank import create_rerank_manager
@@ -203,7 +203,7 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            nodes = await retrieve.aquery_text(
+            nodes = await retrieve.aquery_text_text(
                 query=payload.query,
                 store=_vector_store,
                 topk=payload.topk or RerankConfig.topk,
@@ -242,7 +242,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            nodes = await retrieve.aquery_text_multi(
+            nodes = await retrieve.aquery_text_image(
                 query=payload.query,
                 store=_vector_store,
                 topk=payload.topk or RerankConfig.topk,
@@ -281,7 +281,7 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
-            nodes = await retrieve.aquery_image(
+            nodes = await retrieve.aquery_image_image(
                 path=payload.path,
                 store=_vector_store,
                 topk=payload.topk or RerankConfig.topk,

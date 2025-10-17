@@ -19,6 +19,7 @@ class GeneralConfig:
     vector_store: VectorStoreProvider = Settings.VECTOR_STORE
     text_embed_provider: EmbedProvider = Settings.TEXT_EMBED_PROVIDER
     image_embed_provider: Optional[EmbedProvider] = Settings.IMAGE_EMBED_PROVIDER
+    audio_embed_provider: Optional[EmbedProvider] = Settings.AUDIO_EMBED_PROVIDER
     rerank_provider: RerankProvider = Settings.RERANK_PROVIDER
     device: str = Settings.DEVICE
     log_level: str = Settings.LOG_LEVEL

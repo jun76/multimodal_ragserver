@@ -17,6 +17,9 @@ class Exts:
     # base64 エンコーディングしてマルチモーダル（画像）の埋め込みモデルに渡せる拡張子
     IMAGE: set[str] = {".gif", ".jpg", PNG, ".jpeg", ".webp"}
 
+    # マルチモーダル（音声）の埋め込みモデルに渡せる拡張子
+    AUDIO: set[str] = {".wav", ".mp3"}
+
     # サイトマップの抽出判定に使用する拡張子
     SITEMAP: set[str] = {".xml"}
 
@@ -46,7 +49,7 @@ class Exts:
     }
 
     FETCH_TARGET: set[str] = (
-        IMAGE | SITEMAP | _DEFAULT_FETCH_TARGET | _ADDITIONAL_FETCH_TARGET
+        IMAGE | AUDIO | SITEMAP | _DEFAULT_FETCH_TARGET | _ADDITIONAL_FETCH_TARGET
     )
 
     @classmethod
