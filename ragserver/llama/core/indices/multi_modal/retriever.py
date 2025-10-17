@@ -26,10 +26,10 @@ def _nodes_with_scores_from_result(res) -> List[NodeWithScore]:
 
     # それでも無ければ None にしておく（後段で扱えるように）
     if sims is None:
-        sims = [] * len(nodes)
+        sims = [None] * len(nodes)  # type: ignore
 
     for i, node in enumerate(nodes):
-        score = float(sims[i]) if i < len(sims) and sims[i] is not None else None
+        score = float(sims[i]) if i < len(sims) and sims[i] is not None else None  # type: ignore
         out.append(NodeWithScore(node=node, score=score))
     return out
 
@@ -51,7 +51,7 @@ class AudioRetriever(BaseRetriever):
     ):
         super().__init__()
         self._index = index
-        self._vs: BasePydanticVectorStore = index._vector_store
+        self._vs: BasePydanticVectorStore = index.storage_context.vector_store
         self._enc = enc
         self._top_k = top_k
         self._filters = metadata_filters
@@ -80,7 +80,7 @@ class AudioRetriever(BaseRetriever):
             similarity_top_k=self._top_k,
             filters=self._filters,
         )
-        return self._vs.query(q)
+        return await self._vs.aquery(q)
 
     def _search_by_embedding(self, qvec: np.ndarray) -> List[NodeWithScore]:
         res = self._query_vs(qvec)

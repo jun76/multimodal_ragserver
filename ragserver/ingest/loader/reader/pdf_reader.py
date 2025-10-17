@@ -72,28 +72,25 @@ class MultiPDFReader(BaseReader):
         logger.debug("trace")
 
         docs = []
-        try:
-            for page_no in range(pdf.page_count):
-                try:
-                    page = pdf.load_page(page_no)
-                    content = page.get_text("text")  # type: ignore
-                except Exception as e:
-                    logger.exception(e)
-                    continue
+        for page_no in range(pdf.page_count):
+            try:
+                page = pdf.load_page(page_no)
+                content = page.get_text("text")  # type: ignore
+            except Exception as e:
+                logger.exception(e)
+                continue
 
-                # 空ならスキップ
-                if not content.strip():
-                    continue
+            # 空ならスキップ
+            if not content.strip():
+                continue
 
-                meta = BasicMetaData()
-                meta.file_path = path
-                meta.node_lastmod_at = time.time()
-                meta.page_no = page_no
+            meta = BasicMetaData()
+            meta.file_path = path
+            meta.node_lastmod_at = time.time()
+            meta.page_no = page_no
 
-                doc = Document(text=content, metadata=meta.to_dict())
-                docs.append(doc)
-        finally:
-            pdf.close()
+            doc = Document(text=content, metadata=meta.to_dict())
+            docs.append(doc)
 
         return docs
 
@@ -113,46 +110,47 @@ class MultiPDFReader(BaseReader):
         """
         logger.debug("trace")
 
-        try:
-            docs = []
-            for page_no in range(pdf.page_count):
+        docs = []
+        for page_no in range(pdf.page_count):
+            try:
+                page = pdf.load_page(page_no)
+                contents = page.get_images(full=True)  # type: ignore
+            except Exception as e:
+                logger.exception(e)
+                continue
+
+            for image_no, image in enumerate(contents):
+                xref = image[0]  # 画像の参照番号
                 try:
-                    page = pdf.load_page(page_no)
-                    contents = page.get_images(full=True)  # type: ignore
+                    pix = fitz.Pixmap(pdf, xref)
+
+                    if (
+                        pix.n - (1 if pix.alpha else 0) == 4
+                    ):  # CMYK (アルファの有無に関わらず)
+                        old_pix = pix
+                        pix = fitz.Pixmap(fitz.csRGB, pix)
+                        del old_pix
+
+                    with tempfile.NamedTemporaryFile(
+                        delete=False,
+                        prefix=f"{GeneralConfig.project_name}_",
+                        suffix=Exts.PNG,
+                    ) as f:
+                        pix.save(f.name)
+                        del pix
+
+                        meta = BasicMetaData()
+                        meta.file_path = f.name  # MultiModalVectorStoreIndex 参照用
+                        meta.temp_file_path = f.name  # 削除用
+                        meta.base_source = path  # 元パスの復元用
+                        meta.node_lastmod_at = time.time()
+                        meta.page_no = page_no
+                        meta.asset_no = image_no
+
+                        doc = Document(text=f.name, metadata=meta.to_dict())
+                        docs.append(doc)
                 except Exception as e:
                     logger.exception(e)
                     continue
-
-                for image_no, image in enumerate(contents):
-                    xref = image[0]  # 画像の参照番号
-                    try:
-                        pix = fitz.Pixmap(pdf, xref)
-
-                        if getattr(pix, "n", 0) >= 5:  # CMYK 等は RGB へ
-                            pix = fitz.Pixmap(fitz.csRGB, pix)
-
-                        with tempfile.NamedTemporaryFile(
-                            delete=False,
-                            prefix=f"{GeneralConfig.project_name}_",
-                            suffix=Exts.PNG,
-                        ) as f:
-                            pix.save(f.name)
-
-                            meta = BasicMetaData()
-                            meta.file_path = f.name  # MultiModalVectorStoreIndex 参照用
-                            meta.temp_file_path = f.name  # 削除用
-                            meta.base_source = path  # 元パスの復元用
-                            meta.node_lastmod_at = time.time()
-                            meta.page_no = page_no
-                            meta.asset_no = image_no
-
-                            doc = Document(text=f.name, metadata=meta.to_dict())
-                    except Exception as e:
-                        logger.exception(e)
-                        continue
-
-                    docs.append(doc)
-        finally:
-            pdf.close()
 
         return docs

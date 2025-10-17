@@ -14,4 +14,6 @@ class Modality(StrEnum):
 
 
 class AudioNode(Node):
+    """音声モダリティのノード実装用クラス"""
+
     pass

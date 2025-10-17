@@ -8,7 +8,7 @@ from typing import Callable, Optional, Sequence
 
 from llama_index.core.indices import VectorStoreIndex
 from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
-from llama_index.core.schema import BaseNode, ImageNode, TextNode
+from llama_index.core.schema import BaseNode, ImageNode, MediaResource, TextNode
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 
 from ragserver.core.exts import Exts
@@ -215,10 +215,15 @@ class VectorStoreManager:
         for node in nodes:
             if isinstance(node, TextNode) and self._is_image_node(node):
                 image_nodes.append(ImageNode(text=node.text, metadata=node.metadata))
+            if isinstance(node, TextNode) and self._is_audio_node(node):
+                audio_nodes.append(
+                    AudioNode(
+                        audio_resource=MediaResource(text=node.text),
+                        extra_info=node.metadata,
+                    )
+                )
             elif isinstance(node, TextNode):
                 text_nodes.append(node)
-            elif isinstance(node, AudioNode):
-                audio_nodes.append(node)
             else:
                 logger.warning(f"unexpected node type {type(node)}, skipped")
 
