@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from llama_index.embeddings.clip import ClipEmbedding
 from llama_index.embeddings.cohere.base import CohereEmbedding
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding

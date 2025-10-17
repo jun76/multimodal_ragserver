@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import chromadb
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.vector_stores.postgres import PGVectorStore

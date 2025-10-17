@@ -9,4 +9,4 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 PROJECT_ROOT=$(dirname "$SCRIPT_DIR")
 cd "$PROJECT_ROOT"
 
-uvicorn ragserver.main:app --host "$RAGSERVER_HOST" --port "$RAGSERVER_PORT" &
+uvicorn ragserver.main:app --host "$RAGSERVER_HOST" --port "$RAGSERVER_PORT"

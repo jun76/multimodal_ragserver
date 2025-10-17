@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from llama_index.postprocessor.cohere_rerank import CohereRerank
 from llama_index.postprocessor.flag_embedding_reranker import FlagEmbeddingReranker
 

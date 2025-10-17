@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from ragserver.logger import logger
 from ragserver.meta_store.structured.sqlite_structured import SQLiteStructured
 from ragserver.meta_store.structured.structured import Structured

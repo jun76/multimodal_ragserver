@@ -59,12 +59,11 @@ class URLRequest(BaseModel):
 # uvicorn ragserver.main:app --host 0.0.0.0 --port 8000
 app = FastAPI(title=GeneralConfig.project_name, version=GeneralConfig.version)
 
-
 _embed = create_embed_manager()
 logger.info(f"{_embed.name} embed initialized")
 
 _meta_store = create_meta_store()
-logger.info(f"meta store initialized")
+logger.info("meta store initialized")
 
 _vector_store = create_vector_store_manager(embed=_embed, meta_store=_meta_store)
 logger.info(f"{_vector_store.name} vector store initialized")
@@ -77,7 +76,7 @@ _file_loader = FileLoader(
     chunk_overlap=IngestConfig.chunk_overlap,
     store=_vector_store,
 )
-logger.info(f"file loader initialized")
+logger.info("file loader initialized")
 
 _html_loader = HTMLLoader(
     chunk_size=IngestConfig.chunk_size,
@@ -86,7 +85,7 @@ _html_loader = HTMLLoader(
     store=_vector_store,
     user_agent=IngestConfig.user_agent,
 )
-logger.info(f"html loader initialized")
+logger.info("html loader initialized")
 
 _request_lock = threading.Lock()
 

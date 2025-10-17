@@ -12,17 +12,6 @@ class Structured(ABC):
     """
 
     @abstractmethod
-    async def _aprepare_with(self, table_name: str) -> None:
-        """空間キーに合わせてストアを初期化する。
-
-        Args:
-            table_name (str): テーブル名
-
-        Raises:
-            RuntimeError: ストア初期化失敗
-        """
-
-    @abstractmethod
     async def aupsert(
         self, metas: list[BasicMetaData], fingerprints: list[str], table_name: str
     ) -> None:
@@ -35,7 +24,7 @@ class Structured(ABC):
         """
 
     @abstractmethod
-    async def aselect(
+    def select(
         self, cols: list[str], table_names: list[str], limit: int
     ) -> list[tuple]:
         """select 文を実行する。
