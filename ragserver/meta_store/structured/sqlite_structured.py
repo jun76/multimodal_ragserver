@@ -12,6 +12,8 @@ from ragserver.logger import logger
 from ragserver.meta_store.structured.structured import Structured
 
 # メタデータ管理テーブルの create 用
+# カラムを追加する場合、PRIMARY KEY への追加が必要なら足し忘れに注意
+# PRIMARY KEY に追加する場合、fingerprint 計算側（_get_lazy_fp）の修正も忘れずに
 DDL_CREATE_METADATA = """
 CREATE TABLE IF NOT EXISTS {table_name} (
   {file_path}        TEXT    NOT NULL DEFAULT '',   -- 取得元ファイルパス
@@ -23,8 +25,10 @@ CREATE TABLE IF NOT EXISTS {table_name} (
   {url}              TEXT    NOT NULL DEFAULT '',   -- 取得元 URL（無ければ空）
   {base_source}      TEXT    NOT NULL DEFAULT '',   -- 出典（直リンク画像の親ページ等）
   {node_lastmod_at}  REAL    NOT NULL DEFAULT 0,    -- ノードの最終更新時刻（epoch 秒）
+  {page_no}          INTEGER NOT NULL DEFAULT 0,    -- ページ番号
+  {asset_no}         INTEGER NOT NULL DEFAULT 0,    -- アセット番号（同一ページ内の画像等）
   {fingerprint}      TEXT    NOT NULL DEFAULT '',   -- fingerprint 文字列
-  PRIMARY KEY ({file_path}, {url}, {chunk_no})
+  PRIMARY KEY ({file_path}, {url}, {chunk_no}, {page_no}, {asset_no})
 );
 """
 
@@ -48,6 +52,7 @@ CREATE INDEX IF NOT EXISTS
 """
 
 # メタデータ管理テーブルの upsert 用
+# カラムを追加する場合、?, の足し忘れに注意
 DML_UPSERT_METADATA = """
 INSERT INTO {table_name} (
   {file_path},
@@ -59,9 +64,11 @@ INSERT INTO {table_name} (
   {url},
   {base_source},
   {node_lastmod_at},
+  {page_no},
+  {asset_no},
   {fingerprint}
-) VALUES (?,?,?,?,?,?,?,?,?,?)
-ON CONFLICT({file_path},{url},{chunk_no}) DO UPDATE SET
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+ON CONFLICT({file_path},{url},{chunk_no},{page_no},{asset_no}) DO UPDATE SET
   {file_type}       = excluded.{file_type},
   {file_size}       = excluded.{file_size},
   {file_lastmod_at} = excluded.{file_lastmod_at},
@@ -120,6 +127,8 @@ class SQLiteStructured(Structured):
                     url=MK.URL,
                     base_source=MK.BASE_SOURCE,
                     node_lastmod_at=MK.NODE_LASTMOD_AT,
+                    page_no=MK.PAGE_NO,
+                    asset_no=MK.ASSET_NO,
                     fingerprint=MK.FINGERPRINT,
                 )
             )
@@ -174,6 +183,8 @@ class SQLiteStructured(Structured):
             url=MK.URL,
             base_source=MK.BASE_SOURCE,
             node_lastmod_at=MK.NODE_LASTMOD_AT,
+            page_no=MK.PAGE_NO,
+            asset_no=MK.ASSET_NO,
             fingerprint=MK.FINGERPRINT,
         )
 
@@ -225,6 +236,8 @@ class SQLiteStructured(Structured):
                 meta.url,
                 meta.base_source,
                 meta.node_lastmod_at,
+                meta.page_no,
+                meta.asset_no,
                 fingerprints[i],
             )
             rows.append(row)

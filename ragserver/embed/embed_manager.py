@@ -161,7 +161,7 @@ class EmbedManager:
         """
         logger.debug("trace")
 
-        allowed = frozenset(
+        allowed = set(
             "abcdefghijklmnopqrstuvwxyz" "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "0123456789" "_"
         )
 

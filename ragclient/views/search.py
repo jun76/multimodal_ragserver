@@ -189,12 +189,16 @@ def _render_query_results_image(title: str, result: dict[str, Any]) -> None:
         source = metadata.get("file_path", "") or metadata.get("url", "")  # 空でない方
 
         st.divider()
-        st.image(source, width="content")
+        try:
+            st.image(source, width="content")
+        except:
+            st.warning("ファイル埋め込み画像等のため、表示できません。")
+
         st.markdown("##### ソース")
         st.write(source)
 
         base_source = metadata.get("base_source", "")
-        if base_source:
+        if base_source and source != base_source:
             st.write(f"出典：{base_source}")
 
 

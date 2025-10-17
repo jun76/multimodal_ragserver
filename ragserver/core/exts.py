@@ -1,62 +1,61 @@
 from __future__ import annotations
 
-from typing import ClassVar, FrozenSet
+import os
+from urllib.parse import urlparse
 
 
 class Exts:
+    # 個別参照用
+    PNG: str = ".png"
+    PDF: str = ".pdf"
+
     # 基本的に reader(llama_index.core.readers.file.base._try_loading_included_file_formats)
     # のサポートする拡張子に追従する。
     # ただし、reader はその他の拡張子もフォールバックとしてテキストファイル扱いで
     # 読み込もうとするため、逆に .txt 等のテキストファイルの拡張子は明記されていない点に注意。
 
     # base64 エンコーディングしてマルチモーダル（画像）の埋め込みモデルに渡せる拡張子
-    IMAGE: ClassVar[FrozenSet[str]] = frozenset(
-        {".gif", ".jpg", ".png", ".jpeg", ".webp"}
-    )
+    IMAGE: set[str] = {".gif", ".jpg", PNG, ".jpeg", ".webp"}
 
     # サイトマップの抽出判定に使用する拡張子
-    SITEMAP: ClassVar[FrozenSet[str]] = frozenset({".xml"})
+    SITEMAP: set[str] = {".xml"}
 
-    # Web ページから予想外のファイルや巨大な動画ファイルをフェッチしてこないように絞る
+    ## Web ページから予想外のファイルや巨大な動画ファイルをフェッチしてこないように絞る
     # 専用の reader が存在するもの
-    _DEFAULT_FETCH_TARGET: ClassVar[FrozenSet[str]] = frozenset(
-        {
-            ".hwp",
-            ".pdf",
-            ".docx",
-            ".pptx",
-            ".ppt",
-            ".pptm",
-            ".csv",
-            ".epub",
-            ".mbox",
-            ".ipynb",
-            ".xls",
-            ".xlsx",
-        }
-    )
+    _DEFAULT_FETCH_TARGET: set[str] = {
+        ".hwp",
+        PDF,
+        ".docx",
+        ".pptx",
+        ".ppt",
+        ".pptm",
+        ".csv",
+        ".epub",
+        ".mbox",
+        ".ipynb",
+        ".xls",
+        ".xlsx",
+    }
 
     # その他にフェッチしたいもの
-    _ADDITIONAL_FETCH_TARGET: ClassVar[FrozenSet[str]] = frozenset(
-        {
-            ".txt",
-            ".text",
-            ".md",
-            ".json",
-        }
-    )
+    _ADDITIONAL_FETCH_TARGET: set[str] = {
+        ".txt",
+        ".text",
+        ".md",
+        ".json",
+    }
 
-    FETCH_TARGET: ClassVar[FrozenSet[str]] = (
+    FETCH_TARGET: set[str] = (
         IMAGE | SITEMAP | _DEFAULT_FETCH_TARGET | _ADDITIONAL_FETCH_TARGET
     )
 
     @classmethod
-    def endswith_exts(cls, s: str, exts: frozenset[str]) -> bool:
+    def endswith_exts(cls, s: str, exts: set[str]) -> bool:
         """文字列の末尾に指定の拡張子が含まれるか。
 
         Args:
             s (str): 文字列
-            exts (frozenset[str]): チェック対象の拡張子セット
+            exts (set[str]): チェック対象の拡張子セット
 
         Returns:
             bool: 含まれる場合 True
@@ -64,25 +63,28 @@ class Exts:
         return any(s.lower().endswith(ext) for ext in exts)
 
     @classmethod
-    def is_image_file(cls, uri: str) -> bool:
-        """ファイルパスまたは URL が指すのは画像ファイルか。
+    def endswith_ext(cls, s: str, ext: str) -> bool:
+        """文字列の末尾に指定の拡張子が含まれるか。
+
+        Args:
+            s (str): 文字列
+            exts (str): チェック対象の拡張子
+
+        Returns:
+            bool: 含まれる場合 True
+        """
+        return cls.endswith_exts(s, {ext})
+
+    @classmethod
+    def get_ext(cls, uri: str) -> str:
+        """ファイルパスまたは URL 文字列から拡張子を取得する。
 
         Args:
             uri (str): ファイルパスまたは URL
 
         Returns:
-            bool: 対象ファイルなら True
+            str: 拡張子
         """
-        return cls.endswith_exts(uri, cls.IMAGE)
+        parsed = urlparse(uri)
 
-    @classmethod
-    def is_sitemap_file(cls, url: str) -> bool:
-        """URL が指すのはサイトマップファイルか。
-
-        Args:
-            url (str): URL
-
-        Returns:
-            bool: サイトマップファイルなら True
-        """
-        return cls.endswith_exts(url, cls.SITEMAP)
+        return os.path.splitext(parsed.path)[1].lower()

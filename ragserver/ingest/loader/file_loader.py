@@ -8,8 +8,10 @@ from llama_index.core.node_parser.interface import MetadataAwareTextSplitter
 from llama_index.core.readers.file.base import SimpleDirectoryReader
 from llama_index.core.schema import BaseNode
 
+from ragserver.core.exts import Exts
 from ragserver.core.metadata import BasicMetaData
 from ragserver.ingest.loader.loader import Loader
+from ragserver.ingest.loader.reader.pdf_reader import MultiPDFReader
 from ragserver.logger import logger
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
@@ -70,13 +72,13 @@ class FileLoader(Loader):
                     meta.node_lastmod_at = time.time()
                     node.metadata = meta.to_dict()
 
-                all_nodes.append(nodes)
+                all_nodes.extend(nodes)
         except Exception as e:
             raise RuntimeError("failed to generate nodes from file") from e
 
         logger.info(f"loaded {len(all_nodes)} nodes from {path}")
 
-        return nodes
+        return all_nodes
 
     async def aload_from_path(
         self,
@@ -94,15 +96,12 @@ class FileLoader(Loader):
         logger.debug("trace")
 
         try:
-            # TODO
-            # 例えば pdf ファイル内の埋め込み画像はデフォルトの PDFReader では
-            # 抽出してくれない（OCR の流れはあるみたい）ので、抽出する場合は
-            # Reader を自作して file_extractor に渡す必要がある
             path = Path(root)
             reader = SimpleDirectoryReader(
                 input_dir=root if path.is_dir() else None,
                 input_files=[root] if path.is_file() else None,
                 recursive=True,
+                file_extractor={Exts.PDF: MultiPDFReader()},
             )
 
             splitter = SentenceSplitter(

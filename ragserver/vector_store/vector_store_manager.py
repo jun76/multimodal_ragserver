@@ -129,7 +129,7 @@ class VectorStoreManager:
         # fingerprint が既存・同一のノードは upsert しない
         nodes = self._filter_nodes_by_fp(nodes)
         if len(nodes) == 0:
-            logger.info("skip upsert: all nodes already exist")
+            logger.info("skip upsert: no new nodes")
             return
 
         text_nodes, image_nodes = self._split_nodes_modality(nodes)
@@ -219,9 +219,17 @@ class VectorStoreManager:
         # logger.debug("trace")
 
         # ファイルパスか URL の末尾に画像ファイルの拡張子が含まれるものを画像ノードとする
-        return Exts.is_image_file(
-            node.metadata.get(META_KEYS.FILE_PATH, "")
-        ) or Exts.is_image_file(node.metadata.get(META_KEYS.URL, ""))
+        path = node.metadata.get(META_KEYS.FILE_PATH, "")
+        url = node.metadata.get(META_KEYS.URL, "")
+
+        # 独自 reader を使用し、temp_file_path に画像ファイルの拡張子が含まれるものも抽出
+        temp_file_path = node.metadata.get(META_KEYS.TEMP_FILE_PATH, "")
+
+        return (
+            Exts.endswith_exts(path, Exts.IMAGE)
+            or Exts.endswith_exts(url, Exts.IMAGE)
+            or Exts.endswith_exts(temp_file_path, Exts.IMAGE)
+        )
 
     async def _aupsert_text(self, nodes: list[TextNode]) -> None:
         """テキストを埋め込み、ストアに格納する。
@@ -254,8 +262,6 @@ class VectorStoreManager:
             fps.append(self._get_lazy_fp(meta))
 
         try:
-            # TODO: バッチだと効率は良いが一件でも失敗すると全滅扱いになる。
-            # 最初バッチで実行してみて、失敗したら一件ずつのループにして被害局所化？
             vecs = await self._embed.aembed_text(texts)
             if len(vecs) != len(nodes):
                 raise RuntimeError(
@@ -304,7 +310,12 @@ class VectorStoreManager:
                 # フェッチした一時ファイル
                 file_paths.append(temp)
                 temp_file_paths.append(temp)
-                meta.file_path = ""
+
+                # ファイルパスはベースソースで上書き
+                # （空になるか、PDF 等の独自 reader が退避していた元パスが復元されるか）
+                meta.file_path = meta.base_source
+
+                # 一時ファイルパスは消去
                 meta.temp_file_path = ""
                 node.metadata = meta.to_dict()
             else:
@@ -411,6 +422,8 @@ class VectorStoreManager:
             MK.FILE_SIZE: meta.file_size,
             MK.FILE_LASTMOD_AT: meta.file_lastmod_at,
             MK.CHUNK_NO: meta.chunk_no,
+            MK.PAGE_NO: meta.page_no,
+            MK.ASSET_NO: meta.asset_no,
             MK.URL: meta.url,
         }
 

@@ -25,6 +25,8 @@ class META_KEYS(META_KEYS_FROM):
     BASE_SOURCE = "base_source"
     TEMP_FILE_PATH = "temp_file_path"
     NODE_LASTMOD_AT = "node_last_modified_date"
+    PAGE_NO = "page_no"
+    ASSET_NO = "asset_no"
     ## ノードの同一性確認用メタデータ
     FINGERPRINT = "fingerprint"
 
@@ -80,6 +82,8 @@ class BasicMetaData:
     base_source: str = ""  # 出典情報（直リンク画像の親ページ等）
     temp_file_path: str = ""  # ダウンロード画像等の一時ファイルパス
     node_lastmod_at: float = 0  # ノードの最終更新時刻（epoch 秒）
+    page_no: int = 0  # ページ番号
+    asset_no: int = 0  # アセット番号（同一ページ内の画像等）
 
     def __init__(self, meta: Optional[dict[str, Any]] = None) -> None:
         """dict からメタデータインスタンスを生成する。
@@ -100,6 +104,8 @@ class BasicMetaData:
         self.base_source = data.get(META_KEYS.BASE_SOURCE, "")
         self.temp_file_path = data.get(META_KEYS.TEMP_FILE_PATH, "")
         self.node_lastmod_at = data.get(META_KEYS.NODE_LASTMOD_AT, 0)
+        self.page_no = data.get(META_KEYS.PAGE_NO, 0)
+        self.asset_no = data.get(META_KEYS.ASSET_NO, 0)
 
     def to_dict(self) -> dict[str, Any]:
         """メタデータの dict を返す。

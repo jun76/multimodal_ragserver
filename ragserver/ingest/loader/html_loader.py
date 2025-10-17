@@ -146,7 +146,7 @@ class HTMLLoader(Loader):
         self,
         html: str,
         base_url: str,
-        allowed_exts: frozenset[str],
+        allowed_exts: set[str],
         limit: int = 20,
     ) -> list[str]:
         """HTML からアセット URL を収集する。
@@ -154,7 +154,7 @@ class HTMLLoader(Loader):
         Args:
             html (str): HTML 文字列
             base_url (str): 相対 URL 解決用の基準 URL
-            allowed_exts (frozenset[str]): 許可される拡張子集合（ドット付き小文字）
+            allowed_exts (set[str]): 許可される拡張子集合（ドット付き小文字）
             limit (int, optional): 返却する最大件数.Defaults to 20.
 
         Returns:
@@ -208,14 +208,14 @@ class HTMLLoader(Loader):
     async def _adownload_direct_linked_file(
         self,
         url: str,
-        allowed_exts: frozenset[str],
+        allowed_exts: set[str],
         max_asset_bytes: int = 100 * 1024 * 1024,
     ) -> Optional[str]:
         """直リンクのファイルをダウンロードし、ローカルの一時ファイルパスを返す。
 
         Args:
             url (str): 対象 URL
-            allowed_exts (frozenset[str]): 許可される拡張子集合（ドット付き小文字）
+            allowed_exts (set[str]): 許可される拡張子集合（ドット付き小文字）
             max_asset_bytes (int, optional): データサイズ上限。Defaults to 100*1024*1024.
 
         Returns:
@@ -240,8 +240,7 @@ class HTMLLoader(Loader):
             )
             return None
 
-        parsed = urlparse(url)
-        ext = os.path.splitext(parsed.path)[1].lower()
+        ext = Exts.get_ext(url)
         try:
             with tempfile.NamedTemporaryFile(
                 delete=False, prefix=f"{GeneralConfig.project_name}_", suffix=ext
@@ -418,7 +417,7 @@ class HTMLLoader(Loader):
         logger.debug("trace")
 
         # サイトマップ以外は単一のサイトとして読み込み
-        if not Exts.is_sitemap_file(url):
+        if not Exts.endswith_exts(url, Exts.SITEMAP):
             return await self._aload_from_site(url)
 
         # 以下、サイトマップの解析と読み込み
