@@ -14,7 +14,13 @@ from ragserver.logger import logger
 from ragserver.rerank.rerank_manager import RerankManager
 from ragserver.vector_store.vector_store_manager import VectorStoreManager
 
-__all__ = ["aquery_text_text", "aquery_text_image", "aquery_image_image"]
+__all__ = [
+    "aquery_text_text",
+    "aquery_text_image",
+    "aquery_image_image",
+    "aquery_text_audio",
+    "aquery_audio_audio",
+]
 
 
 async def aquery_text_text(
@@ -96,7 +102,7 @@ async def aquery_text_image(
         nwss = await retriever_engine.atext_to_image_retrieve(query)
     except Exception as e:
         raise RuntimeError(
-            f"this embed model may not support text --> image embedding"
+            "this embed model may not support text --> image embedding"
         ) from e
 
     if len(nwss) == 0:
@@ -186,7 +192,7 @@ async def aquery_text_audio(
         nwss = await retriever_engine.atext_to_audio_retrieve(query)
     except Exception as e:
         raise RuntimeError(
-            f"this embed model may not support text --> audio embedding"
+            "this embed model may not support text --> audio embedding"
         ) from e
 
     if len(nwss) == 0:

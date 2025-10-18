@@ -155,7 +155,7 @@ class EmbedManager:
         return await embed.aget_image_embedding_batch(img_file_paths=paths)
 
     async def aembed_audio(self, paths: list[str]) -> list[Embedding]:
-        """画像の埋め込みベクトルを取得する。
+        """音声の埋め込みベクトルを取得する。
 
         Args:
             paths (list[str]): 音声のパス

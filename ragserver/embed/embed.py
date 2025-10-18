@@ -39,7 +39,8 @@ def create_embed_manager() -> EmbedManager:
                 cont = _huggingface_text()
             case _:
                 raise ValueError(
-                    f"unsupported text embed provider: {GeneralConfig.text_embed_provider}"
+                    "unsupported text embed provider: "
+                    f"{GeneralConfig.text_embed_provider}"
                 )
         conts[Modality.TEXT] = cont
 
@@ -53,7 +54,8 @@ def create_embed_manager() -> EmbedManager:
                     cont = _huggingface_image()
                 case _:
                     raise ValueError(
-                        f"unsupported image embed provider: {GeneralConfig.image_embed_provider}"
+                        "unsupported image embed provider: "
+                        f"{GeneralConfig.image_embed_provider}"
                     )
             conts[Modality.IMAGE] = cont
 
@@ -61,7 +63,8 @@ def create_embed_manager() -> EmbedManager:
             match GeneralConfig.audio_embed_provider:
                 case _:
                     raise ValueError(
-                        f"unsupported audio embed provider: {GeneralConfig.image_embed_provider}"
+                        "unsupported audio embed provider: "
+                        f"{GeneralConfig.image_embed_provider}"
                     )
             conts[Modality.AUDIO] = cont
     except Exception as e:

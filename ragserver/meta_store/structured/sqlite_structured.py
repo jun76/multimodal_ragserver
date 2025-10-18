@@ -41,7 +41,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS
 
 # システム起動時の fingerprint キャッシュロード時に効く
 DDL_IDX_NODE_LASTMOD_AT = """
-CREATE INDEX IF NOT EXISTS 
+CREATE INDEX IF NOT EXISTS
   idx_{table_name}_{node_lastmod_at} ON {table_name}({node_lastmod_at} DESC);
 """
 
