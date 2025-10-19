@@ -37,7 +37,7 @@ class AvailCkpt:
     K630_AUDIOSET_FUSION_BEST = "https://huggingface.co/lukewys/laion_clap/resolve/main/630k-audioset-fusion-best.pt"
     MUSIC_AUDIOSET_EPOCH_15_ESC_90_14 = "https://huggingface.co/lukewys/laion_clap/resolve/main/music_audioset_epoch_15_esc_90.14.pt"
     MUSIC_SPEECH_EPOCH_15_ESC_89_25 = "https://huggingface.co/lukewys/laion_clap/resolve/main/music_speech_epoch_15_esc_89.25.pt"
-    MUSIC_SPEECH_AUDIOSET_EPOCH_15_ESC_89_98 = "https://huggingface.co/lukewys/laion_clap/blob/main/music_speech_audioset_epoch_15_esc_89.98.pt"
+    MUSIC_SPEECH_AUDIOSET_EPOCH_15_ESC_89_98 = "https://huggingface.co/lukewys/laion_clap/resolve/main/music_speech_audioset_epoch_15_esc_89.98.pt"
 
 
 class ClapEmbedding(AudioEmbedding):
@@ -55,20 +55,20 @@ class ClapEmbedding(AudioEmbedding):
 
     def __init__(
         self,
-        model: SubModality = SubModality.GENERAL,
+        model_name: str = SubModality.GENERAL,
         device: str = "cuda",
     ):
         """コンストラクタ
 
         Args:
-            model (SubModality, optional): モデル名。未整備のため、SubModality として独自定義。Defaults to "general".
+            model_name (str, optional): モデル名。未整備のため、SubModality として独自定義。Defaults to "general".
             device (str, optional): 埋め込みデバイス。Defaults to "cuda".
         """
         logger.debug("trace")
 
         enable_fusion = False
         tmodel = TextEncoderModel.ROBERTA
-        match model:
+        match model_name:
             case SubModality.EFFECT_SHORT:
                 amodel = AudioEncoderModel.HTSAT_TINY
                 ckpt = AvailCkpt.K630_AUDIOSET_BEST
@@ -91,6 +91,58 @@ class ClapEmbedding(AudioEmbedding):
         )
 
         self._model.load_ckpt(ckpt)
+
+    async def _aget_query_embedding(self, query: str) -> Embedding:
+        """クエリ文字列の非同期埋め込みを行う。
+
+        Args:
+            query (str): クエリ文字列
+
+        Returns:
+            Embedding: 埋め込みベクトル
+        """
+        logger.debug("trace")
+
+        return self._get_query_embedding(query)
+
+    def _get_text_embedding(self, text: str) -> Embedding:
+        """単一テキストの同期埋め込みを行う。
+
+        Args:
+            text (str): テキスト
+
+        Returns:
+            Embedding: 埋め込みベクトル
+        """
+        logger.debug("trace")
+
+        return self._get_text_embeddings([text])[0]
+
+    def _get_text_embeddings(self, texts: list[str]) -> list[Embedding]:
+        """複数テキストの同期埋め込みを行う。
+
+        Args:
+            texts (list[str]): テキスト
+
+        Returns:
+            list[Embedding]: 埋め込みベクトル
+        """
+        logger.debug("trace")
+
+        return self._model.get_text_embedding(x=texts)
+
+    def _get_query_embedding(self, query: str) -> Embedding:
+        """クエリ文字列の同期埋め込みを行う。
+
+        Args:
+            query (str): クエリ文字列
+
+        Returns:
+            Embedding: 埋め込みベクトル
+        """
+        logger.debug("trace")
+
+        return self._get_text_embedding(query)
 
     def get_audio_embedding_batch(
         self, audio_file_paths: list[AudioType], show_progress: bool = False

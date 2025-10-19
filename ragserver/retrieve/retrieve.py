@@ -5,10 +5,7 @@ from typing import Optional
 from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
 from llama_index.core.schema import NodeWithScore
 
-from ragserver.llama.core.indices.multi_modal.retriever import (
-    AudioEncoders,
-    AudioRetriever,
-)
+from ragserver.llama.core.indices.multi_modal.retriever import AudioRetriever
 from ragserver.llama.core.schema import Modality
 from ragserver.logger import logger
 from ragserver.rerank.rerank_manager import RerankManager
@@ -183,7 +180,7 @@ async def aquery_text_audio(
         logger.error("store is not initialized")
         return []
 
-    retriever_engine = AudioRetriever(index=index, top_k=topk, ...)
+    retriever_engine = AudioRetriever(index=index, top_k=topk)
     try:
         nwss = await retriever_engine.atext_to_audio_retrieve(query)
     except Exception as e:
@@ -226,7 +223,7 @@ async def aquery_audio_audio(
         logger.error("store is not initialized")
         return []
 
-    retriever_engine = AudioRetriever(index=index, top_k=topk, ...)
+    retriever_engine = AudioRetriever(index=index, top_k=topk)
     nwss = await retriever_engine.aaudio_to_audio_retrieve(path)
 
     if len(nwss) == 0:

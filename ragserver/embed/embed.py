@@ -10,6 +10,7 @@ from ragserver.config.general_config import GeneralConfig
 from ragserver.config.settings import EmbedProvider
 from ragserver.embed.embed_manager import EmbedContainer, EmbedManager
 from ragserver.llama.core.schema import Modality
+from ragserver.llama.embeddings.clap import ClapEmbedding
 from ragserver.logger import logger
 
 __all__ = ["create_embed_manager"]
@@ -61,6 +62,8 @@ def create_embed_manager() -> EmbedManager:
 
         if GeneralConfig.audio_embed_provider:
             match GeneralConfig.audio_embed_provider:
+                case EmbedProvider.CLAP:
+                    cont = _clap_audio()
                 case _:
                     raise ValueError(
                         "unsupported audio embed provider: "
@@ -142,5 +145,15 @@ def _huggingface_image() -> EmbedContainer:
             model_name=EmbedConfig.huggingface_embed_model_image,
             device=GeneralConfig.device,
             trust_remote_code=True,
+        ),
+    )
+
+
+def _clap_audio() -> EmbedContainer:
+    return EmbedContainer(
+        provider_name=EmbedProvider.CLAP,
+        embed=ClapEmbedding(
+            model_name=EmbedConfig.clap_embed_model_audio,
+            device=GeneralConfig.device,
         ),
     )

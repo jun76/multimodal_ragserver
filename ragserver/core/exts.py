@@ -18,7 +18,7 @@ class Exts:
     IMAGE: set[str] = {".gif", ".jpg", PNG, ".jpeg", ".webp"}
 
     # マルチモーダル（音声）の埋め込みモデルに渡せる拡張子
-    AUDIO: set[str] = {".wav", ".mp3", ".flac", ".m4a", ".ogg", ".aac"}
+    AUDIO: set[str] = {".wav", ".mp3", ".flac", ".ogg"}
 
     # サイトマップの抽出判定に使用する拡張子
     SITEMAP: set[str] = {".xml"}

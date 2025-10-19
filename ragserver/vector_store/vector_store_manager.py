@@ -218,8 +218,8 @@ class VectorStoreManager:
             if isinstance(node, TextNode) and self._is_audio_node(node):
                 audio_nodes.append(
                     AudioNode(
-                        audio_resource=MediaResource(text=node.text),
-                        extra_info=node.metadata,
+                        text=node.text,
+                        metadata=node.metadata,
                     )
                 )
             elif isinstance(node, TextNode):
