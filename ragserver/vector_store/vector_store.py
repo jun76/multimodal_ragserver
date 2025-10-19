@@ -39,32 +39,19 @@ def create_vector_store_manager(
 
     try:
         conts: dict[Modality, VectorStoreContainer] = {}
-        table_name_text = _generate_table_name(embed.space_key_text)
-        match GeneralConfig.vector_store:
-            case VectorStoreProvider.PGVECTOR:
-                text_store = _pgvector(table_name_text)
-            case VectorStoreProvider.CHROMA:
-                text_store = _chroma(table_name_text)
-            case _:
-                raise RuntimeError(
-                    f"unsupported vector store: {GeneralConfig.vector_store}"
-                )
-        conts[Modality.TEXT] = text_store
+        if GeneralConfig.image_embed_provider:
+            conts[Modality.TEXT] = _create_container(embed.space_key_text)
 
         if GeneralConfig.image_embed_provider:
-            table_name_image = _generate_table_name(embed.space_key_image)
-            match GeneralConfig.vector_store:
-                case VectorStoreProvider.PGVECTOR:
-                    image_store = _pgvector(table_name_image)
-                case VectorStoreProvider.CHROMA:
-                    image_store = _chroma(table_name_image)
-                case _:
-                    raise RuntimeError(
-                        f"unsupported vector store: {GeneralConfig.vector_store}"
-                    )
-            conts[Modality.IMAGE] = image_store
+            conts[Modality.IMAGE] = _create_container(embed.space_key_image)
+
+        if GeneralConfig.audio_embed_provider:
+            conts[Modality.AUDIO] = _create_container(embed.space_key_audio)
     except Exception as e:
         raise RuntimeError(f"failed to create vector store: {e}") from e
+
+    if not conts:
+        raise RuntimeError(f"no embedding providers are specified")
 
     return VectorStoreManager(
         conts=conts,
@@ -73,6 +60,34 @@ def create_vector_store_manager(
         load_limit=VectorStoreConfig.load_limit,
         check_update=VectorStoreConfig.check_update,
     )
+
+
+def _create_container(space_key: str) -> VectorStoreContainer:
+    """空間キー毎のベクトルストアコンテナを生成する。
+
+    Args:
+        space_key (str): 空間キー
+
+    Raises:
+        RuntimeError: サポート外のプロバイダ
+
+    Returns:
+        VectorStoreContainer: コンテナ
+    """
+    logger.debug("trace")
+
+    table_name = _generate_table_name(space_key)
+    match GeneralConfig.vector_store:
+        case VectorStoreProvider.PGVECTOR:
+            cont = _pgvector(table_name)
+        case VectorStoreProvider.CHROMA:
+            cont = _chroma(table_name)
+        case _:
+            raise RuntimeError(
+                f"unsupported vector store: {GeneralConfig.vector_store}"
+            )
+
+    return cont
 
 
 def _generate_table_name(space_key: str) -> str:
