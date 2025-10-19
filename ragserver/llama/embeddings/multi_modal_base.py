@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from io import BytesIO
-from typing import Union
+from typing import Any, Union
 
 from llama_index.core.base.embeddings.base import Embedding
 from llama_index.core.embeddings import BaseEmbedding
@@ -15,6 +15,10 @@ class AudioEmbedding(BaseEmbedding):
     MultiModalEmbedding 自身に音声埋め込みサポートがあれば良いが未だ無いので
     このクラスを音声埋め込みの抽象として一段噛ませる。
     """
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        """コンストラクタ"""
+        super().__init__(*args, **kwargs)
 
     @abstractmethod
     async def aget_audio_embedding_batch(

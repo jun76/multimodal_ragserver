@@ -74,7 +74,7 @@ class Settings:
     HUGGINGFACE_EMBED_MODEL_TEXT: str = "intfloat/multilingual-e5-base"
     HUGGINGFACE_EMBED_MODEL_IMAGE: str = "llamaindex/vdr-2b-multi-v1"
     CLAP_EMBED_MODEL_AUDIO: str = (
-        "general"  # effect_short / effect_varlen / music / speech / general
+        "effect_varlen"  # effect_short / effect_varlen / music / speech / general
     )
 
     # ingest

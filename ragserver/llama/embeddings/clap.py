@@ -13,7 +13,7 @@ from ragserver.llama.embeddings.multi_modal_base import AudioEmbedding, AudioTyp
 from ragserver.logger import logger
 
 
-class SubModality(StrEnum):
+class ModelName(StrEnum):
     EFFECT_SHORT = auto()
     EFFECT_VARLEN = auto()
     MUSIC = auto()
@@ -28,16 +28,6 @@ class AudioEncoderModel:
 
 class TextEncoderModel:
     ROBERTA = "roberta"
-
-
-class AvailCkpt:
-    K630_AUDIOSET_BEST = (
-        "https://huggingface.co/lukewys/laion_clap/resolve/main/630k-audioset-best.pt"
-    )
-    K630_AUDIOSET_FUSION_BEST = "https://huggingface.co/lukewys/laion_clap/resolve/main/630k-audioset-fusion-best.pt"
-    MUSIC_AUDIOSET_EPOCH_15_ESC_90_14 = "https://huggingface.co/lukewys/laion_clap/resolve/main/music_audioset_epoch_15_esc_90.14.pt"
-    MUSIC_SPEECH_EPOCH_15_ESC_89_25 = "https://huggingface.co/lukewys/laion_clap/resolve/main/music_speech_epoch_15_esc_89.25.pt"
-    MUSIC_SPEECH_AUDIOSET_EPOCH_15_ESC_89_98 = "https://huggingface.co/lukewys/laion_clap/resolve/main/music_speech_audioset_epoch_15_esc_89.98.pt"
 
 
 class ClapEmbedding(AudioEmbedding):
@@ -55,42 +45,43 @@ class ClapEmbedding(AudioEmbedding):
 
     def __init__(
         self,
-        model_name: str = SubModality.GENERAL,
+        model_name: str = ModelName.EFFECT_VARLEN,
         device: str = "cuda",
-    ):
+        embed_batch_size: int = 8,
+    ) -> None:
         """コンストラクタ
 
         Args:
-            model_name (str, optional): モデル名。未整備のため、SubModality として独自定義。Defaults to "general".
+            model_name (str, optional): モデル名。未整備のため、ModelName として独自定義。Defaults to "general".
             device (str, optional): 埋め込みデバイス。Defaults to "cuda".
         """
         logger.debug("trace")
 
+        super().__init__(
+            model_name=f"clap/{model_name}",
+            embed_batch_size=embed_batch_size,
+        )
+
         enable_fusion = False
         tmodel = TextEncoderModel.ROBERTA
         match model_name:
-            case SubModality.EFFECT_SHORT:
+            case ModelName.EFFECT_SHORT:
                 amodel = AudioEncoderModel.HTSAT_TINY
-                ckpt = AvailCkpt.K630_AUDIOSET_BEST
-            case SubModality.EFFECT_VARLEN:
+                model_id = 1
+            case ModelName.EFFECT_VARLEN:
                 enable_fusion = True
                 amodel = AudioEncoderModel.HTSAT_TINY
-                ckpt = AvailCkpt.K630_AUDIOSET_FUSION_BEST
-            case SubModality.MUSIC:
+                model_id = 3
+            case ModelName.MUSIC | ModelName.SPEECH | ModelName.GENERAL:
                 amodel = AudioEncoderModel.HTSAT_BASE
-                ckpt = AvailCkpt.MUSIC_AUDIOSET_EPOCH_15_ESC_90_14
-            case SubModality.SPEECH:
-                amodel = AudioEncoderModel.HTSAT_BASE
-                ckpt = AvailCkpt.MUSIC_SPEECH_EPOCH_15_ESC_89_25
-            case SubModality.GENERAL:
-                amodel = AudioEncoderModel.HTSAT_BASE
-                ckpt = AvailCkpt.MUSIC_SPEECH_AUDIOSET_EPOCH_15_ESC_89_98
+                raise NotImplementedError("loading local .pt is not implemented")
+            case _:
+                raise RuntimeError(f"unexpected model name: {model_name}")
 
         self._model = laion_clap.CLAP_Module(
             enable_fusion=enable_fusion, device=device, amodel=amodel, tmodel=tmodel
         )
-
-        self._model.load_ckpt(ckpt)
+        self._model.load_ckpt(model_id=model_id)
 
     async def _aget_query_embedding(self, query: str) -> Embedding:
         """クエリ文字列の非同期埋め込みを行う。

@@ -19,4 +19,4 @@ class AudioNode(TextNode):
 
     def __init__(self, *args: Any, **kwargs: Any):
         """コンストラクタ"""
-        super.__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
