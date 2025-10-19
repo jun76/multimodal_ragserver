@@ -7,6 +7,7 @@ from llama_index.core.embeddings.multi_modal_base import MultiModalEmbedding
 from llama_index.core.schema import ImageType
 
 from ragserver.llama.core.schema import Modality
+from ragserver.llama.embeddings.multi_modal_base import AudioEmbedding, AudioType
 from ragserver.logger import logger
 
 
@@ -130,7 +131,7 @@ class EmbedManager:
         embed = self.get_container(Modality.TEXT).embed
         logger.info(f"now batch embedding {len(texts)} texts...")
 
-        return await embed.aget_text_embedding_batch(texts)
+        return await embed.aget_text_embedding_batch(texts=texts, show_progress=True)
 
     async def aembed_image(self, paths: list[ImageType]) -> list[Embedding]:
         """画像の埋め込みベクトルを取得する。
@@ -152,13 +153,15 @@ class EmbedManager:
 
         logger.info(f"now batch embedding {len(paths)} images...")
 
-        return await embed.aget_image_embedding_batch(img_file_paths=paths)
+        return await embed.aget_image_embedding_batch(
+            img_file_paths=paths, show_progress=True
+        )
 
-    async def aembed_audio(self, paths: list[str]) -> list[Embedding]:
+    async def aembed_audio(self, paths: list[AudioType]) -> list[Embedding]:
         """音声の埋め込みベクトルを取得する。
 
         Args:
-            paths (list[str]): 音声のパス
+            paths (list[AudioType]): 音声のパス
 
         Raises:
             RuntimeError: 未初期化または音声埋め込み器でない
@@ -168,7 +171,15 @@ class EmbedManager:
         """
         logger.debug("trace")
 
-        raise NotImplementedError("audio embedding is not implemented")
+        embed = self.get_container(Modality.AUDIO).embed
+        if not isinstance(embed, AudioEmbedding):
+            raise RuntimeError("audio embed model is required")
+
+        logger.info(f"now batch embedding {len(paths)} audios...")
+
+        return await embed.aget_audio_embedding_batch(
+            audio_file_paths=paths, show_progress=True
+        )
 
     def _sanitize_space_key(self, space_key: str) -> str:
         """制約にマッチするよう space_key 文字列を整形する。

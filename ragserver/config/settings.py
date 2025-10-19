@@ -19,6 +19,7 @@ class EmbedProvider(StrEnum):
     OPENAI = "openai"
     COHERE = "cohere"
     HUGGINGFACE = "huggingface"
+    CLAP = "clap"
 
 
 class RerankProvider(StrEnum):
@@ -41,7 +42,7 @@ class Settings:
     VECTOR_STORE: VectorStoreProvider = VectorStoreProvider.CHROMA
     TEXT_EMBED_PROVIDER: EmbedProvider = EmbedProvider.HUGGINGFACE
     IMAGE_EMBED_PROVIDER: Optional[EmbedProvider] = EmbedProvider.CLIP
-    AUDIO_EMBED_PROVIDER: Optional[EmbedProvider] = None
+    AUDIO_EMBED_PROVIDER: Optional[EmbedProvider] = EmbedProvider.CLAP
     RERANK_PROVIDER: RerankProvider = RerankProvider.FLAGEMBEDDING
     DEVICE: str = "cuda"
     LOG_LEVEL: str = "DEBUG"
@@ -72,6 +73,9 @@ class Settings:
     CLIP_EMBED_MODEL_IMAGE: str = "ViT-B/32"
     HUGGINGFACE_EMBED_MODEL_TEXT: str = "intfloat/multilingual-e5-base"
     HUGGINGFACE_EMBED_MODEL_IMAGE: str = "llamaindex/vdr-2b-multi-v1"
+    CLAP_EMBED_MODEL_AUDIO: str = (
+        "general"  # effect_short / effect_varlen / music / speech / general
+    )
 
     # ingest
     CHUNK_SIZE: int = 500

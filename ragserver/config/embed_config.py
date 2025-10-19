@@ -20,3 +20,4 @@ class EmbedConfig:
     clip_embed_model_image: str = Settings.CLIP_EMBED_MODEL_IMAGE
     huggingface_embed_model_text: str = Settings.HUGGINGFACE_EMBED_MODEL_TEXT
     huggingface_embed_model_image: str = Settings.HUGGINGFACE_EMBED_MODEL_IMAGE
+    clap_embed_model_audio: str = Settings.CLAP_EMBED_MODEL_AUDIO

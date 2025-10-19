@@ -183,11 +183,7 @@ async def aquery_text_audio(
         logger.error("store is not initialized")
         return []
 
-    raise NotImplementedError("audio retriever is not implemented")
-
-    enc = AudioEncoders()
-    retriever_engine = AudioRetriever(index=index, enc=enc, top_k=topk)
-
+    retriever_engine = AudioRetriever(index=index, top_k=topk, ...)
     try:
         nwss = await retriever_engine.atext_to_audio_retrieve(query)
     except Exception as e:
@@ -230,11 +226,7 @@ async def aquery_audio_audio(
         logger.error("store is not initialized")
         return []
 
-    raise NotImplementedError("audio retriever is not implemented")
-
-    enc = AudioEncoders()
-    retriever_engine = AudioRetriever(index=index, enc=enc, top_k=topk)
-
+    retriever_engine = AudioRetriever(index=index, top_k=topk, ...)
     nwss = await retriever_engine.aaudio_to_audio_retrieve(path)
 
     if len(nwss) == 0:
