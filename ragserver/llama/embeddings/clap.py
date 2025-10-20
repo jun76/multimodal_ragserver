@@ -120,7 +120,9 @@ class ClapEmbedding(AudioEmbedding):
         """
         logger.debug("trace")
 
-        return self._model.get_text_embedding(x=texts)
+        vecs = self._model.get_text_embedding(x=texts)
+
+        return [vec.tolist() for vec in vecs]
 
     def _get_query_embedding(self, query: str) -> Embedding:
         """クエリ文字列の同期埋め込みを行う。
@@ -196,11 +198,9 @@ class ClapEmbedding(AudioEmbedding):
         """
         logger.debug("trace")
 
-        vecs = self._model.get_audio_embedding_from_filelist(
-            x=audio_file_paths, use_tensor=False
-        )
+        vecs = self._model.get_audio_embedding_from_filelist(x=audio_file_paths)
 
-        return [v.tolist() for v in vecs]
+        return [vec.tolist() for vec in vecs]
 
     async def aget_audio_embedding_batch(
         self, audio_file_paths: list[AudioType], show_progress: bool = False

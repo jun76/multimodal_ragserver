@@ -43,7 +43,7 @@ class QueryTextRequest(BaseModel):
     topk: Optional[int] = None
 
 
-class QueryImageRequest(BaseModel):
+class QueryMultimodalRequest(BaseModel):
     path: str
     topk: Optional[int] = None
 
@@ -185,9 +185,9 @@ async def upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
         _request_lock.release()
 
 
-@app.post("/v1/query/text", operation_id="query_text")
-async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
-    """テキストクエリによる検索を実行する。
+@app.post("/v1/query/text_text", operation_id="query_text_text")
+async def query_text_text(payload: QueryTextRequest) -> dict[str, Any]:
+    """クエリ文字列によるテキストドキュメント検索。
 
     Args:
         payload (QueryTextRequest): クエリ内容
@@ -218,9 +218,9 @@ async def query_text(payload: QueryTextRequest) -> dict[str, Any]:
     return {"documents": _nodes_to_response(nodes)}
 
 
-@app.post("/v1/query/text_multi", operation_id="query_text_multi")
-async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
-    """テキストクエリでマルチモーダル検索を実行する。
+@app.post("/v1/query/text_image", operation_id="query_text_image")
+async def query_text_image(payload: QueryTextRequest) -> dict[str, Any]:
+    """クエリ文字列による画像ドキュメント検索。
 
     Args:
         payload (QueryTextRequest): クエリ内容
@@ -236,7 +236,7 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     if Modality.IMAGE not in _embed.modality:
         raise HTTPException(
             status_code=500,
-            detail="multimodal embeddings is not supported",
+            detail="image embeddings is not supported",
         )
 
     await run_in_threadpool(_request_lock.acquire)
@@ -257,9 +257,9 @@ async def query_text_multi(payload: QueryTextRequest) -> dict[str, Any]:
     return {"documents": _nodes_to_response(nodes)}
 
 
-@app.post("/v1/query/image", operation_id="query_image")
-async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
-    """画像クエリによる検索を実行する。
+@app.post("/v1/query/image_image", operation_id="query_image_image")
+async def query_image_image(payload: QueryMultimodalRequest) -> dict[str, Any]:
+    """クエリ画像による画像ドキュメント検索。
 
     Args:
         payload (QueryImageRequest): クエリ内容
@@ -275,13 +275,90 @@ async def query_image(payload: QueryImageRequest) -> dict[str, Any]:
     if Modality.IMAGE not in _embed.modality:
         raise HTTPException(
             status_code=500,
-            detail="multimodal embeddings is not supported",
+            detail="image embeddings is not supported",
         )
 
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
             nodes = await retrieve.aquery_image_image(
+                path=payload.path,
+                store=_vector_store,
+                topk=payload.topk or RerankConfig.topk,
+            )
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"query failure: {e}") from e
+    finally:
+        _request_lock.release()
+
+    return {"documents": _nodes_to_response(nodes)}
+
+
+@app.post("/v1/query/text_audio", operation_id="query_text_audio")
+async def query_text_audio(payload: QueryTextRequest) -> dict[str, Any]:
+    """クエリ文字列による音声ドキュメント検索。
+
+    Args:
+        payload (QueryTextRequest): クエリ内容
+
+    Raises:
+        HTTPException: 検索処理に失敗
+
+    Returns:
+        dict[str, Any]: 検索結果
+    """
+    logger.debug("trace")
+
+    if Modality.AUDIO not in _embed.modality:
+        raise HTTPException(
+            status_code=500,
+            detail="audio embeddings is not supported",
+        )
+
+    await run_in_threadpool(_request_lock.acquire)
+    try:
+        try:
+            nodes = await retrieve.aquery_text_audio(
+                query=payload.query,
+                store=_vector_store,
+                topk=payload.topk or RerankConfig.topk,
+                rerank=_rerank,
+            )
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=f"query failure: {e}") from e
+    finally:
+        _request_lock.release()
+
+    return {"documents": _nodes_to_response(nodes)}
+
+
+@app.post("/v1/query/audio_audio", operation_id="query_audio_audio")
+async def query_audio_audio(payload: QueryMultimodalRequest) -> dict[str, Any]:
+    """クエリ音声による音声ドキュメント検索。
+
+    Args:
+        payload (QueryMultimodalRequest): クエリ内容
+
+    Raises:
+        HTTPException: 検索処理に失敗
+
+    Returns:
+        dict[str, Any]: 検索結果
+    """
+    logger.debug("trace")
+
+    if Modality.AUDIO not in _embed.modality:
+        raise HTTPException(
+            status_code=500,
+            detail="audio embeddings is not supported",
+        )
+
+    await run_in_threadpool(_request_lock.acquire)
+    try:
+        try:
+            nodes = await retrieve.aquery_audio_audio(
                 path=payload.path,
                 store=_vector_store,
                 topk=payload.topk or RerankConfig.topk,
@@ -430,6 +507,12 @@ logger.info("now mcp server is starting up...")
 _mcp_server = FastApiMCP(
     app,
     name=GeneralConfig.project_name,
-    include_operations=["query_text", "query_text_multi", "query_image"],
+    include_operations=[
+        "query_text_text",
+        "query_text_image",
+        "query_image_image",
+        "query_text_audio",
+        "query_audio_audio",
+    ],
 )
 _mcp_server.mount_http()

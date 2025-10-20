@@ -12,9 +12,9 @@ from ragclient.api_client import RagServerClient
 from ragclient.llm import get_chat_model
 from ragclient.logger import logger
 from ragclient.views.search import (
-    run_image_search_callback,
-    run_multimodal_search_callback,
-    run_text_search_callback,
+    run_image_image_search_callback,
+    run_text_image_search_callback,
+    run_text_text_search_callback,
 )
 
 __all__ = ["configure_agent_context", "execute_rag_search"]
@@ -96,7 +96,7 @@ def text_search_tool(query: str) -> str:
     client = _require_client()
     _ensure_session_key(_TEXT_RESULT_KEY)
     _ensure_session_key(_TEXT_FEEDBACK_KEY)
-    run_text_search_callback(
+    run_text_text_search_callback(
         client,
         query,
         _TEXT_RESULT_KEY,
@@ -122,7 +122,7 @@ def multimodal_search_tool(query: str) -> str:
     client = _require_client()
     _ensure_session_key(_MULTI_RESULT_KEY)
     _ensure_session_key(_MULTI_FEEDBACK_KEY)
-    run_multimodal_search_callback(
+    run_text_image_search_callback(
         client,
         query,
         _MULTI_RESULT_KEY,
@@ -154,7 +154,7 @@ def image_search_tool(query: str) -> str:
 
     _ensure_session_key(_IMAGE_RESULT_KEY)
     _ensure_session_key(_IMAGE_FEEDBACK_KEY)
-    run_image_search_callback(
+    run_image_image_search_callback(
         client,
         _ACTIVE_IMAGE,
         _IMAGE_RESULT_KEY,

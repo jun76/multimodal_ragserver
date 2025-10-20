@@ -128,8 +128,8 @@ class RagServerClient:
 
         return self._post_json("/ingest/url_list", {"path": path})
 
-    def query_text(self, query: str, topk: Optional[int] = None) -> dict[str, Any]:
-        """テキスト検索 API を呼び出す。
+    def query_text_text(self, query: str, topk: Optional[int] = None) -> dict[str, Any]:
+        """クエリ文字列によるテキストドキュメント検索 API を呼び出す。
 
         Args:
             query (str): クエリ文字列
@@ -144,12 +144,12 @@ class RagServerClient:
         if topk is not None:
             payload["topk"] = topk
 
-        return self._post_json("/query/text", payload)
+        return self._post_json("/query/text_text", payload)
 
-    def query_text_multi(
+    def query_text_image(
         self, query: str, topk: Optional[int] = None
     ) -> dict[str, Any]:
-        """マルチモーダル検索（テキスト） API を呼び出す。
+        """クエリ文字列による画像ドキュメント検索 API を呼び出す。
 
         Args:
             query (str): クエリ文字列
@@ -164,10 +164,12 @@ class RagServerClient:
         if topk is not None:
             payload["topk"] = topk
 
-        return self._post_json("/query/text_multi", payload)
+        return self._post_json("/query/text_image", payload)
 
-    def query_image(self, path: str, topk: Optional[int] = None) -> dict[str, Any]:
-        """画像検索 API を呼び出す。
+    def query_image_image(
+        self, path: str, topk: Optional[int] = None
+    ) -> dict[str, Any]:
+        """クエリ画像による画像ドキュメント検索 API を呼び出す。
 
         Args:
             path (str): クエリ画像パス
@@ -182,7 +184,47 @@ class RagServerClient:
         if topk is not None:
             payload["topk"] = topk
 
-        return self._post_json("/query/image", payload)
+        return self._post_json("/query/image_image", payload)
+
+    def query_text_audio(
+        self, query: str, topk: Optional[int] = None
+    ) -> dict[str, Any]:
+        """クエリ文字列による音声ドキュメント検索 API を呼び出す。
+
+        Args:
+            query (str): クエリ文字列
+            topk (Optional[int]): 上限件数
+
+        Returns:
+            dict[str, Any]: 応答データ
+        """
+        logger.debug("trace")
+
+        payload: dict[str, Any] = {"query": query}
+        if topk is not None:
+            payload["topk"] = topk
+
+        return self._post_json("/query/text_audio", payload)
+
+    def query_audio_audio(
+        self, path: str, topk: Optional[int] = None
+    ) -> dict[str, Any]:
+        """クエリ音声による音声ドキュメント検索 API を呼び出す。
+
+        Args:
+            path (str): クエリ音声パス
+            topk (Optional[int]): 上限件数
+
+        Returns:
+            dict[str, Any]: 応答データ
+        """
+        logger.debug("trace")
+
+        payload: dict[str, Any] = {"path": path}
+        if topk is not None:
+            payload["topk"] = topk
+
+        return self._post_json("/query/audio_audio", payload)
 
     def reload(self, target: str, name: str) -> dict[str, Any]:
         """リロード API を呼び出す。
