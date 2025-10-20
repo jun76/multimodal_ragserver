@@ -14,7 +14,6 @@ class RagServerClient:
         Args:
             base_url (str): ragserver へのベース URL
         """
-        logger.debug("trace")
 
         self._base_url = base_url.rstrip("/")
 
@@ -31,14 +30,12 @@ class RagServerClient:
         Returns:
             dict[str, Any]: JSON 応答
         """
-        logger.debug("trace")
 
         url = f"{self._base_url}{endpoint}"
         try:
             response = requests.post(url, json=payload, timeout=120)
             response.raise_for_status()
         except requests.RequestException as e:
-            logger.exception(e)
             raise RuntimeError("failed to call ragserver endpoint") from e
 
         try:
@@ -61,14 +58,12 @@ class RagServerClient:
         Returns:
             dict[str, Any]: JSON 応答
         """
-        logger.debug("trace")
 
         url = f"{self._base_url}{endpoint}"
         try:
             response = requests.post(url, files=files, timeout=120)
             response.raise_for_status()
         except requests.RequestException as e:
-            logger.exception(e)
             raise RuntimeError("failed to call ragserver endpoint") from e
 
         try:
@@ -85,7 +80,6 @@ class RagServerClient:
         Returns:
             dict[str, Any]: 応答データ
         """
-        logger.debug("trace")
 
         return self._post_json("/ingest/path", {"path": path})
 
@@ -98,7 +92,6 @@ class RagServerClient:
         Returns:
             dict[str, Any]: 応答データ
         """
-        logger.debug("trace")
 
         return self._post_json("/ingest/path_list", {"path": path})
 
@@ -111,7 +104,6 @@ class RagServerClient:
         Returns:
             dict[str, Any]: 応答データ
         """
-        logger.debug("trace")
 
         return self._post_json("/ingest/url", {"url": url})
 
@@ -124,7 +116,6 @@ class RagServerClient:
         Returns:
             dict[str, Any]: 応答データ
         """
-        logger.debug("trace")
 
         return self._post_json("/ingest/url_list", {"path": path})
 
@@ -138,7 +129,6 @@ class RagServerClient:
         Returns:
             dict[str, Any]: 応答データ
         """
-        logger.debug("trace")
 
         payload: dict[str, Any] = {"query": query}
         if topk is not None:
@@ -158,7 +148,6 @@ class RagServerClient:
         Returns:
             dict[str, Any]: 応答データ
         """
-        logger.debug("trace")
 
         payload: dict[str, Any] = {"query": query}
         if topk is not None:
@@ -178,7 +167,6 @@ class RagServerClient:
         Returns:
             dict[str, Any]: 応答データ
         """
-        logger.debug("trace")
 
         payload: dict[str, Any] = {"path": path}
         if topk is not None:
@@ -198,7 +186,6 @@ class RagServerClient:
         Returns:
             dict[str, Any]: 応答データ
         """
-        logger.debug("trace")
 
         payload: dict[str, Any] = {"query": query}
         if topk is not None:
@@ -218,7 +205,6 @@ class RagServerClient:
         Returns:
             dict[str, Any]: 応答データ
         """
-        logger.debug("trace")
 
         payload: dict[str, Any] = {"path": path}
         if topk is not None:
@@ -239,7 +225,6 @@ class RagServerClient:
             ValueError: 入力値が不正な場合
             RuntimeError: リクエスト失敗または JSON 解析失敗時
         """
-        logger.debug("trace")
 
         if not files:
             raise ValueError("files must not be empty")

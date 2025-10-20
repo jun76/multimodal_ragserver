@@ -39,7 +39,6 @@ def configure_agent_context(client: RagServerClient, image: Any | None) -> None:
         client (RagServerClient): 検索 API へ接続するクライアント
         image (Any | None): ユーザがアップロードした画像（未指定可）
     """
-    logger.debug("trace")
 
     # FIXME: 複数クライアントだと混線
     global _ACTIVE_CLIENT
@@ -55,7 +54,6 @@ def _ensure_session_key(key: str) -> None:
     Args:
         key (str): セッションステートのキー
     """
-    logger.debug("trace")
 
     if key not in st.session_state:
         st.session_state[key] = None
@@ -70,10 +68,10 @@ def _require_client() -> RagServerClient:
     Raises:
         RuntimeError: クライアントが未設定の場合
     """
-    logger.debug("trace")
 
     if _ACTIVE_CLIENT is None:
         raise RuntimeError("rag agent client is not configured")
+
     return _ACTIVE_CLIENT
 
 
@@ -87,7 +85,6 @@ def text_search_tool(query: str) -> str:
     Returns:
         str: 結果 JSON
     """
-    logger.debug("trace")
 
     client = _require_client()
     _ensure_session_key(SearchResult.SR_RAGSEARCH_TEXT_TEXT)
@@ -113,7 +110,6 @@ def multimodal_search_tool(query: str) -> str:
     Returns:
         str: 結果 JSON
     """
-    logger.debug("trace")
 
     client = _require_client()
     _ensure_session_key(SearchResult.SR_RAGSEARCH_TEXT_IMAGE)
@@ -142,7 +138,6 @@ def image_search_tool(query: str) -> str:
     Returns:
         str: 結果 JSON
     """
-    logger.debug("trace")
 
     client = _require_client()
     if _ACTIVE_IMAGE is None:
@@ -167,7 +162,6 @@ def _build_planner_prompt() -> ChatPromptTemplate:
     Returns:
         ChatPromptTemplate: LangChain プロンプト
     """
-    logger.debug("trace")
 
     return ChatPromptTemplate.from_messages(
         [
@@ -192,7 +186,6 @@ def _build_responder_prompt() -> ChatPromptTemplate:
     Returns:
         ChatPromptTemplate: LangChain プロンプト
     """
-    logger.debug("trace")
 
     return ChatPromptTemplate.from_messages(
         [
@@ -226,7 +219,6 @@ def _collect_tool_outputs(
     Returns:
         tuple[list[str], list[str]]: 使用したツール名とナレッジ
     """
-    logger.debug("trace")
 
     tool_map = {tool.name: tool for tool in available_tools}
     used_names: list[str] = []
@@ -284,12 +276,13 @@ def _normalize_tool_args(raw: Any) -> dict[str, Any]:
     Returns:
         dict[str, Any]: 辞書形式の引数
     """
-    logger.debug("trace")
 
     if raw is None:
         return {}
+
     if isinstance(raw, dict):
         return raw
+
     if isinstance(raw, str):
         text = raw.strip()
         return json.loads(text) if text else {}
@@ -306,7 +299,6 @@ def _extract_session_payloads(tool_names: list[str]) -> list[str]:
     Returns:
         list[str]: 抽出した JSON 文字列
     """
-    logger.debug("trace")
 
     outputs: list[str] = []
     for name in tool_names:
@@ -335,7 +327,6 @@ def _get_chat_model(provider: LLMProvider) -> ChatOpenAI:
     Raises:
         ValueError: 未対応のプロバイダが指定された場合
     """
-    logger.debug("trace")
 
     match provider:
         case LLMProvider.LOCAL:
@@ -365,7 +356,6 @@ def execute_rag_search(question: str, provider: LLMProvider) -> str:
     Returns:
         str: エージェントが生成した最終回答
     """
-    logger.debug("trace")
 
     if question.strip() == "":
         raise ValueError("question must not be empty")

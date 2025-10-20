@@ -21,7 +21,6 @@ def _check_service_health(url: str) -> Optional[dict[str, Any]]:
     Returns:
         Optional[dict[str, Any]]: 応答 JSON（失敗時は None）
     """
-    logger.debug("trace")
 
     try:
         res = requests.get(url, timeout=10)
@@ -54,7 +53,6 @@ def _summarize_status(
     Returns:
         dict[str, str]: サービスの状態表示テキスト
     """
-    logger.debug("trace")
 
     return {
         "ragserver": (
@@ -79,15 +77,14 @@ def _refresh_status(ragserver_health: str) -> None:
     Args:
         ragserver_health (str): ragserver のヘルスチェック URL
     """
-    logger.debug("trace")
 
     try:
         ragserver_stat = _check_service_health(ragserver_health)
         texts = _summarize_status(ragserver_stat)
         st.session_state["status_texts"] = texts
         st.session_state["status_dirty"] = False
-    except Exception as e:
-        logger.exception(e)
+    except Exception:
+        logger.warning("ragserver is not ready")
 
         _DEFAULT_STATUS_TEXT = "不明"
         st.session_state["status_texts"] = {"ragserver": _DEFAULT_STATUS_TEXT}
@@ -99,7 +96,6 @@ def _render_status_section(ragserver_health: str) -> None:
     Args:
         ragserver_health (str): ragserver のヘルスチェック URL
     """
-    logger.debug("trace")
 
     if st.session_state.get("status_dirty", False):
         _refresh_status(ragserver_health)
@@ -120,14 +116,13 @@ def render_main_menu(ragserver_health: str) -> None:
     Args:
         ragserver_health (str): ragserver のヘルスチェック URL
     """
-    logger.debug("trace")
 
     st.title("📚 RAG Client")
     _render_status_section(ragserver_health)
 
     st.subheader("🧭 メニュー")
     st.button("📝 ナレッジ登録へ", on_click=set_view, args=(View.INGEST,))
-    st.button("🔍 検索画面へ", on_click=set_view, args=(View.SEARCH,))
+    st.button("🔍 ＤＢ検索画面へ", on_click=set_view, args=(View.SEARCH,))
     st.button(
         emojify_robot("🤖 RAG 検索画面へ"), on_click=set_view, args=(View.RAGSEARCH,)
     )

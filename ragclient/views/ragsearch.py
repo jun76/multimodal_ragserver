@@ -25,10 +25,10 @@ def _resolve_provider_selection(selected: list[str]) -> LLMProvider:
     Returns:
         LLMProvider: 利用するプロバイダ
     """
-    logger.debug("trace")
 
     if not selected:
         raise ValueError("provider must be selected")
+
     if len(selected) != 1:
         raise ValueError("select exactly one provider")
 
@@ -41,7 +41,6 @@ def render_ragsearch_view(client: RagServerClient) -> None:
     Args:
         client (RagServerClient): ragserver API クライアント
     """
-    logger.debug("trace")
 
     st.title(emojify_robot("🤖 RAG 検索"))
     st.button(

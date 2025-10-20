@@ -37,7 +37,6 @@ async def aquery_text_text(
     Returns:
         list[NodeWithScore]: 検索結果のリスト
     """
-    logger.debug("trace")
 
     index = store.get_index(Modality.TEXT)
     if index is None:
@@ -80,7 +79,6 @@ async def aquery_text_image(
     Returns:
         list[NodeWithScore]: 検索結果のリスト
     """
-    logger.debug("trace")
 
     index = store.get_index(Modality.IMAGE)
     if index is None:
@@ -130,7 +128,6 @@ async def aquery_image_image(
     Returns:
         list[NodeWithScore]: 検索結果のリスト
     """
-    logger.debug("trace")
 
     index = store.get_index(Modality.IMAGE)
     if index is None:
@@ -149,6 +146,8 @@ async def aquery_image_image(
     if len(nwss) == 0:
         logger.warning("empty nodes")
         return []
+
+    logger.info(f"got {len(nwss)} nodes")
 
     return nwss
 
@@ -173,7 +172,6 @@ async def aquery_text_audio(
     Returns:
         list[NodeWithScore]: 検索結果のリスト
     """
-    logger.debug("trace")
 
     index = store.get_index(Modality.AUDIO)
     if index is None:
@@ -216,7 +214,6 @@ async def aquery_audio_audio(
     Returns:
         list[NodeWithScore]: 検索結果のリスト
     """
-    logger.debug("trace")
 
     index = store.get_index(Modality.AUDIO)
     if index is None:
@@ -229,5 +226,7 @@ async def aquery_audio_audio(
     if len(nwss) == 0:
         logger.warning("empty nodes")
         return []
+
+    logger.info(f"got {len(nwss)} nodes")
 
     return nwss

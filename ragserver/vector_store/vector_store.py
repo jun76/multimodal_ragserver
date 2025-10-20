@@ -35,7 +35,6 @@ def create_vector_store_manager(
     Returns:
         VectorStoreManager: ベクトルストア
     """
-    logger.debug("trace")
 
     try:
         conts: dict[Modality, VectorStoreContainer] = {}
@@ -74,7 +73,6 @@ def _create_container(space_key: str) -> VectorStoreContainer:
     Returns:
         VectorStoreContainer: コンテナ
     """
-    logger.debug("trace")
 
     table_name = _generate_table_name(space_key)
     match GeneralConfig.vector_store_provider:
@@ -99,7 +97,6 @@ def _generate_table_name(space_key: str) -> str:
     Returns:
         str: テーブル名
     """
-    logger.debug("trace")
 
     return (
         f"{GeneralConfig.project_name}__{GeneralConfig.knowledgebase_name}__{space_key}"
@@ -116,7 +113,6 @@ def _pgvector(table_name: str) -> VectorStoreContainer:
     Returns:
         EmbeddingContainer: コンテナ
     """
-    logger.debug("trace")
 
     return VectorStoreContainer(
         provider_name=VectorStoreProvider.PGVECTOR,
@@ -144,7 +140,6 @@ def _chroma(table_name: str) -> VectorStoreContainer:
     Returns:
         VectorStoreContainer: コンテナ
     """
-    logger.debug("trace")
 
     if (
         VectorStoreConfig.chroma_host is not None

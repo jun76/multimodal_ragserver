@@ -60,7 +60,6 @@ class ClapEmbedding(AudioEmbedding):
             model_name (str, optional): モデル名。未整備のため、ModelName として独自定義。Defaults to "general".
             device (str, optional): 埋め込みデバイス。Defaults to "cuda".
         """
-        logger.debug("trace")
 
         super().__init__(
             model_name=f"clap/{model_name}",
@@ -97,7 +96,6 @@ class ClapEmbedding(AudioEmbedding):
         Returns:
             Embedding: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         return await asyncio.to_thread(self._get_query_embedding, query)
 
@@ -110,7 +108,6 @@ class ClapEmbedding(AudioEmbedding):
         Returns:
             Embedding: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         return self._get_text_embeddings([text])[0]
 
@@ -123,7 +120,6 @@ class ClapEmbedding(AudioEmbedding):
         Returns:
             list[Embedding]: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         vecs = self._model.get_text_embedding(x=texts)
 
@@ -138,7 +134,6 @@ class ClapEmbedding(AudioEmbedding):
         Returns:
             Embedding: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         return self._get_text_embedding(query)
 
@@ -156,7 +151,6 @@ class ClapEmbedding(AudioEmbedding):
         Returns:
             list[Embedding]: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         cur_batch: list[AudioType] = []
         result_embeddings: list[Embedding] = []
@@ -201,7 +195,6 @@ class ClapEmbedding(AudioEmbedding):
         Returns:
             list[Embedding]: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         vecs = self._model.get_audio_embedding_from_filelist(x=audio_file_paths)
 
@@ -221,7 +214,6 @@ class ClapEmbedding(AudioEmbedding):
         Returns:
             list[Embedding]: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         cur_batch: list[AudioType] = []
         callback_payloads: list[tuple[str, list[AudioType]]] = []
@@ -289,6 +281,5 @@ class ClapEmbedding(AudioEmbedding):
         Returns:
             list[Embedding]: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         return await asyncio.to_thread(self.get_audio_embedding_batch, audio_file_paths)

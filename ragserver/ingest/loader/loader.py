@@ -11,7 +11,6 @@ class Loader:
             chunk_size (int): チャンクサイズ
             chunk_overlap (int): チャンク重複語数
         """
-        logger.debug("trace")
 
         self._chunk_size = chunk_size
         self._chunk_overlap = chunk_overlap
@@ -33,7 +32,6 @@ class Loader:
         Raises:
             RuntimeError: ソースリストの読み込みに失敗した場合
         """
-        logger.debug("trace")
 
         try:
             with open(path, "r", encoding="utf-8") as f:

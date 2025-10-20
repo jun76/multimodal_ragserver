@@ -26,7 +26,6 @@ class MultiPDFReader(BaseReader):
         Returns:
             Iterable[Document]: テキストドキュメントと画像ドキュメント
         """
-        logger.debug("trace")
 
         path = os.path.abspath(path)
         if not os.path.exists(path):
@@ -69,7 +68,6 @@ class MultiPDFReader(BaseReader):
         Returns:
             list[Document]: 生成したドキュメントリスト
         """
-        logger.debug("trace")
 
         docs = []
         for page_no in range(pdf.page_count):
@@ -108,7 +106,6 @@ class MultiPDFReader(BaseReader):
         Returns:
             list[Document]: 生成したドキュメントリスト
         """
-        logger.debug("trace")
 
         docs = []
         for page_no in range(pdf.page_count):

@@ -27,16 +27,15 @@ def _init_services() -> tuple[RagServerClient, str]:
         tuple[RagServerClient, str]: 設定オブジェクトと API クライアント、
         ragserver・埋め込み・リランク各サービスのヘルスチェック URL
     """
-    logger.debug("trace")
 
     client = RagServerClient(Config.ragserver_base_url)
     ragserver_health = Config.ragserver_base_url.rstrip("/") + "/health"
+
     return client, ragserver_health
 
 
 def main() -> None:
     """Streamlit アプリのエントリポイント。"""
-    logger.debug("trace")
 
     st.set_page_config(page_title="RAG Client", page_icon="🧠", layout="wide")
     ensure_session_state()
@@ -63,6 +62,4 @@ if __name__ == "__main__":
     # ログレベルを設定
     log_level = getattr(logging, Config.log_level.upper(), logging.INFO)
     logger.setLevel(log_level)
-    logger.info("now streamlit server is starting up...")
-
     main()

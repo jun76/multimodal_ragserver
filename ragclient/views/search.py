@@ -29,6 +29,178 @@ __all__ = [
 ]
 
 
+def _render_search_section(
+    *,
+    title: str,
+    caption: str,
+    input_func: Callable[[], Any],
+    button_label: str,
+    button_callback: Callable[..., None],
+    button_args: Callable[[Any], tuple],
+    feedback_key: FeedBack,
+    result_key: SearchResult,
+    result_renderer: Callable[[dict[str, Any]], None],
+) -> None:
+    """共通の検索フォーム描画処理を実行する。
+
+    Args:
+        title (str): セクションタイトル
+        caption (str): 入力補足テキスト
+        input_func (Callable[[], Any]): 入力ウィジェット生成関数
+        button_label (str): 検索ボタンのラベル
+        button_callback (Callable[..., None]): 検索コールバック
+        button_args (Callable[[Any], tuple]): コールバックへ渡す引数生成関数
+        feedback_key (FeedBack): フィードバック表示用キー
+        result_key (SearchResult): 検索結果格納キー
+        result_renderer (Callable[[dict[str, Any]], None]): 検索結果描画関数
+    """
+
+    st.subheader(title)
+    if caption:
+        st.caption(caption)
+
+    value = input_func()
+    st.button(
+        button_label,
+        on_click=button_callback,
+        args=button_args(value),
+    )
+
+    display_feedback(feedback_key)
+    result = st.session_state.get(result_key)
+    if result is not None:
+        result_renderer(result)
+
+
+def _render_search_view_text_text(client: RagServerClient) -> None:
+    """テキスト→テキスト検索を描画する。
+
+    Args:
+        client (RagServerClient): ragserver API クライアント
+    """
+
+    _render_search_section(
+        title="📝→📝 テキストでテキストを検索",
+        caption="検索ワードに似た文脈を検索します。 例：「就業規則　一覧」",
+        input_func=lambda: st.text_input("検索ワード", key="text_text_query"),
+        button_label="🔎 検索",
+        button_callback=run_text_text_search_callback,
+        button_args=lambda query: (
+            client,
+            query,
+            SearchResult.SR_SEARCH_TEXT_TEXT,
+            FeedBack.FB_SEARCH_TEXT_TEXT,
+        ),
+        feedback_key=FeedBack.FB_SEARCH_TEXT_TEXT,
+        result_key=SearchResult.SR_SEARCH_TEXT_TEXT,
+        result_renderer=lambda data: _render_query_results_text("📝 検索結果", data),
+    )
+
+
+def _render_search_view_text_image(client: RagServerClient) -> None:
+    """テキスト→画像検索を描画する。
+
+    Args:
+        client (RagServerClient): ragserver API クライアント
+    """
+
+    _render_search_section(
+        title="📝→🖼️ テキストで画像を検索",
+        caption="検索ワードに似た画像を検索します。 例：「談笑している男女」",
+        input_func=lambda: st.text_input("検索ワード", key="text_image_query"),
+        button_label="🔎 検索",
+        button_callback=run_text_image_search_callback,
+        button_args=lambda query: (
+            client,
+            query,
+            SearchResult.SR_SEARCH_TEXT_IMAGE,
+            FeedBack.FB_SEARCH_TEXT_IMAGE,
+        ),
+        feedback_key=FeedBack.FB_SEARCH_TEXT_IMAGE,
+        result_key=SearchResult.SR_SEARCH_TEXT_IMAGE,
+        result_renderer=lambda data: _render_query_results_image("🖼️ 検索結果", data),
+    )
+
+
+def _render_search_view_image_image(client: RagServerClient) -> None:
+    """画像→画像検索を描画する。
+
+    Args:
+        client (RagServerClient): ragserver API クライアント
+    """
+
+    _render_search_section(
+        title="🖼️→🖼️ 画像で画像を検索",
+        caption="アップロードした画像に似た画像を検索します。",
+        input_func=lambda: st.file_uploader(
+            "検索したい画像を選択", key="image_query_uploader"
+        ),
+        button_label="🔎 検索",
+        button_callback=run_image_image_search_callback,
+        button_args=lambda file_obj: (
+            client,
+            file_obj,
+            SearchResult.SR_SEARCH_IMAGE_IMAGE,
+            FeedBack.FB_SEARCH_IMAGE_IMAGE,
+        ),
+        feedback_key=FeedBack.FB_SEARCH_IMAGE_IMAGE,
+        result_key=SearchResult.SR_SEARCH_IMAGE_IMAGE,
+        result_renderer=lambda data: _render_query_results_image("🖼️ 検索結果", data),
+    )
+
+
+def _render_search_view_text_audio(client: RagServerClient) -> None:
+    """テキスト→音声検索を描画する。
+
+    Args:
+        client (RagServerClient): ragserver API クライアント
+    """
+
+    _render_search_section(
+        title="📝→🎤 テキストで音声を検索",
+        caption="検索ワードに似た音声を検索します。 例：「車のクラクション」",
+        input_func=lambda: st.text_input("検索ワード", key="text_audio_query"),
+        button_label="🔎 検索",
+        button_callback=run_text_audio_search_callback,
+        button_args=lambda query: (
+            client,
+            query,
+            SearchResult.SR_SEARCH_TEXT_AUDIO,
+            FeedBack.FB_SEARCH_TEXT_AUDIO,
+        ),
+        feedback_key=FeedBack.FB_SEARCH_TEXT_AUDIO,
+        result_key=SearchResult.SR_SEARCH_TEXT_AUDIO,
+        result_renderer=lambda data: _render_query_results_audio("🎤 検索結果", data),
+    )
+
+
+def _render_search_view_audio_audio(client: RagServerClient) -> None:
+    """音声→音声検索を描画する。
+
+    Args:
+        client (RagServerClient): ragserver API クライアント
+    """
+
+    _render_search_section(
+        title="🎤→🎤 音声で音声を検索",
+        caption="アップロードした音声に似た音声を検索します。",
+        input_func=lambda: st.file_uploader(
+            "検索したい音声を選択", key="audio_query_uploader"
+        ),
+        button_label="🔎 検索",
+        button_callback=run_audio_audio_search_callback,
+        button_args=lambda file_obj: (
+            client,
+            file_obj,
+            SearchResult.SR_SEARCH_AUDIO_AUDIO,
+            FeedBack.FB_SEARCH_AUDIO_AUDIO,
+        ),
+        feedback_key=FeedBack.FB_SEARCH_AUDIO_AUDIO,
+        result_key=SearchResult.SR_SEARCH_AUDIO_AUDIO,
+        result_renderer=lambda data: _render_query_results_audio("🎤 検索結果", data),
+    )
+
+
 def _run_text_search(
     func: Callable[[str], dict[str, Any]],
     query: str,
@@ -43,7 +215,6 @@ def _run_text_search(
         result_key (SearchResult): 検索結果を保持するセッションキー
         feedback_key (FeedBack): フィードバック表示用キー
     """
-    logger.debug("trace")
 
     clear_feedback(feedback_key)
     clear_search_result(result_key)
@@ -57,7 +228,7 @@ def _run_text_search(
         with st.spinner("検索中です..."):
             result = func(text)
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         set_feedback(feedback_key, "error", f"検索に失敗しました: {e}")
     else:
         set_search_result(result_key, result)
@@ -78,7 +249,6 @@ def run_text_text_search_callback(
         result_key (SearchResult): 検索結果を保持するセッションキー
         feedback_key (FeedBack): フィードバック表示用キー
     """
-    logger.debug("trace")
 
     _run_text_search(
         func=client.query_text_text,
@@ -102,7 +272,6 @@ def run_text_image_search_callback(
         result_key (SearchResult): 検索結果を保持するセッションキー
         feedback_key (FeedBack): フィードバック表示用キー
     """
-    logger.debug("trace")
 
     _run_text_search(
         func=client.query_text_image,
@@ -126,7 +295,6 @@ def run_image_image_search_callback(
         result_key (SearchResult): 検索結果を保持するセッションキー
         feedback_key (FeedBack): フィードバック表示用キー
     """
-    logger.debug("trace")
 
     clear_feedback(feedback_key)
     clear_search_result(result_key)
@@ -140,7 +308,7 @@ def run_image_image_search_callback(
             saved = save_uploaded_files(client, [file_obj])[0]
             result = client.query_image_image(saved)
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         set_feedback(feedback_key, "error", f"画像検索に失敗しました: {e}")
     else:
         set_search_result(result_key, result)
@@ -161,7 +329,6 @@ def run_text_audio_search_callback(
         result_key (SearchResult): 検索結果を保持するセッションキー
         feedback_key (FeedBack): フィードバック表示用キー
     """
-    logger.debug("trace")
 
     _run_text_search(
         func=client.query_text_audio,
@@ -185,7 +352,6 @@ def run_audio_audio_search_callback(
         result_key (SearchResult): 検索結果を保持するセッションキー
         feedback_key (FeedBack): フィードバック表示用キー
     """
-    logger.debug("trace")
 
     clear_feedback(feedback_key)
     clear_search_result(result_key)
@@ -199,7 +365,7 @@ def run_audio_audio_search_callback(
             saved = save_uploaded_files(client, [file_obj])[0]
             result = client.query_audio_audio(saved)
     except Exception as e:
-        logger.error(e)
+        logger.exception(e)
         set_feedback(feedback_key, "error", f"音声検索に失敗しました: {e}")
     else:
         set_search_result(result_key, result)
@@ -213,7 +379,6 @@ def _render_query_results_text(title: str, result: dict[str, Any]) -> None:
         title (str): セクションタイトル
         result (dict[str, Any]): ragserver からの検索結果
     """
-    logger.debug("trace")
 
     st.subheader(title)
     documents = result.get("documents") if isinstance(result, dict) else None
@@ -240,7 +405,6 @@ def _render_query_results_image(title: str, result: dict[str, Any]) -> None:
         title (str): セクションタイトル
         result (dict[str, Any]): ragserver からの検索結果
     """
-    logger.debug("trace")
 
     st.subheader(title)
     documents = result.get("documents") if isinstance(result, dict) else None
@@ -256,7 +420,7 @@ def _render_query_results_image(title: str, result: dict[str, Any]) -> None:
         try:
             st.image(source, width="content")
         except Exception as e:
-            logger.warning(f"画像の表示に失敗しました: {e}")
+            logger.exception(e)
             st.warning("ファイル埋め込み画像等のため、表示できません。")
 
         st.markdown("##### ソース")
@@ -274,7 +438,6 @@ def _render_query_results_audio(title: str, result: dict[str, Any]) -> None:
         title (str): セクションタイトル
         result (dict[str, Any]): ragserver からの検索結果
     """
-    logger.debug("trace")
 
     st.subheader(title)
     documents = result.get("documents") if isinstance(result, dict) else None
@@ -291,7 +454,7 @@ def _render_query_results_audio(title: str, result: dict[str, Any]) -> None:
             # FIXME: フォーマット決め打ち
             st.audio(data=source, format="audio/mp3")
         except Exception as e:
-            logger.warning(f"音声の表示に失敗しました: {e}")
+            logger.exception(e)
             st.warning("ファイル埋め込み音声等のため、表示できません。")
 
         st.markdown("##### ソース")
@@ -308,7 +471,6 @@ def render_search_view(client: RagServerClient) -> None:
     Args:
         client (RagServerClient): ragserver API クライアント
     """
-    logger.debug("trace")
 
     st.title("🔎 検索")
     st.button(
@@ -316,115 +478,17 @@ def render_search_view(client: RagServerClient) -> None:
     )
     st.divider()
 
-    choice_text_text = "📝→📝"
-    choice_text_image = "📝→🖼️"
-    choice_image_image = "🖼️→🖼️"
-    choice_text_audio = "📝→🎤"
-    choice_audio_audio = "🎤→🎤"
-    options = [
-        choice_text_text,
-        choice_text_image,
-        choice_image_image,
-        choice_text_audio,
-        choice_audio_audio,
-    ]
-    choice = st.sidebar.selectbox("検索オプションを選択して下さい。", options)
+    choice_map: dict[str, Callable[[RagServerClient], None]] = {
+        "ﾃｷｽﾄ📝 → ﾃｷｽﾄ📝": _render_search_view_text_text,
+        "ﾃｷｽﾄ📝 → 画像🖼️": _render_search_view_text_image,
+        "画像🖼️ → 画像🖼️": _render_search_view_image_image,
+        "ﾃｷｽﾄ📝 → 音声🎤": _render_search_view_text_audio,
+        "音声🎤 → 音声🎤": _render_search_view_audio_audio,
+    }
+    choice = st.sidebar.selectbox(
+        "検索オプションを選択して下さい。", list(choice_map.keys())
+    )
 
-    if choice == choice_text_text:
-        st.subheader(f"{choice_text_text} テキストでテキストを検索")
-        st.caption("検索ワードに似た文脈を検索します。 例：「就業規則　一覧」")
-        text_text_query = st.text_input("検索ワード", key="text_text_query")
-        st.button(
-            "🔎 検索",
-            on_click=run_text_text_search_callback,
-            args=(
-                client,
-                text_text_query,
-                SearchResult.SR_SEARCH_TEXT_TEXT,
-                FeedBack.FB_SEARCH_TEXT_TEXT,
-            ),
-        )
-        display_feedback(FeedBack.FB_SEARCH_TEXT_TEXT)
-        text_text_result = st.session_state.get(SearchResult.SR_SEARCH_TEXT_TEXT)
-        if text_text_result is not None:
-            _render_query_results_text("📝 検索結果", text_text_result)
-
-    elif choice == choice_text_image:
-        st.subheader(f"{choice_text_image} テキストで画像を検索")
-        st.caption("検索ワードに似た画像を検索します。 例：「談笑している男女」")
-        text_image_query = st.text_input("検索ワード", key="text_image_query")
-        st.button(
-            "🔎 検索",
-            on_click=run_text_image_search_callback,
-            args=(
-                client,
-                text_image_query,
-                SearchResult.SR_SEARCH_TEXT_IMAGE,
-                FeedBack.FB_SEARCH_TEXT_IMAGE,
-            ),
-        )
-        display_feedback(FeedBack.FB_SEARCH_TEXT_IMAGE)
-        text_image_result = st.session_state.get(SearchResult.SR_SEARCH_TEXT_IMAGE)
-        if text_image_result is not None:
-            _render_query_results_image("🖼️ 検索結果", text_image_result)
-
-    elif choice == choice_image_image:
-        st.subheader(f"{choice_image_image} 画像で画像を検索")
-        st.caption("アップロードした画像に似た画像を検索します。")
-        image_file = st.file_uploader(
-            "検索したい画像を選択", key="image_query_uploader"
-        )
-        st.button(
-            "🔎 検索",
-            on_click=run_image_image_search_callback,
-            args=(
-                client,
-                image_file,
-                SearchResult.SR_SEARCH_IMAGE_IMAGE,
-                FeedBack.FB_SEARCH_IMAGE_IMAGE,
-            ),
-        )
-        display_feedback(FeedBack.FB_SEARCH_IMAGE_IMAGE)
-        image_image_result = st.session_state.get(SearchResult.SR_SEARCH_IMAGE_IMAGE)
-        if image_image_result is not None:
-            _render_query_results_image("🖼️ 検索結果", image_image_result)
-
-    elif choice == choice_text_audio:
-        st.subheader(f"{choice_text_audio} テキストで音声を検索")
-        st.caption("検索ワードに似た音声を検索します。 例：「車のクラクション」")
-        text_audio_query = st.text_input("検索ワード", key="text_audio_query")
-        st.button(
-            "🔎 検索",
-            on_click=run_text_audio_search_callback,
-            args=(
-                client,
-                text_audio_query,
-                SearchResult.SR_SEARCH_TEXT_AUDIO,
-                FeedBack.FB_SEARCH_TEXT_AUDIO,
-            ),
-        )
-        display_feedback(FeedBack.FB_SEARCH_TEXT_AUDIO)
-        text_audio_result = st.session_state.get(SearchResult.SR_SEARCH_TEXT_AUDIO)
-        if text_audio_result is not None:
-            _render_query_results_audio("🎤 検索結果", text_audio_result)
-
-    elif choice == choice_audio_audio:
-        st.subheader(f"{choice_audio_audio} 音声で音声を検索")
-        st.caption("アップロードした音声に似た音声を検索します。")
-        audio_file = st.file_uploader(
-            "検索したい音声を選択", key="audio_query_uploader"
-        )
-        st.button(
-            "🔎 検索",
-            on_click=run_audio_audio_search_callback,
-            args=(
-                client,
-                audio_file,
-                SearchResult.SR_SEARCH_AUDIO_AUDIO,
-                FeedBack.FB_SEARCH_AUDIO_AUDIO,
-            ),
-        )
-        display_feedback(FeedBack.FB_SEARCH_AUDIO_AUDIO)
-        audio_audio_result = st.session_state.get(SearchResult.SR_SEARCH_AUDIO_AUDIO)
-        if audio_audio_result is not None:
-            _render_query_results_audio("🎤 検索結果", audio_audio_result)
+    renderer = choice_map.get(choice)
+    if renderer is not None:
+        renderer(client)

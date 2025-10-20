@@ -68,7 +68,6 @@ class SearchResult(StrEnum):
 
 def ensure_session_state() -> None:
     """Streamlit のセッション状態を初期化する。"""
-    logger.debug("trace")
 
     _DEFAULT_STATUS_TEXT = "不明"
     current_view = st.session_state.get("view")
@@ -103,7 +102,6 @@ def set_view(view: View) -> None:
     Args:
         view (View): 遷移先ビュー識別子
     """
-    logger.debug("trace")
 
     st.session_state["view"] = view
     if view == View.MAIN:
@@ -118,7 +116,6 @@ def set_feedback(key: FeedBack | str, category: str, message: str) -> None:
         category (str): 表示カテゴリ
         message (str): 表示メッセージ
     """
-    logger.debug("trace")
 
     st.session_state[key] = {"category": category, "message": message}
 
@@ -129,7 +126,6 @@ def clear_feedback(key: FeedBack | str) -> None:
     Args:
         key (FeedBack | str): セッションステートのキー
     """
-    logger.debug("trace")
 
     st.session_state[key] = None
 
@@ -140,7 +136,6 @@ def display_feedback(key: FeedBack | str) -> None:
     Args:
         key (FeedBack | str): セッションステートのキー
     """
-    logger.debug("trace")
 
     payload = st.session_state.get(key)
     if not payload:
@@ -170,7 +165,6 @@ def set_search_result(
         key (SearchResult | str): セッションステートのキー
         result (Optional[dict[str, Any]]): 保存する検索結果
     """
-    logger.debug("trace")
 
     st.session_state[key] = result
 
@@ -181,6 +175,5 @@ def clear_search_result(key: SearchResult | str) -> None:
     Args:
         key (SearchResult | str): セッションステートのキー
     """
-    logger.debug("trace")
 
     st.session_state[key] = None

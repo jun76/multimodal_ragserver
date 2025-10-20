@@ -53,7 +53,6 @@ class VectorStoreManager:
             cache_load_limit (int): キャッシュロード件数上限
             check_update (bool, optional): ファイルの更新チェック要否。Defaults to True.
         """
-        logger.debug("trace")
 
         self._conts = conts
         self._embed = embed
@@ -102,7 +101,6 @@ class VectorStoreManager:
         Returns:
             VectorStoreIndex: インデックス
         """
-        logger.debug("trace")
 
         index = self.get_container(modality).index
         if index is None:
@@ -122,7 +120,6 @@ class VectorStoreManager:
         Returns:
             VectorStoreContainer: ベクトルストアコンテナ
         """
-        logger.debug("trace")
 
         cont = self._conts.get(modality)
         if cont is None:
@@ -136,7 +133,6 @@ class VectorStoreManager:
         Args:
             nodes (list[BaseNode]): 対象ノード
         """
-        logger.debug("trace")
 
         # fingerprint が既存・同一のノードは upsert しない
         nodes = self._filter_nodes_by_fp(nodes)
@@ -145,12 +141,19 @@ class VectorStoreManager:
             return
 
         text_nodes, image_nodes, audio_nodes = self._split_nodes_modality(nodes)
-        await self._aupsert_text(text_nodes)
-        await self._aupsert_image(image_nodes)
-        await self._aupsert_audio(audio_nodes)
+
+        if text_nodes:
+            await self._aupsert_text(text_nodes)
+
+        if image_nodes:
+            await self._aupsert_image(image_nodes)
+
+        if audio_nodes:
+            await self._aupsert_audio(audio_nodes)
 
         # キャッシュ登録
-        self._add_fp_cache(nodes)
+        if nodes:
+            self._add_fp_cache(nodes)
 
     def skip_update(self, source: str) -> bool:
         """ソースが登録済みであり、更新処理が不要か。
@@ -175,7 +178,6 @@ class VectorStoreManager:
         Returns:
             dict[str, str]: ソース情報対 fingerprint の KVS
         """
-        logger.debug("trace")
 
         rows = self._meta_store.select(
             cols=[MK.FILE_PATH, MK.URL, MK.FINGERPRINT],
@@ -207,7 +209,6 @@ class VectorStoreManager:
             tuple[list[TextNode], list[ImageNode], list[AudioNode]]:
                 テキストノード、画像ノード、音声ノード
         """
-        logger.debug("trace")
 
         text_nodes = []
         image_nodes = []
@@ -283,7 +284,6 @@ class VectorStoreManager:
         Args:
             nodes (list[TextNode]): 対象ノード
         """
-        logger.debug("trace")
 
         if len(nodes) == 0:
             logger.warning("empty list")
@@ -325,7 +325,7 @@ class VectorStoreManager:
         except Exception as e:
             raise RuntimeError("failed to upsert text") from e
 
-        logger.info(f"{len(valid_nodes)} nodes are upserted")
+        logger.info(f"{len(valid_nodes)} text nodes are upserted")
 
     async def _aupsert_fetched_content(
         self, nodes: Sequence[BaseNode], modality: Modality, aembed_func: Callable
@@ -338,7 +338,6 @@ class VectorStoreManager:
         Args:
             nodes (Itarable[BaseNode]): 対象ノード
         """
-        logger.debug("trace")
 
         if len(nodes) == 0:
             logger.warning("empty list")
@@ -402,7 +401,7 @@ class VectorStoreManager:
             for path in temp_file_paths:
                 os.remove(path)
 
-        logger.info(f"{len(valid_nodes)} nodes are upserted")
+        logger.info(f"{len(valid_nodes)} {modality} nodes are upserted")
 
     async def _aupsert_image(self, nodes: list[ImageNode]) -> None:
         """画像を埋め込み、ストアに格納する。
@@ -413,7 +412,6 @@ class VectorStoreManager:
         Args:
             nodes (list[ImageNode]): 対象ノード
         """
-        logger.debug("trace")
 
         await self._aupsert_fetched_content(
             nodes=nodes, modality=Modality.IMAGE, aembed_func=self._embed.aembed_image
@@ -428,7 +426,6 @@ class VectorStoreManager:
         Args:
             nodes (list[AudioNode]): 対象ノード
         """
-        logger.debug("trace")
 
         await self._aupsert_fetched_content(
             nodes=nodes, modality=Modality.AUDIO, aembed_func=self._embed.aembed_audio
@@ -446,7 +443,6 @@ class VectorStoreManager:
         Returns:
             VectorStoreIndex: 生成したインデックス
         """
-        logger.debug("trace")
 
         match modality:
             case Modality.TEXT:
@@ -475,7 +471,6 @@ class VectorStoreManager:
         Args:
             nodes (list[BaseNode]): 追加するノード
         """
-        logger.debug("trace")
 
         for node in nodes:
             meta = BasicMetaData().from_dict(node.metadata)
@@ -491,6 +486,7 @@ class VectorStoreManager:
             # fingerprint キャッシュになければ追加（＝次回以降スキップ）
             if source not in self._fp_cache:
                 self._fp_cache[source] = self._get_lazy_fp(meta)
+                logger.info(f"new source detected. add cache: {source}")
 
     def _get_lazy_fp(self, meta: BasicMetaData) -> str:
         """fingerprint を取得する。
@@ -528,7 +524,6 @@ class VectorStoreManager:
         Returns:
             list[BaseNode]: フィルター後のノード
         """
-        logger.debug("trace")
 
         filtered: list[BaseNode] = []
 

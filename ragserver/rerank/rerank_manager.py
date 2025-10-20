@@ -26,7 +26,6 @@ class RerankManager:
         Args:
             cont (RerankContainer): リランクコンテナ
         """
-        logger.debug("trace")
 
         self._cont = cont
 
@@ -54,7 +53,6 @@ class RerankManager:
         Raises:
             RuntimeError: リランカーが処理に失敗した場合
         """
-        logger.debug("trace")
 
         if self._cont is None:
             logger.warning("rerank provider is not specified")

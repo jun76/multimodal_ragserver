@@ -16,7 +16,6 @@ def create_meta_store() -> Structured:
     Returns:
         Structured: メタデータ用ストア
     """
-    logger.debug("trace")
 
     try:
         meta_store = SQLiteStructured()

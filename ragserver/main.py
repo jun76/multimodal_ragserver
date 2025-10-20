@@ -99,7 +99,6 @@ def _nodes_to_response(nodes: list[NodeWithScore]) -> list[dict[str, Any]]:
     Returns:
         list[dict[str, Any]]: JSON 変換済みノードリスト
     """
-    logger.debug("trace")
 
     return [
         {"text": node.text, "metadata": node.metadata, "score": node.score}
@@ -114,7 +113,7 @@ async def health() -> dict[str, Any]:
     Returns:
         dict[str, Any]: 結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/health")
 
     return {
         "status": "ok",
@@ -138,7 +137,7 @@ async def upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
     Returns:
         dict[str, Any]: 結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/upload")
 
     try:
         upload_dir = Path(IngestConfig.upload_dir).absolute()
@@ -198,7 +197,7 @@ async def query_text_text(payload: QueryTextRequest) -> dict[str, Any]:
     Returns:
         dict[str, Any]: 検索結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/query/text_text")
 
     if Modality.TEXT not in _embed.modality:
         raise HTTPException(
@@ -237,7 +236,7 @@ async def query_text_image(payload: QueryTextRequest) -> dict[str, Any]:
     Returns:
         dict[str, Any]: 検索結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/query/text_image")
 
     if Modality.IMAGE not in _embed.modality:
         raise HTTPException(
@@ -276,7 +275,7 @@ async def query_image_image(payload: QueryMultimodalRequest) -> dict[str, Any]:
     Returns:
         dict[str, Any]: 検索結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/query/image_image")
 
     if Modality.IMAGE not in _embed.modality:
         raise HTTPException(
@@ -314,7 +313,7 @@ async def query_text_audio(payload: QueryTextRequest) -> dict[str, Any]:
     Returns:
         dict[str, Any]: 検索結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/query/text_audio")
 
     if Modality.AUDIO not in _embed.modality:
         raise HTTPException(
@@ -353,7 +352,7 @@ async def query_audio_audio(payload: QueryMultimodalRequest) -> dict[str, Any]:
     Returns:
         dict[str, Any]: 検索結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/query/audio_audio")
 
     if Modality.AUDIO not in _embed.modality:
         raise HTTPException(
@@ -392,7 +391,7 @@ async def ingest_path(payload: PathRequest) -> dict[str, str]:
     Returns:
         dict[str, str]: 実行結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/ingest/path")
 
     await run_in_threadpool(_request_lock.acquire)
     try:
@@ -423,7 +422,7 @@ async def ingest_path_list(payload: PathRequest) -> dict[str, str]:
     Returns:
         dict[str, str]: 実行結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/ingest/path_list")
 
     await run_in_threadpool(_request_lock.acquire)
     try:
@@ -455,7 +454,7 @@ async def ingest_url(payload: URLRequest) -> dict[str, str]:
     Returns:
         dict[str, str]: 実行結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/ingest/url")
 
     await run_in_threadpool(_request_lock.acquire)
     try:
@@ -486,7 +485,7 @@ async def ingest_url_list(payload: PathRequest) -> dict[str, str]:
     Returns:
         dict[str, str]: 実行結果
     """
-    logger.debug("trace")
+    logger.info("exec /v1/ingest/url_list")
 
     await run_in_threadpool(_request_lock.acquire)
     try:

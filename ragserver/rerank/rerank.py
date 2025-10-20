@@ -21,7 +21,6 @@ def create_rerank_manager() -> RerankManager:
     Returns:
         RerankManager: リランク管理
     """
-    logger.debug("trace")
 
     try:
         match GeneralConfig.rerank_provider:
@@ -43,7 +42,6 @@ def _cohere() -> RerankContainer:
     Returns:
         RerankContainer: コンテナ
     """
-    logger.debug("trace")
 
     return RerankContainer(
         provider_name=RerankProvider.COHERE,
@@ -59,7 +57,6 @@ def _flagembedding() -> RerankContainer:
     Returns:
         RerankContainer: コンテナ
     """
-    logger.debug("trace")
 
     return RerankContainer(
         provider_name=RerankProvider.FLAGEMBEDDING,

@@ -31,7 +31,6 @@ class FileLoader(Loader):
             chunk_overlap (int): チャンク重複語数
             store (VectorStoreManager): 登録済みソースの判定に使用
         """
-        logger.debug("trace")
 
         Loader.__init__(self, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._store = store
@@ -97,7 +96,6 @@ class FileLoader(Loader):
         Returns:
             list[BaseNode]: 生成したノード
         """
-        logger.debug("trace")
 
         try:
             path = Path(root)
@@ -159,7 +157,6 @@ class FileLoader(Loader):
         Returns:
             list[BaseNode]: 生成したノード
         """
-        logger.debug("trace")
 
         paths = self._read_sources_from_file(list_path)
 

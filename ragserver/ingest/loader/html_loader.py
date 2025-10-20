@@ -48,7 +48,6 @@ class HTMLLoader(Loader):
             user_agent (str, optional): GET リクエスト時の user agent。Defaults to GeneralConfig.project_name.
             same_origin (bool, optional): True なら同一オリジンのみ対象。Defaults to True.
         """
-        logger.debug("trace")
 
         Loader.__init__(self, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self._file_loader = file_loader
@@ -72,7 +71,6 @@ class HTMLLoader(Loader):
         Returns:
             requests.Response: 取得した Response データ
         """
-        logger.debug("trace")
 
         headers = {"User-Agent": self._user_agent}
         res: Optional[requests.Response] = None
@@ -107,7 +105,6 @@ class HTMLLoader(Loader):
         Returns:
             str: レスポンス本文
         """
-        logger.debug("trace")
 
         try:
             res = await self._arequest_get(url)
@@ -126,7 +123,6 @@ class HTMLLoader(Loader):
         Returns:
             bool: True は直リンク
         """
-        logger.debug("trace")
 
         parsed = urlparse(url)
         path = parsed.path or ""
@@ -156,7 +152,6 @@ class HTMLLoader(Loader):
         Returns:
             list[str]: 収集した絶対 URL
         """
-        logger.debug("trace")
 
         seen = set()
         out = []
@@ -217,7 +212,6 @@ class HTMLLoader(Loader):
         Returns:
             Optional[str]: ローカルの一時ファイルパス
         """
-        logger.debug("trace")
 
         if not Exts.endswith_exts(url, allowed_exts):
             logger.warning(f"unsupported ext. {' '.join(allowed_exts)} are allowed.")
@@ -261,7 +255,6 @@ class HTMLLoader(Loader):
         Returns:
             Optional[BaseNode]: 生成したノード
         """
-        logger.debug("trace")
 
         temp_file_path = await self._adownload_direct_linked_file(
             url=url, allowed_exts=Exts.FETCH_TARGET
@@ -291,7 +284,6 @@ class HTMLLoader(Loader):
         Returns:
             list[BaseNode]: 生成したノード
         """
-        logger.debug("trace")
 
         try:
             reader = SimpleWebPageReader(html_to_text=True)
@@ -329,7 +321,6 @@ class HTMLLoader(Loader):
         Returns:
             list[BaseNode]: 生成したノード
         """
-        logger.debug("trace")
 
         html = await self._afetch_text(base_url)
         urls = self._gather_asset_links(
@@ -367,7 +358,6 @@ class HTMLLoader(Loader):
         Returns:
             list[BaseNode]: 生成したノード
         """
-        logger.debug("trace")
 
         if urlparse(url).scheme not in {"http", "https"}:
             logger.error("invalid URL. expected http(s)://*")
@@ -410,7 +400,6 @@ class HTMLLoader(Loader):
         Returns:
             list[BaseNode]: 生成したノード
         """
-        logger.debug("trace")
 
         # サイトマップ以外は単一のサイトとして読み込み
         if not Exts.endswith_exts(url, Exts.SITEMAP):
@@ -445,7 +434,6 @@ class HTMLLoader(Loader):
         Returns:
             list[BaseNode]: 生成したノード
         """
-        logger.debug("trace")
 
         urls = self._read_sources_from_file(list_path)
 

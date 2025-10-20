@@ -37,7 +37,6 @@ def register_uploaded_files_callback(
         feedback_key (FeedBack): フィードバック表示用キー
 
     """
-    logger.debug("trace")
 
     clear_feedback(feedback_key)
     if not files:
@@ -50,6 +49,7 @@ def register_uploaded_files_callback(
             for path in saved_paths:
                 client.ingest_path(path)
     except Exception as e:
+        logger.exception(e)
         set_feedback(feedback_key, "error", f"ファイルの取り込みに失敗しました: {e}")
     else:
         set_feedback(feedback_key, "success", "取り込みが完了しました")
@@ -66,7 +66,6 @@ def register_url_callback(
         feedback_key (FeedBack): フィードバック表示用キー
 
     """
-    logger.debug("trace")
 
     clear_feedback(feedback_key)
     url = (url_value or "").strip()
@@ -78,6 +77,7 @@ def register_url_callback(
         with st.spinner("URL を取り込み中です..."):
             client.ingest_url(url)
     except Exception as e:
+        logger.exception(e)
         set_feedback(feedback_key, "error", f"URL の取り込みに失敗しました: {e}")
     else:
         set_feedback(feedback_key, "success", "URL の取り込みが完了しました")
@@ -96,7 +96,6 @@ def register_url_list_callback(
         feedback_key (FeedBack): フィードバック表示用キー
 
     """
-    logger.debug("trace")
 
     clear_feedback(feedback_key)
     if file_obj is None:
@@ -108,6 +107,7 @@ def register_url_list_callback(
             saved = save_uploaded_files(client, [file_obj])[0]
             client.ingest_url_list(saved)
     except Exception as e:
+        logger.exception(e)
         set_feedback(feedback_key, "error", f"URL リストの取り込みに失敗しました: {e}")
     else:
         set_feedback(feedback_key, "success", "URL リストの取り込みが完了しました")
@@ -120,7 +120,6 @@ def render_ingest_view(client: RagServerClient) -> None:
         client (RagServerClient): ragserver API クライアント
 
     """
-    logger.debug("trace")
 
     st.title("📝 ナレッジ登録")
     st.button("⬅️ メニューに戻る", on_click=set_view, args=(View.MAIN,))

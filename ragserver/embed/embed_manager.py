@@ -29,7 +29,6 @@ class EmbedManager:
         Args:
             conts (dict[Modality, EmbedContainer]): 埋め込みコンテナの辞書
         """
-        logger.debug("trace")
 
         self._conts = conts.copy()
 
@@ -106,7 +105,6 @@ class EmbedManager:
         Returns:
             EmbedContainer: 埋め込みコンテナ
         """
-        logger.debug("trace")
 
         cont = self._conts.get(modality)
         if cont is None:
@@ -126,7 +124,6 @@ class EmbedManager:
         Returns:
             list[Embedding]: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         embed = self.get_container(Modality.TEXT).embed
         logger.info(f"now batch embedding {len(texts)} texts...")
@@ -145,7 +142,6 @@ class EmbedManager:
         Returns:
             list[Embedding]: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         embed = self.get_container(Modality.IMAGE).embed
         if not isinstance(embed, MultiModalEmbedding):
@@ -169,7 +165,6 @@ class EmbedManager:
         Returns:
             list[Embedding]: 埋め込みベクトル
         """
-        logger.debug("trace")
 
         embed = self.get_container(Modality.AUDIO).embed
         if not isinstance(embed, AudioEmbedding):
@@ -198,7 +193,6 @@ class EmbedManager:
         Returns:
             str: 整形後の space_key
         """
-        logger.debug("trace")
 
         allowed = set(
             "abcdefghijklmnopqrstuvwxyz" "ABCDEFGHIJKLMNOPQRSTUVWXYZ" "0123456789" "_"
@@ -236,7 +230,6 @@ class EmbedManager:
         Returns:
             str: 空間キー文字列
         """
-        logger.debug("trace")
 
         space_key = self._sanitize_space_key(f"{provider}_{model}_{modality}")
         logger.info(f"space_key [{space_key}] generated")

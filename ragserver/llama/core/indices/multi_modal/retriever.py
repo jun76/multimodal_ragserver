@@ -41,7 +41,6 @@ class AudioEncoders:
         Returns:
             AudioEncoders: テキスト・音声エンコーダを含むインスタンス
         """
-        logger.debug("trace")
 
         if embed_model is None:
             return cls()
@@ -49,13 +48,11 @@ class AudioEncoders:
         if hasattr(embed_model, "aget_text_embedding_batch"):
 
             async def encode_text(queries: list[str]) -> list[Embeddings]:
-                logger.debug("trace")
                 return await embed_model.aget_text_embedding_batch(texts=queries)  # type: ignore[attr-defined]
 
         if hasattr(embed_model, "aget_audio_embedding_batch"):
 
             async def encode_audio(paths: list[str]) -> list[Embeddings]:
-                logger.debug("trace")
                 return await embed_model.aget_audio_embedding_batch(  # type: ignore[attr-defined]
                     audio_file_paths=paths
                 )
@@ -71,7 +68,6 @@ class AudioEncoders:
         Returns:
             list[Embeddings]: テキスト埋め込みベクトルのリスト
         """
-        logger.debug("trace")
 
         if self.text_encoder is None:
             raise RuntimeError("text encoder for audio retrieval is not available")
@@ -87,7 +83,6 @@ class AudioEncoders:
         Returns:
             list[Embeddings]: 音声埋め込みベクトルのリスト
         """
-        logger.debug("trace")
 
         if self.audio_encoder is None:
             raise RuntimeError("audio encoder for audio retrieval is not available")
@@ -122,7 +117,6 @@ class AudioRetriever(BaseRetriever):
             doc_ids (Optional[list[str]], optional): 対象ドキュメント ID の制限。Defaults to None.
             vector_store_kwargs (Optional[dict], optional): ベクトルストアへ渡す追加パラメータ。Defaults to None.
         """
-        logger.debug("trace")
 
         self._index = index
         self._vector_store = index.vector_store
@@ -164,7 +158,6 @@ class AudioRetriever(BaseRetriever):
         Returns:
             list[NodeWithScore]: 類似ノードのリスト
         """
-        logger.debug("trace")
 
         if query_bundle.embedding is None:
             raise RuntimeError("embedding is required for async retrieval")
@@ -185,7 +178,6 @@ class AudioRetriever(BaseRetriever):
         Returns:
             list[NodeWithScore]: 類似ノードのリスト
         """
-        logger.debug("trace")
 
         if isinstance(query, QueryBundle):
             query_str = query.query_str
@@ -214,7 +206,6 @@ class AudioRetriever(BaseRetriever):
         Returns:
             list[NodeWithScore]: 類似ノードのリスト
         """
-        logger.debug("trace")
 
         embedding = (await self._encoders.aencode_audio([audio_path]))[0]  # type: ignore
 
@@ -234,7 +225,6 @@ class AudioRetriever(BaseRetriever):
         Returns:
             list[NodeWithScore]: 類似ノードのリスト
         """
-        logger.debug("trace")
 
         query = VectorStoreQuery(
             query_embedding=list(embedding),
@@ -261,7 +251,6 @@ class AudioRetriever(BaseRetriever):
         Returns:
             list[NodeWithScore]: 変換後のノード一覧
         """
-        logger.debug("trace")
 
         nodes: Iterable[BaseNode] = query_result.nodes or []
         nodes = list(nodes)

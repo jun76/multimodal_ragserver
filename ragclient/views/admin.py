@@ -33,7 +33,6 @@ def register_local_path_callback(
         path_value (str): 取り込み対象パス
         feedback_key (FeedBack): フィードバック表示用キー
     """
-    logger.debug("trace")
 
     clear_feedback(feedback_key)
     path = (path_value or "").strip()
@@ -45,6 +44,7 @@ def register_local_path_callback(
         with st.spinner("パスを取り込み中です..."):
             client.ingest_path(path)
     except Exception as e:
+        logger.exception(e)
         set_feedback(feedback_key, "error", f"パスの取り込みに失敗しました: {e}")
     else:
         set_feedback(feedback_key, "success", "パスの取り込みが完了しました")
@@ -62,7 +62,6 @@ def register_path_list_callback(
         file_obj (Any): アップロードされたパスリストファイル
         feedback_key (FeedBack): フィードバック表示用キー
     """
-    logger.debug("trace")
 
     clear_feedback(feedback_key)
     if file_obj is None:
@@ -74,6 +73,7 @@ def register_path_list_callback(
             saved = save_uploaded_files(client, [file_obj])[0]
             client.ingest_path_list(saved)
     except Exception as e:
+        logger.exception(e)
         set_feedback(feedback_key, "error", f"パスリストの取り込みに失敗しました: {e}")
     else:
         set_feedback(feedback_key, "success", "パスリストの取り込みが完了しました")
@@ -85,7 +85,6 @@ def render_admin_view(client: RagServerClient) -> None:
     Args:
         client (RagServerClient): ragserver API クライアント
     """
-    logger.debug("trace")
 
     st.title("🛠️ 管理メニュー")
     st.button(

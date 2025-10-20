@@ -94,7 +94,6 @@ class SQLiteStructured(Structured):
         Raises:
             RuntimeError: 初期化失敗
         """
-        logger.debug("trace")
 
         self._db_path = f"{GeneralConfig.project_name}_metas.db"
 
@@ -107,7 +106,6 @@ class SQLiteStructured(Structured):
 
     def __del__(self) -> None:
         """デストラクタ"""
-        logger.debug("trace")
 
         self._sync_db.close()
 
@@ -120,7 +118,6 @@ class SQLiteStructured(Structured):
         Raises:
             RuntimeError: テーブル作成失敗
         """
-        logger.debug("trace")
 
         try:
             self._sync_db.execute("BEGIN")
@@ -180,7 +177,6 @@ class SQLiteStructured(Structured):
         Raises:
             RuntimeError: upsert 失敗
         """
-        logger.debug("trace")
 
         sql = DML_UPSERT_METADATA.format(
             table_name=table_name,
@@ -229,7 +225,6 @@ class SQLiteStructured(Structured):
         Raises:
             RuntimeError: upsert 失敗
         """
-        logger.debug("trace")
 
         if table_name not in self._created:
             self._prepare_with(table_name)
@@ -267,7 +262,6 @@ class SQLiteStructured(Structured):
         Returns:
             list[tuple]: 取得したレコード群
         """
-        logger.debug("trace")
 
         for table_name in table_names:
             if table_name not in self._created:

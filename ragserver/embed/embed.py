@@ -25,7 +25,6 @@ def create_embed_manager() -> EmbedManager:
     Returns:
         EmbedManager: 埋め込み管理
     """
-    logger.debug("trace")
 
     try:
         conts: dict[Modality, EmbedContainer] = {}

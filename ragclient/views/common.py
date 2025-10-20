@@ -34,7 +34,6 @@ def save_uploaded_files(client: RagServerClient, files: list[Any]) -> list[str]:
     Raises:
         RuntimeError: 応答データが不正な場合
     """
-    logger.debug("trace")
 
     payload: list[tuple[str, bytes, Optional[str]]] = []
     for uploaded in files:

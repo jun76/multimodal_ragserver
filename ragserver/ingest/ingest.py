@@ -26,7 +26,6 @@ async def aingest_from_path(
         store (VectorStoreManager): ベクトルストア
         file_loader (FileLoader): ファイル読み込み用
     """
-    logger.debug("trace")
 
     nodes = await file_loader.aload_from_path(path)
     await store.aupsert_nodes(nodes)
@@ -44,7 +43,6 @@ async def aingest_from_path_list(
         store (VectorStoreManager): ベクトルストア
         file_loader (FileLoader): ファイル読み込み用
     """
-    logger.debug("trace")
 
     nodes = await file_loader.aload_from_path_list(list_path)
     await store.aupsert_nodes(nodes)
@@ -63,7 +61,6 @@ async def aingest_from_url(
         store (VectorStoreManager): ベクトルストア
         html_loader (HTMLLoader): HTML 読み込み用
     """
-    logger.debug("trace")
 
     nodes = await html_loader.aload_from_url(url)
     await store.aupsert_nodes(nodes)
@@ -81,7 +78,6 @@ async def aingest_from_url_list(
         store (VectorStoreManager): ベクトルストア
         html_loader (HTMLLoader): HTML 読み込み用
     """
-    logger.debug("trace")
 
     nodes = await html_loader.aload_from_url_list(list_path)
     await store.aupsert_nodes(nodes)
