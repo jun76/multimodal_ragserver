@@ -6,7 +6,7 @@ from typing import Optional
 from llama_index.core.postprocessor.types import BaseNodePostprocessor
 from llama_index.core.schema import NodeWithScore
 
-from ragserver.logger import logger
+from ..logger import logger
 
 
 @dataclass

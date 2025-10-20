@@ -6,9 +6,9 @@ from llama_index.core.base.embeddings.base import BaseEmbedding, Embedding
 from llama_index.core.embeddings.multi_modal_base import MultiModalEmbedding
 from llama_index.core.schema import ImageType
 
-from ragserver.llama.core.schema import Modality
-from ragserver.llama.embeddings.multi_modal_base import AudioEmbedding, AudioType
-from ragserver.logger import logger
+from ..llama.core.schema import Modality
+from ..llama.embeddings.multi_modal_base import AudioEmbedding, AudioType
+from ..logger import logger
 
 
 @dataclass

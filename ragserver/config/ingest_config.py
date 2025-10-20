@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ragserver.config.settings import Settings
+from .settings import Settings
 
 
 @dataclass(kw_only=True, frozen=True)

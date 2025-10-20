@@ -9,12 +9,12 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
-from ragclient.api_client import RagServerClient
-from ragclient.config.config import Config
-from ragclient.config.settings import LLMProvider
-from ragclient.logger import logger
-from ragclient.state import FeedBack, SearchResult
-from ragclient.views.search import (
+from .api_client import RagServerClient
+from .config.config import Config
+from .config.settings import LLMProvider
+from .logger import logger
+from .state import FeedBack, SearchResult
+from .views.search import (
     run_image_image_search_callback,
     run_text_image_search_callback,
     run_text_text_search_callback,

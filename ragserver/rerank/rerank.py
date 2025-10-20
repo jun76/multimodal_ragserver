@@ -3,11 +3,11 @@ from __future__ import annotations
 from llama_index.postprocessor.cohere_rerank import CohereRerank
 from llama_index.postprocessor.flag_embedding_reranker import FlagEmbeddingReranker
 
-from ragserver.config.general_config import GeneralConfig
-from ragserver.config.rerank_config import RerankConfig
-from ragserver.config.settings import RerankProvider
-from ragserver.logger import logger
-from ragserver.rerank.rerank_manager import RerankContainer, RerankManager
+from ..config.general_config import GeneralConfig
+from ..config.rerank_config import RerankConfig
+from ..config.settings import RerankProvider
+from ..logger import logger
+from .rerank_manager import RerankContainer, RerankManager
 
 __all__ = ["create_rerank_manager"]
 

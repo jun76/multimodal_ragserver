@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ragserver.core.metadata import BasicMetaData
+from ...core.metadata import BasicMetaData
 
 
 class Structured(ABC):

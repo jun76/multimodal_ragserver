@@ -13,13 +13,13 @@ from llama_index.core.schema import BaseNode, TextNode
 from llama_index.readers.web.simple_web.base import SimpleWebPageReader
 from llama_index.readers.web.sitemap.base import SitemapReader
 
-from ragserver.config.general_config import GeneralConfig
-from ragserver.core.exts import Exts
-from ragserver.core.metadata import BasicMetaData
-from ragserver.ingest.loader.file_loader import FileLoader
-from ragserver.ingest.loader.loader import Loader
-from ragserver.logger import logger
-from ragserver.vector_store.vector_store_manager import VectorStoreManager
+from ...config.general_config import GeneralConfig
+from ...core.exts import Exts
+from ...core.metadata import BasicMetaData
+from .file_loader import FileLoader
+from .loader import Loader
+from ...logger import logger
+from ...vector_store.vector_store_manager import VectorStoreManager
 
 
 class HTMLLoader(Loader):

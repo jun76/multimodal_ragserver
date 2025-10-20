@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from ragserver.ingest.loader.file_loader import FileLoader
-from ragserver.ingest.loader.html_loader import HTMLLoader
-from ragserver.logger import logger
-from ragserver.vector_store.vector_store_manager import VectorStoreManager
+from .loader.file_loader import FileLoader
+from .loader.html_loader import HTMLLoader
+from ..logger import logger
+from ..vector_store.vector_store_manager import VectorStoreManager
 
 __all__ = [
     "aingest_from_path",

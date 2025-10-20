@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import streamlit as st
 
-from ragclient.agent import configure_agent_context, execute_rag_search
-from ragclient.api_client import RagServerClient
-from ragclient.config.config import Config
-from ragclient.config.settings import LLMProvider
-from ragclient.logger import logger
-from ragclient.state import View, set_view
+from ..agent import configure_agent_context, execute_rag_search
+from ..api_client import RagServerClient
+from ..config.config import Config
+from ..config.settings import LLMProvider
+from ..logger import logger
+from ..state import View, set_view
 from .common import emojify_robot
 
 __all__ = ["render_ragsearch_view"]

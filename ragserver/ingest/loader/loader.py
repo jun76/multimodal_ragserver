@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ragserver.logger import logger
+from ...logger import logger
 
 
 class Loader:

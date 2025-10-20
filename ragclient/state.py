@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 import streamlit as st
 
-from ragclient.logger import logger
+from .logger import logger
 
 __all__ = [
     "View",

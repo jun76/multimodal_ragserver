@@ -6,11 +6,11 @@ from typing import Any, Iterable, Sequence
 
 import aiosqlite
 
-from ragserver.config.general_config import GeneralConfig
-from ragserver.core.metadata import META_KEYS as MK
-from ragserver.core.metadata import BasicMetaData
-from ragserver.logger import logger
-from ragserver.meta_store.structured.structured import Structured
+from ...config.general_config import GeneralConfig
+from ...core.metadata import META_KEYS as MK
+from ...core.metadata import BasicMetaData
+from ...logger import logger
+from .structured import Structured
 
 # メタデータ管理テーブルの create 用
 # カラムを追加する場合、PRIMARY KEY への追加が必要なら足し忘れに注意

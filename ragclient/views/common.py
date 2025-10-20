@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from ragclient.api_client import RagServerClient
-from ragclient.logger import logger
+from ..api_client import RagServerClient
+from ..logger import logger
 
 __all__ = ["emojify_robot", "save_uploaded_files"]
 

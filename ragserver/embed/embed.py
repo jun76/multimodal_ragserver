@@ -5,13 +5,13 @@ from llama_index.embeddings.cohere.base import CohereEmbedding
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.embeddings.openai.base import OpenAIEmbedding
 
-from ragserver.config.embed_config import EmbedConfig
-from ragserver.config.general_config import GeneralConfig
-from ragserver.config.settings import EmbedProvider
-from ragserver.embed.embed_manager import EmbedContainer, EmbedManager
-from ragserver.llama.core.schema import Modality
-from ragserver.llama.embeddings.clap import ClapEmbedding
-from ragserver.logger import logger
+from ..config.embed_config import EmbedConfig
+from ..config.general_config import GeneralConfig
+from ..config.settings import EmbedProvider
+from .embed_manager import EmbedContainer, EmbedManager
+from ..llama.core.schema import Modality
+from ..llama.embeddings.clap import ClapEmbedding
+from ..logger import logger
 
 __all__ = ["create_embed_manager"]
 

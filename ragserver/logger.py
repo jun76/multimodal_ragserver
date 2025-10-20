@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from ragserver.config.general_config import GeneralConfig
+from .config.general_config import GeneralConfig
 
 
 class Color:

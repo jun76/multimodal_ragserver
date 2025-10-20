@@ -17,7 +17,7 @@ from llama_index.core.vector_stores.types import (
 Embeddings = Sequence[float]
 
 
-from ragserver.logger import logger
+from .....logger import logger
 
 
 @dataclass

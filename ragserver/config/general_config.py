@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-from ragserver.config.settings import (
+from .settings import (
     EmbedProvider,
     RerankProvider,
     Settings,

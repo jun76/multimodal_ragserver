@@ -5,7 +5,7 @@ from typing import Literal, Optional
 
 from pydantic import SecretStr
 
-from ragclient.config.settings import LLMProvider, Settings, VectorStoreProvider
+from .settings import LLMProvider, Settings, VectorStoreProvider
 
 
 @dataclass(kw_only=True, frozen=True)

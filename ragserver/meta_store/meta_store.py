@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from ragserver.logger import logger
-from ragserver.meta_store.structured.sqlite_structured import SQLiteStructured
-from ragserver.meta_store.structured.structured import Structured
+from ..logger import logger
+from .structured.sqlite_structured import SQLiteStructured
+from .structured.structured import Structured
 
 __all__ = ["create_meta_store"]
 

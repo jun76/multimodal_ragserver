@@ -4,9 +4,9 @@ from typing import Any, Optional
 
 import streamlit as st
 
-from ragclient.api_client import RagServerClient
-from ragclient.logger import logger
-from ragclient.state import (
+from ..api_client import RagServerClient
+from ..logger import logger
+from ..state import (
     FeedBack,
     View,
     clear_feedback,

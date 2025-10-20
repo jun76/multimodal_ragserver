@@ -9,12 +9,12 @@ from llama_index.core.readers.base import BaseReader
 from llama_index.core.readers.file.base import SimpleDirectoryReader
 from llama_index.core.schema import BaseNode
 
-from ragserver.core.exts import Exts
-from ragserver.core.metadata import BasicMetaData
-from ragserver.ingest.loader.loader import Loader
-from ragserver.ingest.loader.reader.pdf_reader import MultiPDFReader
-from ragserver.logger import logger
-from ragserver.vector_store.vector_store_manager import VectorStoreManager
+from ...core.exts import Exts
+from ...core.metadata import BasicMetaData
+from .loader import Loader
+from .reader.pdf_reader import MultiPDFReader
+from ...logger import logger
+from ...vector_store.vector_store_manager import VectorStoreManager
 
 
 class FileLoader(Loader):

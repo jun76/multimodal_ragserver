@@ -5,11 +5,11 @@ from typing import Optional
 from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
 from llama_index.core.schema import NodeWithScore
 
-from ragserver.llama.core.indices.multi_modal.retriever import AudioRetriever
-from ragserver.llama.core.schema import Modality
-from ragserver.logger import logger
-from ragserver.rerank.rerank_manager import RerankManager
-from ragserver.vector_store.vector_store_manager import VectorStoreManager
+from ..llama.core.indices.multi_modal.retriever import AudioRetriever
+from ..llama.core.schema import Modality
+from ..logger import logger
+from ..rerank.rerank_manager import RerankManager
+from ..vector_store.vector_store_manager import VectorStoreManager
 
 __all__ = [
     "aquery_text_text",

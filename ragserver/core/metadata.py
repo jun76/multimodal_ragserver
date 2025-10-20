@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Optional
 
-from ragserver.logger import logger
+from ..logger import logger
 
 
 class META_KEYS_FROM:

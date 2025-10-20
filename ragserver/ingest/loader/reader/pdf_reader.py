@@ -8,10 +8,10 @@ from fitz import Document as FDoc
 from llama_index.core.readers.base import BaseReader
 from llama_index.core.schema import Document
 
-from ragserver.config.general_config import GeneralConfig
-from ragserver.core.exts import Exts
-from ragserver.core.metadata import BasicMetaData
-from ragserver.logger import logger
+from ....config.general_config import GeneralConfig
+from ....core.exts import Exts
+from ....core.metadata import BasicMetaData
+from ....logger import logger
 
 
 class MultiPDFReader(BaseReader):

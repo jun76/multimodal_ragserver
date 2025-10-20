@@ -5,8 +5,8 @@ from typing import Any, Optional
 import requests
 import streamlit as st
 
-from ragclient.logger import logger
-from ragclient.state import View, set_view
+from ..logger import logger
+from ..state import View, set_view
 from .common import emojify_robot
 
 __all__ = ["render_main_menu"]

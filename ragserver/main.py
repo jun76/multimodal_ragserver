@@ -13,19 +13,19 @@ from llama_index.core.schema import NodeWithScore
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from ragserver.config.general_config import GeneralConfig
-from ragserver.config.ingest_config import IngestConfig
-from ragserver.config.rerank_config import RerankConfig
-from ragserver.embed.embed import create_embed_manager
-from ragserver.ingest import ingest
-from ragserver.ingest.loader.file_loader import FileLoader
-from ragserver.ingest.loader.html_loader import HTMLLoader
-from ragserver.llama.core.schema import Modality
-from ragserver.logger import logger
-from ragserver.meta_store.meta_store import create_meta_store
-from ragserver.rerank.rerank import create_rerank_manager
-from ragserver.retrieve import retrieve
-from ragserver.vector_store.vector_store import create_vector_store_manager
+from .config.general_config import GeneralConfig
+from .config.ingest_config import IngestConfig
+from .config.rerank_config import RerankConfig
+from .embed.embed import create_embed_manager
+from .ingest import ingest
+from .ingest.loader.file_loader import FileLoader
+from .ingest.loader.html_loader import HTMLLoader
+from .llama.core.schema import Modality
+from .logger import logger
+from .meta_store.meta_store import create_meta_store
+from .rerank.rerank import create_rerank_manager
+from .retrieve import retrieve
+from .vector_store.vector_store import create_vector_store_manager
 
 __all__ = ["app"]
 

@@ -9,8 +9,8 @@ from llama_index.core.base.embeddings.base import Embedding
 from llama_index.core.callbacks.schema import CBEventType, EventPayload
 from llama_index.core.utils import get_tqdm_iterable
 
-from ragserver.llama.embeddings.multi_modal_base import AudioEmbedding, AudioType
-from ragserver.logger import logger
+from .multi_modal_base import AudioEmbedding, AudioType
+from ...logger import logger
 
 
 class ModelName(StrEnum):

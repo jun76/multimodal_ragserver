@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import requests
 
-from ragclient.logger import logger
+from .logger import logger
 
 
 class RagServerClient:

@@ -6,18 +6,19 @@ from pathlib import Path
 
 if __package__ is None or __package__ == "":
     sys.path.append(str(Path(__file__).resolve().parent.parent))
+    __package__ = "ragclient"
 
 import streamlit as st
 
-from ragclient.api_client import RagServerClient
-from ragclient.config.config import Config
-from ragclient.logger import logger
-from ragclient.state import View, ensure_session_state
-from ragclient.views.admin import render_admin_view
-from ragclient.views.ingest import render_ingest_view
-from ragclient.views.main_menu import render_main_menu
-from ragclient.views.ragsearch import render_ragsearch_view
-from ragclient.views.search import render_search_view
+from .api_client import RagServerClient
+from .config.config import Config
+from .logger import logger
+from .state import View, ensure_session_state
+from .views.admin import render_admin_view
+from .views.ingest import render_ingest_view
+from .views.main_menu import render_main_menu
+from .views.ragsearch import render_ragsearch_view
+from .views.search import render_search_view
 
 
 def _init_services() -> tuple[RagServerClient, str]:
