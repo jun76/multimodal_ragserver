@@ -45,10 +45,19 @@ class AudioEncoders:
         if embed_model is None:
             return cls()
 
+        text_encoder: Optional[Callable[[list[str]], Awaitable[list[Embeddings]]]] = (
+            None
+        )
+        audio_encoder: Optional[Callable[[list[str]], Awaitable[list[Embeddings]]]] = (
+            None
+        )
+
         if hasattr(embed_model, "aget_text_embedding_batch"):
 
             async def encode_text(queries: list[str]) -> list[Embeddings]:
                 return await embed_model.aget_text_embedding_batch(texts=queries)  # type: ignore[attr-defined]
+
+            text_encoder = encode_text
 
         if hasattr(embed_model, "aget_audio_embedding_batch"):
 
@@ -57,7 +66,9 @@ class AudioEncoders:
                     audio_file_paths=paths
                 )
 
-        return cls(text_encoder=encode_text, audio_encoder=encode_audio)
+            audio_encoder = encode_audio
+
+        return cls(text_encoder=text_encoder, audio_encoder=audio_encoder)
 
     async def aencode_text(self, queries: list[str]) -> list[Embeddings]:
         """テキストクエリ群を埋め込みベクトルへ変換する。

@@ -33,8 +33,7 @@ class Settings:
     LLM_LOCAL_BASE_URL: str = "http://localhost:1234/v1"
     LLM_LOCAL_MODEL: str = "unsloth/gpt-oss-20b"
     LLM_OPENAI_MODEL: str = "gpt-4-turbo"
-    OPENAI_API_KEY: Optional[SecretStr] = (
-        SecretStr(os.getenv("OPENAI_API_KEY", "")) or None
-    )
+    _raw = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_KEY: Optional[SecretStr] = SecretStr(_raw) if _raw else None
     DEVICE: Literal["cpu", "cuda", "mps"] = "cuda"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "DEBUG"

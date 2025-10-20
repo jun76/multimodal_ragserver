@@ -110,9 +110,16 @@ def _pgvector(table_name: str) -> VectorStoreContainer:
     Args:
         table_name (str): テーブル名
 
+    Raise:
+        ValueError: パスワード未指定
+
     Returns:
-        EmbeddingContainer: コンテナ
+        VectorStoreContainer: コンテナ
     """
+
+    sec = VectorStoreConfig.pgvector_password
+    if sec is None:
+        raise ValueError("pgvector_password must be specified")
 
     return VectorStoreContainer(
         provider_name=VectorStoreProvider.PGVECTOR,
@@ -121,7 +128,7 @@ def _pgvector(table_name: str) -> VectorStoreContainer:
             port=str(VectorStoreConfig.pgvector_port),
             database=VectorStoreConfig.pgvector_database,
             user=VectorStoreConfig.pgvector_user,
-            password=str(VectorStoreConfig.pgvector_password),
+            password=sec.get_secret_value(),
             table_name=table_name,
         ),
         table_name=table_name,

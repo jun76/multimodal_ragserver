@@ -137,53 +137,6 @@ class ClapEmbedding(AudioEmbedding):
 
         return self._get_text_embedding(query)
 
-    def get_audio_embedding_batch(
-        self, audio_file_paths: list[AudioType], show_progress: bool = False
-    ) -> list[Embedding]:
-        """音声埋め込みの同期バッチインタフェース。
-
-        MultiModalEmbedding の get_image_embedding_batch がベース。
-
-        Args:
-            audio_file_paths (list[AudioType]): 音声ファイルパス
-            show_progress (bool, optional): 進捗の表示。Defaults to False.
-
-        Returns:
-            list[Embedding]: 埋め込みベクトル
-        """
-
-        cur_batch: list[AudioType] = []
-        result_embeddings: list[Embedding] = []
-
-        queue_with_progress = enumerate(
-            get_tqdm_iterable(
-                audio_file_paths, show_progress, "Generating audio embeddings"
-            )
-        )
-
-        for idx, audio_file_path in queue_with_progress:
-            cur_batch.append(audio_file_path)
-            if (
-                idx == len(audio_file_paths) - 1
-                or len(cur_batch) == self.embed_batch_size
-            ):
-                # flush
-                with self.callback_manager.event(
-                    CBEventType.EMBEDDING,
-                    payload={EventPayload.SERIALIZED: self.to_dict()},
-                ) as event:
-                    embeddings = self._get_audio_embeddings(cur_batch)
-                    result_embeddings.extend(embeddings)
-                    event.on_end(
-                        payload={
-                            EventPayload.CHUNKS: cur_batch,
-                            EventPayload.EMBEDDINGS: embeddings,
-                        },
-                    )
-                cur_batch = []
-
-        return result_embeddings
-
     def _get_audio_embeddings(
         self, audio_file_paths: list[AudioType]
     ) -> list[Embedding]:
@@ -282,4 +235,4 @@ class ClapEmbedding(AudioEmbedding):
             list[Embedding]: 埋め込みベクトル
         """
 
-        return await asyncio.to_thread(self.get_audio_embedding_batch, audio_file_paths)
+        return await asyncio.to_thread(self._get_audio_embeddings, audio_file_paths)

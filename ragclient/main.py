@@ -24,8 +24,8 @@ def _init_services() -> tuple[RagServerClient, str]:
     """設定を読み込み、API クライアントとヘルスチェック用 URL を初期化する。
 
     Returns:
-        tuple[RagServerClient, str]: 設定オブジェクトと API クライアント、
-        ragserver・埋め込み・リランク各サービスのヘルスチェック URL
+        tuple[RagServerClient, str]: API クライアントと
+            ragserver サービスのヘルスチェック URL
     """
 
     client = RagServerClient(Config.ragserver_base_url)

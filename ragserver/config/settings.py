@@ -44,13 +44,11 @@ class Settings:
     IMAGE_EMBED_PROVIDER: Optional[EmbedProvider] = EmbedProvider.CLIP
     AUDIO_EMBED_PROVIDER: Optional[EmbedProvider] = EmbedProvider.CLAP
     RERANK_PROVIDER: RerankProvider = RerankProvider.FLAGEMBEDDING
-    OPENAI_API_KEY: Optional[SecretStr] = (
-        SecretStr(os.getenv("OPENAI_API_KEY", "")) or None
-    )
+    _raw = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_KEY: Optional[SecretStr] = SecretStr(_raw) if _raw else None
     OPENAI_BASE_URL: Optional[str] = None
-    COHERE_API_KEY: Optional[SecretStr] = (
-        SecretStr(os.getenv("COHERE_API_KEY", "")) or None
-    )
+    _raw = os.getenv("COHERE_API_KEY")
+    COHERE_API_KEY: Optional[SecretStr] = SecretStr(_raw) if _raw else None
     DEVICE: Literal["cpu", "cuda", "mps"] = "cuda"
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "DEBUG"
 
@@ -63,9 +61,8 @@ class Settings:
     CHROMA_PERSIST_DIR: str = f"{PROJECT_NAME}_db"
     CHROMA_HOST: Optional[str] = None
     CHROMA_PORT: Optional[int] = None
-    CHROMA_API_KEY: Optional[SecretStr] = (
-        SecretStr(os.getenv("CHROMA_API_KEY", "")) or None
-    )
+    _raw = os.getenv("CHROMA_API_KEY")
+    CHROMA_API_KEY: Optional[SecretStr] = SecretStr(_raw) if _raw else None
     CHROMA_TENANT: Optional[str] = None
     CHROMA_DATABASE: Optional[str] = None
 
@@ -74,9 +71,8 @@ class Settings:
     PGVECTOR_PORT: int = 5432
     PGVECTOR_DATABASE: str = PROJECT_NAME
     PGVECTOR_USER: str = PROJECT_NAME
-    PGVECTOR_PASSWORD: Optional[SecretStr] = (
-        SecretStr(os.getenv("PGVECTOR_PASSWORD", "")) or None
-    )
+    _raw = os.getenv("PGVECTOR_PASSWORD")
+    PGVECTOR_PASSWORD: Optional[SecretStr] = SecretStr(_raw) if _raw else None
 
     ##### Embedding
     # Text

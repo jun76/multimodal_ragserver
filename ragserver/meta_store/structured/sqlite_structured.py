@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 from typing import Any, Iterable, Sequence
 
@@ -227,7 +228,7 @@ class SQLiteStructured(Structured):
         """
 
         if table_name not in self._created:
-            self._prepare_with(table_name)
+            await asyncio.to_thread(self._prepare_with, table_name)
 
         rows = []
         for i, meta in enumerate(metas):
