@@ -164,7 +164,6 @@ class VectorStoreManager:
         Returns:
             bool: 更新処理不要の場合に True
         """
-        # logger.debug("trace")
 
         # check_update 指定がなく、かつソースが登録済み
         return (not self._check_update) and (self._fp_cache.get(source) is not None)
@@ -239,7 +238,6 @@ class VectorStoreManager:
         Returns:
             bool: 画像ノードなら True
         """
-        # logger.debug("trace")
 
         # ファイルパスか URL の末尾に画像ファイルの拡張子が含まれるものを画像ノードとする
         path = node.metadata.get(META_KEYS.FILE_PATH, "")
@@ -263,7 +261,6 @@ class VectorStoreManager:
         Returns:
             bool: 音声ノードなら True
         """
-        # logger.debug("trace")
 
         path = node.metadata.get(META_KEYS.FILE_PATH, "")
         url = node.metadata.get(META_KEYS.URL, "")
@@ -500,7 +497,6 @@ class VectorStoreManager:
         Returns:
             str: fingerprint 文字列
         """
-        # logger.debug("trace")
 
         # Web ページの場合、現状 URL しかチェックしない
         fp_data = {

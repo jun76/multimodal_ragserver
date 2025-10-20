@@ -337,11 +337,9 @@ def _get_chat_model(provider: LLMProvider) -> ChatOpenAI:
                 timeout=30,
                 max_retries=3,
             )
-
         case LLMProvider.OPENAI:
             logger.info(f"llm model = {Config.llm_openai_model}")
             return ChatOpenAI(model=Config.llm_openai_model, timeout=30, max_retries=3)
-
         case _:
             raise ValueError(f"unsupported llm provider: {provider}")
 

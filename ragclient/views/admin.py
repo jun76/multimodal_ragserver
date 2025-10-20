@@ -14,7 +14,7 @@ from ragclient.state import (
     set_feedback,
     set_view,
 )
-from ragclient.views.common import save_uploaded_files
+from .common import save_uploaded_files
 
 __all__ = [
     "register_local_path_callback",

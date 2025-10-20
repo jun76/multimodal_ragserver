@@ -8,7 +8,7 @@ from ragclient.config.config import Config
 from ragclient.config.settings import LLMProvider
 from ragclient.logger import logger
 from ragclient.state import View, set_view
-from ragclient.views.common import emojify_robot
+from .common import emojify_robot
 
 __all__ = ["render_ragsearch_view"]
 

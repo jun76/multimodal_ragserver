@@ -20,7 +20,7 @@ def create_embed_manager() -> EmbedManager:
     """埋め込み管理インスタンスを生成する。
 
     Raises:
-        RuntimeError: インスタンス生成に失敗
+        RuntimeError: インスタンス生成に失敗またはプロバイダ指定漏れ
 
     Returns:
         EmbedManager: 埋め込み管理
@@ -28,21 +28,22 @@ def create_embed_manager() -> EmbedManager:
 
     try:
         conts: dict[Modality, EmbedContainer] = {}
-        match GeneralConfig.text_embed_provider:
-            case EmbedProvider.OPENAI:
-                cont = _openai_text()
-            case EmbedProvider.COHERE:
-                cont = _cohere_text()
-            case EmbedProvider.CLIP:
-                cont = _clip_text()
-            case EmbedProvider.HUGGINGFACE:
-                cont = _huggingface_text()
-            case _:
-                raise ValueError(
-                    "unsupported text embed provider: "
-                    f"{GeneralConfig.text_embed_provider}"
-                )
-        conts[Modality.TEXT] = cont
+        if GeneralConfig.text_embed_provider:
+            match GeneralConfig.text_embed_provider:
+                case EmbedProvider.OPENAI:
+                    cont = _openai_text()
+                case EmbedProvider.COHERE:
+                    cont = _cohere_text()
+                case EmbedProvider.CLIP:
+                    cont = _clip_text()
+                case EmbedProvider.HUGGINGFACE:
+                    cont = _huggingface_text()
+                case _:
+                    raise ValueError(
+                        "unsupported text embed provider: "
+                        f"{GeneralConfig.text_embed_provider}"
+                    )
+            conts[Modality.TEXT] = cont
 
         if GeneralConfig.image_embed_provider:
             match GeneralConfig.image_embed_provider:
@@ -72,6 +73,9 @@ def create_embed_manager() -> EmbedManager:
     except Exception as e:
         raise RuntimeError(f"failed to create embedding: {e}") from e
 
+    if not conts:
+        raise RuntimeError("no embedding providers are specified")
+
     return EmbedManager(conts)
 
 
@@ -81,7 +85,7 @@ def _openai_text() -> EmbedContainer:
         provider_name=EmbedProvider.OPENAI,
         embed=OpenAIEmbedding(
             model=EmbedConfig.openai_embed_model_text,
-            api_base=EmbedConfig.openai_base_url,
+            api_base=GeneralConfig.openai_base_url,
             # device=GeneralConfig.device,
         ),
     )

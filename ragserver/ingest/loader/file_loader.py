@@ -57,7 +57,6 @@ class FileLoader(Loader):
         Returns:
             list[BaseNode]: 生成したノード
         """
-        # logger.debug("trace")
 
         try:
             docs = await reader.aload_file(

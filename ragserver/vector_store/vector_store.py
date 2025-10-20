@@ -30,7 +30,7 @@ def create_vector_store_manager(
         meta_store (Structured): メタデータ管理
 
     Raises:
-        RuntimeError: インスタンス生成に失敗
+        RuntimeError: インスタンス生成に失敗またはプロバイダ指定漏れ
 
     Returns:
         VectorStoreManager: ベクトルストア

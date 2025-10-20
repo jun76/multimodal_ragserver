@@ -20,7 +20,6 @@ class VectorStoreConfig:
     chroma_persist_dir: str = Settings.CHROMA_PERSIST_DIR
     chroma_host: Optional[str] = Settings.CHROMA_HOST
     chroma_port: Optional[int] = Settings.CHROMA_PORT
-    chroma_api_key: Optional[SecretStr] = Settings.CHROMA_API_KEY
     chroma_tenant: Optional[str] = Settings.CHROMA_TENANT
     chroma_database: Optional[str] = Settings.CHROMA_DATABASE
 

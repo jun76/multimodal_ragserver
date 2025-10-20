@@ -91,7 +91,6 @@ class BasicMetaData:
         Args:
             meta (Optional[dict[str, Any]], optional): メタデータの dict。 Defaults to None.
         """
-        # logger.debug("trace")
 
         data = meta or {}
         return cls(
@@ -115,6 +114,5 @@ class BasicMetaData:
         Returns:
             dict[str, Any]: メタデータの dict
         """
-        # logger.debug("trace")
 
         return asdict(self)

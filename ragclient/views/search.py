@@ -17,7 +17,7 @@ from ragclient.state import (
     set_search_result,
     set_view,
 )
-from ragclient.views.common import save_uploaded_files
+from .common import save_uploaded_files
 
 __all__ = [
     "run_text_text_search_callback",
