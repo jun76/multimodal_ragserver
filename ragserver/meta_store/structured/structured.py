@@ -21,6 +21,7 @@ class Structured(ABC):
         Raises:
             RuntimeError: テーブル作成失敗
         """
+        ...
 
     @abstractmethod
     async def aupsert(
@@ -36,6 +37,7 @@ class Structured(ABC):
         Raises:
             RuntimeError: upsert 失敗
         """
+        ...
 
     @abstractmethod
     def select(
@@ -51,3 +53,4 @@ class Structured(ABC):
         Returns:
             list[tuple]: 取得したレコード群
         """
+        ...

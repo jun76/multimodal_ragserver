@@ -16,10 +16,6 @@ class AudioEmbedding(BaseEmbedding):
     このクラスを音声埋め込みの抽象として一段噛ませる。
     """
 
-    def __init__(self, *args: Any, **kwargs: Any):
-        """コンストラクタ"""
-        super().__init__(*args, **kwargs)
-
     @abstractmethod
     async def aget_audio_embedding_batch(
         self, audio_file_paths: list[AudioType], show_progress: bool = False
@@ -33,3 +29,4 @@ class AudioEmbedding(BaseEmbedding):
         Returns:
             list[Embedding]: 埋め込みベクトル
         """
+        ...

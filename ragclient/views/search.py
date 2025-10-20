@@ -138,6 +138,7 @@ def run_image_image_search_callback(
             saved = save_uploaded_files(client, [file_obj])[0]
             result = client.query_image_image(saved)
     except Exception as e:
+        logger.error(e)
         set_feedback(feedback_key, "error", f"画像検索に失敗しました: {e}")
     else:
         set_search_result(result_key, result)
@@ -196,6 +197,7 @@ def run_audio_audio_search_callback(
             saved = save_uploaded_files(client, [file_obj])[0]
             result = client.query_audio_audio(saved)
     except Exception as e:
+        logger.error(e)
         set_feedback(feedback_key, "error", f"音声検索に失敗しました: {e}")
     else:
         set_search_result(result_key, result)
@@ -251,7 +253,8 @@ def _render_query_results_image(title: str, result: dict[str, Any]) -> None:
         st.divider()
         try:
             st.image(source, width="content")
-        except:
+        except Exception as e:
+            logger.warning(f"画像の表示に失敗しました: {e}")
             st.warning("ファイル埋め込み画像等のため、表示できません。")
 
         st.markdown("##### ソース")
@@ -285,7 +288,8 @@ def _render_query_results_audio(title: str, result: dict[str, Any]) -> None:
         try:
             # FIXME: フォーマット決め打ち
             st.audio(data=source, format="audio/mp3")
-        except:
+        except Exception as e:
+            logger.warning(f"音声の表示に失敗しました: {e}")
             st.warning("ファイル埋め込み音声等のため、表示できません。")
 
         st.markdown("##### ソース")

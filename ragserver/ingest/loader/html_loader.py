@@ -74,10 +74,7 @@ class HTMLLoader(Loader):
         """
         logger.debug("trace")
 
-        headers = {
-            "User-Agent": self._user_agent,
-            "Sec-Fetch-Site": "same-origin" if self._same_origin else "none",
-        }
+        headers = {"User-Agent": self._user_agent}
         res: Optional[requests.Response] = None
 
         try:
@@ -90,7 +87,7 @@ class HTMLLoader(Loader):
             res.raise_for_status()
         except requests.HTTPError as e:
             status = res.status_code if res is not None else "unknown"
-            raise requests.HTTPError(f"HTTP {status}") from e
+            raise requests.HTTPError(f"HTTP {status}: {str(e)}") from e
         except requests.RequestException as e:
             raise RuntimeError("failed to fetch url") from e
         finally:
@@ -202,7 +199,7 @@ class HTMLLoader(Loader):
                 cand = ss.split(",")[0].strip().split(" ")[0]  # type: ignore
                 add(cand)
 
-        return out[: max(0, int(limit))]
+        return out[: max(0, limit)]
 
     async def _adownload_direct_linked_file(
         self,

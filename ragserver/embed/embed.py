@@ -23,7 +23,7 @@ def create_embed_manager() -> EmbedManager:
         RuntimeError: インスタンス生成に失敗
 
     Returns:
-        EmbeddingsManager: 埋め込み管理
+        EmbedManager: 埋め込み管理
     """
     logger.debug("trace")
 
@@ -67,7 +67,7 @@ def create_embed_manager() -> EmbedManager:
                 case _:
                     raise ValueError(
                         "unsupported audio embed provider: "
-                        f"{GeneralConfig.image_embed_provider}"
+                        f"{GeneralConfig.audio_embed_provider}"
                     )
             conts[Modality.AUDIO] = cont
     except Exception as e:

@@ -86,8 +86,10 @@ UNION_ALL = " UNION ALL "
 
 
 class SQLiteStructured(Structured):
+    """SQLite3 管理クラス"""
+
     def __init__(self) -> None:
-        """SQLite3 管理クラス
+        """コンストラクタ
 
         Raises:
             RuntimeError: 初期化失敗
@@ -102,6 +104,12 @@ class SQLiteStructured(Structured):
             raise RuntimeError("failed to initialize") from e
 
         self._created: list[str] = []
+
+    def __del__(self) -> None:
+        """デストラクタ"""
+        logger.debug("trace")
+
+        self._sync_db.close()
 
     def _prepare_with(self, table_name: str) -> None:
         """指定のテーブルが存在しない場合、予め作成する。

@@ -102,7 +102,7 @@ class AudioRetriever(BaseRetriever):
             embed_model = getattr(index, "_embed_model", None)
             encoders = AudioEncoders.from_embed_model(embed_model)
 
-        self._encoders = encoders or AudioEncoders()
+        self._encoders = encoders
 
     # BaseRetriever インタフェース（同期版）は今回利用しないため、利用者に警告を出す
     def _retrieve(

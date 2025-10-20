@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import StrEnum, auto
-from typing import Any
 
 from llama_index.core.schema import TextNode
 
@@ -17,6 +16,4 @@ class Modality(StrEnum):
 class AudioNode(TextNode):
     """音声モダリティのノード実装用クラス"""
 
-    def __init__(self, *args: Any, **kwargs: Any):
-        """コンストラクタ"""
-        super().__init__(*args, **kwargs)
+    pass

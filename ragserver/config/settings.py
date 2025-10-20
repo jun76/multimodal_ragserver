@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 from enum import StrEnum
-from typing import Optional
+from typing import Literal, Optional
 
 from dotenv import load_dotenv
+from pydantic import SecretStr
 
 load_dotenv()
 
@@ -44,8 +45,8 @@ class Settings:
     IMAGE_EMBED_PROVIDER: Optional[EmbedProvider] = EmbedProvider.CLIP
     AUDIO_EMBED_PROVIDER: Optional[EmbedProvider] = EmbedProvider.CLAP
     RERANK_PROVIDER: RerankProvider = RerankProvider.FLAGEMBEDDING
-    DEVICE: str = "cuda"
-    LOG_LEVEL: str = "DEBUG"
+    DEVICE: Literal["cpu", "cuda", "mps"] = "cuda"
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "DEBUG"
 
     # vector store
     LOAD_LIMIT: int = 10000
@@ -53,29 +54,37 @@ class Settings:
     CHROMA_PERSIST_DIR: str = f"{PROJECT_NAME}_db"
     CHROMA_HOST: Optional[str] = None
     CHROMA_PORT: Optional[int] = None
-    CHROMA_API_KEY: Optional[str] = None
+    CHROMA_API_KEY: Optional[SecretStr] = (
+        SecretStr(os.getenv("CHROMA_API_KEY", "")) or None
+    )
     CHROMA_TENANT: Optional[str] = None
     CHROMA_DATABASE: Optional[str] = None
     PGVECTOR_HOST: str = "localhost"
     PGVECTOR_PORT: int = 5432
     PGVECTOR_DATABASE: str = PROJECT_NAME
     PGVECTOR_USER: str = PROJECT_NAME
-    PGVECTOR_PASSWORD: Optional[str] = os.getenv("PG_PASSWORD")
+    PGVECTOR_PASSWORD: Optional[SecretStr] = (
+        SecretStr(os.getenv("PGVECTOR_PASSWORD", "")) or None
+    )
 
     # embedding
     OPENAI_EMBED_MODEL_TEXT: str = "text-embedding-3-small"
-    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_KEY: Optional[SecretStr] = (
+        SecretStr(os.getenv("OPENAI_API_KEY", "")) or None
+    )
     OPENAI_BASE_URL: Optional[str] = None
     COHERE_EMBED_MODEL_TEXT: str = "embed-v4.0"
     COHERE_EMBED_MODEL_IMAGE: str = "embed-v4.0"
-    COHERE_API_KEY: Optional[str] = os.getenv("COHERE_API_KEY")
+    COHERE_API_KEY: Optional[SecretStr] = (
+        SecretStr(os.getenv("COHERE_API_KEY", "")) or None
+    )
     CLIP_EMBED_MODEL_TEXT: str = "ViT-B/32"
     CLIP_EMBED_MODEL_IMAGE: str = "ViT-B/32"
     HUGGINGFACE_EMBED_MODEL_TEXT: str = "intfloat/multilingual-e5-base"
     HUGGINGFACE_EMBED_MODEL_IMAGE: str = "llamaindex/vdr-2b-multi-v1"
-    CLAP_EMBED_MODEL_AUDIO: str = (
-        "effect_varlen"  # effect_short / effect_varlen / music / speech / general
-    )
+    CLAP_EMBED_MODEL_AUDIO: Literal[
+        "effect_short", "effect_varlen", "music", "speech", "general"
+    ] = "effect_varlen"
 
     # ingest
     CHUNK_SIZE: int = 500

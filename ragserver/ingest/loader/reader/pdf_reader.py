@@ -81,7 +81,7 @@ class MultiPDFReader(BaseReader):
                 continue
 
             # 空ならスキップ
-            if not content.strip():
+            if not content.strip():  # type: ignore
                 continue
 
             meta = BasicMetaData()
@@ -121,6 +121,7 @@ class MultiPDFReader(BaseReader):
 
             for image_no, image in enumerate(contents):
                 xref = image[0]  # 画像の参照番号
+                pix = None
                 try:
                     pix = fitz.Pixmap(pdf, xref)
 
@@ -137,7 +138,6 @@ class MultiPDFReader(BaseReader):
                         suffix=Exts.PNG,
                     ) as f:
                         pix.save(f.name)
-                        del pix
 
                         meta = BasicMetaData()
                         meta.file_path = f.name  # MultiModalVectorStoreIndex 参照用
@@ -152,5 +152,8 @@ class MultiPDFReader(BaseReader):
                 except Exception as e:
                     logger.exception(e)
                     continue
+                finally:
+                    if pix is not None:
+                        del pix
 
         return docs

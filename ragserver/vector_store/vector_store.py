@@ -26,8 +26,8 @@ def create_vector_store_manager(
     """ベクトルストアのインスタンスを生成する。
 
     Args:
-        embed (EmbeddingManager): 埋め込み管理
-        meta_store (StructuredStoreManager): メタデータ管理
+        embed (EmbedManager): 埋め込み管理
+        meta_store (Structured): メタデータ管理
 
     Raises:
         RuntimeError: インスタンス生成に失敗
@@ -39,7 +39,7 @@ def create_vector_store_manager(
 
     try:
         conts: dict[Modality, VectorStoreContainer] = {}
-        if GeneralConfig.image_embed_provider:
+        if GeneralConfig.text_embed_provider:
             conts[Modality.TEXT] = _create_container(embed.space_key_text)
 
         if GeneralConfig.image_embed_provider:
@@ -51,7 +51,7 @@ def create_vector_store_manager(
         raise RuntimeError(f"failed to create vector store: {e}") from e
 
     if not conts:
-        raise RuntimeError(f"no embedding providers are specified")
+        raise RuntimeError("no embedding providers are specified")
 
     return VectorStoreManager(
         conts=conts,
@@ -125,7 +125,7 @@ def _pgvector(table_name: str) -> VectorStoreContainer:
             port=str(VectorStoreConfig.pgvector_port),
             database=VectorStoreConfig.pgvector_database,
             user=VectorStoreConfig.pgvector_user,
-            password=VectorStoreConfig.pgvector_password,
+            password=str(VectorStoreConfig.pgvector_password),
             table_name=table_name,
         ),
         table_name=table_name,

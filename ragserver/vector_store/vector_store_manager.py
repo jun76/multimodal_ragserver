@@ -188,7 +188,7 @@ class VectorStoreManager:
             path, url, fp = row
             source = path or url
             if source and fp:
-                fp_cache[path or url] = fp
+                fp_cache[source] = fp
 
         logger.info(f"loaded {len(fp_cache)} fingerprint caches")
 
@@ -215,7 +215,7 @@ class VectorStoreManager:
         for node in nodes:
             if isinstance(node, TextNode) and self._is_image_node(node):
                 image_nodes.append(ImageNode(text=node.text, metadata=node.metadata))
-            if isinstance(node, TextNode) and self._is_audio_node(node):
+            elif isinstance(node, TextNode) and self._is_audio_node(node):
                 audio_nodes.append(
                     AudioNode(
                         text=node.text,
@@ -293,6 +293,7 @@ class VectorStoreManager:
         ids = []
         metas = []
         fps = []
+        valid_nodes: list[BaseNode] = []
         for node in nodes:
             if not node.text:
                 logger.warning(f"empty text for node {node.node_id}, skipped")
@@ -300,30 +301,31 @@ class VectorStoreManager:
 
             texts.append(node.text)
             ids.append(node.node_id)
-            meta = BasicMetaData(node.metadata)
+            meta = BasicMetaData().from_dict(node.metadata)
             metas.append(meta)
             fps.append(self._get_lazy_fp(meta))
+            valid_nodes.append(node)
 
         try:
             vecs = await self._embed.aembed_text(texts)
-            if len(vecs) != len(nodes):
+            if len(vecs) != len(texts):
                 raise RuntimeError(
-                    f"embedding count mismatch: expected {len(nodes)}, got {len(vecs)}"
+                    f"embedding count mismatch: expected {len(texts)}, got {len(vecs)}"
                 )
 
-            for node, vec in zip(nodes, vecs):
+            for node, vec in zip(valid_nodes, vecs):
                 node.embedding = vec
 
             cont = self.get_container(Modality.TEXT)
             await cont.store.adelete_nodes(ids)
-            await cont.store.async_add(nodes)
+            await cont.store.async_add(valid_nodes)
             await self._meta_store.aupsert(
                 metas=metas, fingerprints=fps, table_name=cont.table_name
             )
         except Exception as e:
             raise RuntimeError("failed to upsert text") from e
 
-        logger.info(f"{len(nodes)} nodes are upserted")
+        logger.info(f"{len(valid_nodes)} nodes are upserted")
 
     async def _aupsert_fetched_content(
         self, nodes: Sequence[BaseNode], modality: Modality, aembed_func: Callable
@@ -347,8 +349,9 @@ class VectorStoreManager:
         ids = []
         metas = []
         fps = []
+        valid_nodes: list[BaseNode] = []
         for node in nodes:
-            meta = BasicMetaData(node.metadata)
+            meta = BasicMetaData().from_dict(node.metadata)
 
             temp = meta.temp_file_path
             if temp:
@@ -375,20 +378,21 @@ class VectorStoreManager:
             ids.append(node.node_id)
             metas.append(meta)
             fps.append(self._get_lazy_fp(meta))
+            valid_nodes.append(node)
 
         try:
             vecs = await aembed_func(file_paths)
-            if len(vecs) != len(nodes):
+            if len(vecs) != len(file_paths):
                 raise RuntimeError(
-                    f"embedding count mismatch: expected {len(nodes)}, got {len(vecs)}"
+                    f"embedding count mismatch: expected {len(file_paths)}, got {len(vecs)}"
                 )
 
-            for node, vec in zip(nodes, vecs):
+            for node, vec in zip(valid_nodes, vecs):
                 node.embedding = vec
 
             cont = self.get_container(modality)
             await cont.store.adelete_nodes(ids)
-            await cont.store.async_add(nodes)
+            await cont.store.async_add(valid_nodes)
             await self._meta_store.aupsert(
                 metas=metas, fingerprints=fps, table_name=cont.table_name
             )
@@ -398,7 +402,7 @@ class VectorStoreManager:
             for path in temp_file_paths:
                 os.remove(path)
 
-        logger.info(f"{len(nodes)} nodes are upserted")
+        logger.info(f"{len(valid_nodes)} nodes are upserted")
 
     async def _aupsert_image(self, nodes: list[ImageNode]) -> None:
         """画像を埋め込み、ストアに格納する。
@@ -474,7 +478,7 @@ class VectorStoreManager:
         logger.debug("trace")
 
         for node in nodes:
-            meta = BasicMetaData(node.metadata)
+            meta = BasicMetaData().from_dict(node.metadata)
 
             # MultiModalVectorStoreIndex 参照用に画像の一時ファイルを file_path に
             # 入れている場合は URL が正ソースとなるため、この or 順序が重要
@@ -529,10 +533,10 @@ class VectorStoreManager:
         filtered: list[BaseNode] = []
 
         for node in nodes:
-            meta = BasicMetaData(node.metadata)
+            meta = BasicMetaData().from_dict(node.metadata)
             source = meta.url or meta.file_path
 
-            if source is None:
+            if not source:
                 logger.warning("no source info")
                 continue
 

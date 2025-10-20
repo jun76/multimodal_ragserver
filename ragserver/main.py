@@ -94,10 +94,10 @@ def _nodes_to_response(nodes: list[NodeWithScore]) -> list[dict[str, Any]]:
     """NodeWithScore リストを JSON 返却可能な辞書リストへ変換する。
 
     Args:
-        nodes (list[NodeWithScore]): 変換対象ドキュメント
+        nodes (list[NodeWithScore]): 変換対象ノード
 
     Returns:
-        list[dict[str, Any]]: JSON 変換済みドキュメントリスト
+        list[dict[str, Any]]: JSON 変換済みノードリスト
     """
     logger.debug("trace")
 
@@ -200,6 +200,12 @@ async def query_text_text(payload: QueryTextRequest) -> dict[str, Any]:
     """
     logger.debug("trace")
 
+    if Modality.TEXT not in _embed.modality:
+        raise HTTPException(
+            status_code=501,
+            detail="text embeddings is not supported",
+        )
+
     await run_in_threadpool(_request_lock.acquire)
     try:
         try:
@@ -235,7 +241,7 @@ async def query_text_image(payload: QueryTextRequest) -> dict[str, Any]:
 
     if Modality.IMAGE not in _embed.modality:
         raise HTTPException(
-            status_code=500,
+            status_code=501,
             detail="image embeddings is not supported",
         )
 
@@ -262,7 +268,7 @@ async def query_image_image(payload: QueryMultimodalRequest) -> dict[str, Any]:
     """クエリ画像による画像ドキュメント検索。
 
     Args:
-        payload (QueryImageRequest): クエリ内容
+        payload (QueryMultimodalRequest): クエリ内容
 
     Raises:
         HTTPException: 検索処理に失敗
@@ -274,7 +280,7 @@ async def query_image_image(payload: QueryMultimodalRequest) -> dict[str, Any]:
 
     if Modality.IMAGE not in _embed.modality:
         raise HTTPException(
-            status_code=500,
+            status_code=501,
             detail="image embeddings is not supported",
         )
 
@@ -312,7 +318,7 @@ async def query_text_audio(payload: QueryTextRequest) -> dict[str, Any]:
 
     if Modality.AUDIO not in _embed.modality:
         raise HTTPException(
-            status_code=500,
+            status_code=501,
             detail="audio embeddings is not supported",
         )
 
@@ -351,7 +357,7 @@ async def query_audio_audio(payload: QueryMultimodalRequest) -> dict[str, Any]:
 
     if Modality.AUDIO not in _embed.modality:
         raise HTTPException(
-            status_code=500,
+            status_code=501,
             detail="audio embeddings is not supported",
         )
 

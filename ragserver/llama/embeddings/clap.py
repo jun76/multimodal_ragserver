@@ -21,13 +21,13 @@ class ModelName(StrEnum):
     GENERAL = auto()
 
 
-class AudioEncoderModel:
+class AudioEncoderModel(StrEnum):
     HTSAT_TINY = "HTSAT-tiny"
     HTSAT_BASE = "HTSAT-base"
 
 
-class TextEncoderModel:
-    ROBERTA = "roberta"
+class TextEncoderModel(StrEnum):
+    ROBERTA = auto()
 
 
 class ClapEmbedding(AudioEmbedding):
@@ -94,7 +94,7 @@ class ClapEmbedding(AudioEmbedding):
         """
         logger.debug("trace")
 
-        return self._get_query_embedding(query)
+        return await asyncio.to_thread(self._get_query_embedding, query)
 
     def _get_text_embedding(self, text: str) -> Embedding:
         """単一テキストの同期埋め込みを行う。
@@ -162,8 +162,8 @@ class ClapEmbedding(AudioEmbedding):
             )
         )
 
-        for idx, img_file_path in queue_with_progress:
-            cur_batch.append(img_file_path)
+        for idx, audio_file_path in queue_with_progress:
+            cur_batch.append(audio_file_path)
             if (
                 idx == len(audio_file_paths) - 1
                 or len(cur_batch) == self.embed_batch_size
@@ -277,4 +277,4 @@ class ClapEmbedding(AudioEmbedding):
         """この関数の実装時点で、LAION-AI CLAP には未だ同期インタフェースしかない"""
         logger.debug("trace")
 
-        return self.get_audio_embedding_batch(audio_file_paths)
+        return await asyncio.to_thread(self.get_audio_embedding_batch, audio_file_paths)

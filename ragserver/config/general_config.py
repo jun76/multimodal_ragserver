@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Literal, Optional
 
 from ragserver.config.settings import (
     EmbedProvider,
@@ -11,7 +11,7 @@ from ragserver.config.settings import (
 )
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, frozen=True)
 class GeneralConfig:
     project_name: str = Settings.PROJECT_NAME
     version: str = Settings.VERSION
@@ -21,5 +21,7 @@ class GeneralConfig:
     image_embed_provider: Optional[EmbedProvider] = Settings.IMAGE_EMBED_PROVIDER
     audio_embed_provider: Optional[EmbedProvider] = Settings.AUDIO_EMBED_PROVIDER
     rerank_provider: RerankProvider = Settings.RERANK_PROVIDER
-    device: str = Settings.DEVICE
-    log_level: str = Settings.LOG_LEVEL
+    device: Literal["cpu", "cuda", "mps"] = Settings.DEVICE
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = (
+        Settings.LOG_LEVEL
+    )

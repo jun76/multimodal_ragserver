@@ -58,7 +58,7 @@ class RerankManager:
 
         if self._cont is None:
             logger.warning("rerank provider is not specified")
-            return []
+            return nodes
 
         try:
             return await self._cont.rerank.apostprocess_nodes(

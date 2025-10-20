@@ -71,14 +71,14 @@ class FileLoader(Loader):
             for doc in docs:
                 nodes = await splitter.aget_nodes_from_documents([doc])
                 for i, node in enumerate(nodes):
-                    meta = BasicMetaData(node.metadata)
+                    meta = BasicMetaData().from_dict(node.metadata)
                     meta.chunk_no = i
                     meta.node_lastmod_at = time.time()
                     node.metadata = meta.to_dict()
 
                 all_nodes.extend(nodes)
         except Exception as e:
-            raise RuntimeError("failed to generate nodes from file") from e
+            raise RuntimeError(f"failed to generate nodes from file: {path}") from e
 
         logger.info(f"loaded {len(all_nodes)} nodes from {path}")
 

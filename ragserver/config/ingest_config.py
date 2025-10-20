@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from ragserver.config.settings import Settings
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, frozen=True)
 class IngestConfig:
     """ドキュメント取り込み処理関連の設定用データクラス"""
 

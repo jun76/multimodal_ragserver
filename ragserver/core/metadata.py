@@ -84,7 +84,8 @@ class BasicMetaData:
     page_no: int = 0  # ページ番号
     asset_no: int = 0  # アセット番号（同一ページ内の画像等）
 
-    def __init__(self, meta: Optional[dict[str, Any]] = None) -> None:
+    @classmethod
+    def from_dict(cls, meta: Optional[dict[str, Any]] = None) -> "BasicMetaData":
         """dict からメタデータインスタンスを生成する。
 
         Args:
@@ -93,18 +94,20 @@ class BasicMetaData:
         # logger.debug("trace")
 
         data = meta or {}
-        self.file_path = data.get(META_KEYS.FILE_PATH, "")
-        self.file_type = data.get(META_KEYS.FILE_TYPE, "")
-        self.file_size = data.get(META_KEYS.FILE_SIZE, 0)
-        self.file_created_at = data.get(META_KEYS.FILE_CREATED_AT, "")
-        self.file_lastmod_at = data.get(META_KEYS.FILE_LASTMOD_AT, "")
-        self.chunk_no = data.get(META_KEYS.CHUNK_NO, 0)
-        self.url = data.get(META_KEYS.URL, "")
-        self.base_source = data.get(META_KEYS.BASE_SOURCE, "")
-        self.temp_file_path = data.get(META_KEYS.TEMP_FILE_PATH, "")
-        self.node_lastmod_at = data.get(META_KEYS.NODE_LASTMOD_AT, 0)
-        self.page_no = data.get(META_KEYS.PAGE_NO, 0)
-        self.asset_no = data.get(META_KEYS.ASSET_NO, 0)
+        return cls(
+            file_path=data.get(META_KEYS.FILE_PATH, ""),
+            file_type=data.get(META_KEYS.FILE_TYPE, ""),
+            file_size=data.get(META_KEYS.FILE_SIZE, 0),
+            file_created_at=data.get(META_KEYS.FILE_CREATED_AT, ""),
+            file_lastmod_at=data.get(META_KEYS.FILE_LASTMOD_AT, ""),
+            chunk_no=data.get(META_KEYS.CHUNK_NO, 0),
+            url=data.get(META_KEYS.URL, ""),
+            base_source=data.get(META_KEYS.BASE_SOURCE, ""),
+            temp_file_path=data.get(META_KEYS.TEMP_FILE_PATH, ""),
+            node_lastmod_at=data.get(META_KEYS.NODE_LASTMOD_AT, 0),
+            page_no=data.get(META_KEYS.PAGE_NO, 0),
+            asset_no=data.get(META_KEYS.ASSET_NO, 0),
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """メタデータの dict を返す。

@@ -31,9 +31,9 @@ class EmbedManager:
         """
         logger.debug("trace")
 
-        self._conts = conts
+        self._conts = conts.copy()
 
-        for modality, cont in conts.items():
+        for modality, cont in self._conts.items():
             cont.space_key = self._generate_space_key(
                 provider=cont.provider_name,
                 model=cont.embed.model_name,
@@ -181,7 +181,7 @@ class EmbedManager:
             audio_file_paths=paths, show_progress=True
         )
 
-    def _sanitize_space_key(self, space_key: str) -> str:
+    def _sanitize_space_key(self, space_key: str = "___") -> str:
         """制約にマッチするよう space_key 文字列を整形する。
 
         制約（AND）：
@@ -193,7 +193,7 @@ class EmbedManager:
                 念のため英数とアンダースコア以外は '_'
 
         Args:
-            space_key (str): 整形前の space_key
+            space_key (str, optional): 整形前の space_key。Defaults to "___".
 
         Returns:
             str: 整形後の space_key
