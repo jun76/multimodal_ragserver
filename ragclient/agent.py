@@ -1,411 +1,313 @@
 from __future__ import annotations
 
+import asyncio
 import json
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Optional
 
-import streamlit as st
-from langchain_core.messages import AIMessage
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
+from agents import Agent, RunContextWrapper, Runner, function_tool
+from pydantic import BaseModel, ConfigDict
+from typing_extensions import TypedDict
 
 from .api_client import RagServerClient
 from .config.config import Config
 from .config.settings import LLMProvider
 from .logger import logger
-from .state import FeedBack, SearchResult
-from .views.search import (
-    run_image_image_search_callback,
-    run_text_image_search_callback,
-    run_text_text_search_callback,
-)
 
-__all__ = ["configure_agent_context", "execute_rag_search"]
-
-_TOOL_RESULT_KEY_MAP = {
-    "text_search_tool": SearchResult.SR_RAGSEARCH_TEXT_TEXT,
-    "multimodal_search_tool": SearchResult.SR_RAGSEARCH_TEXT_IMAGE,
-    "image_search_tool": SearchResult.SR_RAGSEARCH_IMAGE_IMAGE,
-}
-
-_ACTIVE_CLIENT: RagServerClient | None = None
-_ACTIVE_IMAGE: Any | None = None
+__all__ = ["AgentExecutionError", "RagAgentManager"]
 
 
-def configure_agent_context(client: RagServerClient, image: Any | None) -> None:
-    """エージェントが利用するクライアントと画像情報を設定する。
-
-    Args:
-        client (RagServerClient): 検索 API へ接続するクライアント
-        image (Any | None): ユーザがアップロードした画像（未指定可）
-    """
-
-    # FIXME: 複数クライアントだと混線
-    global _ACTIVE_CLIENT
-    global _ACTIVE_IMAGE
-
-    _ACTIVE_CLIENT = client
-    _ACTIVE_IMAGE = image
+class AgentExecutionError(RuntimeError):
+    """openai-agents 実行時の例外ラッパー"""
 
 
-def _ensure_session_key(key: str) -> None:
-    """セッションステートに指定キーが存在しない場合は初期化する。
+class _TextSearchArgs(TypedDict, total=False):
+    query: str
+    topk: int
+
+
+class _MultiModalSearchArgs(TypedDict, total=False):
+    topk: int
+
+
+class _RagAgentContext(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    client: RagServerClient
+    image_path: Optional[str] = None
+    audio_path: Optional[str] = None
+
+
+def _format_documents(payload: dict[str, Any]) -> str:
+    """検索結果ドキュメントを短い文字列へ整形する。
 
     Args:
-        key (str): セッションステートのキー
-    """
-
-    if key not in st.session_state:
-        st.session_state[key] = None
-
-
-def _require_client() -> RagServerClient:
-    """設定済みクライアントを取得する。
+        payload (dict[str, Any]): 検索 API の応答ペイロード
 
     Returns:
-        RagServerClient: 検索 API クライアント
+        str: 各ドキュメントの概要をまとめた文字列
+    """
+
+    docs = payload.get("documents") or []
+    if not docs:
+        return "No documents were retrieved."
+
+    lines: list[str] = []
+    for idx, doc in enumerate(docs[:5], start=1):
+        metadata = doc.get("metadata") or {}
+        source = metadata.get("file_path") or metadata.get("url") or "unknown source"
+        text = (doc.get("text") or "").strip().replace("\n", " ")
+        score = doc.get("score")
+        score_text = f"{score:.3f}" if isinstance(score, (int, float)) else "N/A"
+        lines.append(f"{idx}. score={score_text} source={source}\n{text[:200]}")
+
+    return "\n".join(lines)
+
+
+def _format_response(title: str, payload: dict[str, Any]) -> str:
+    """検索結果を JSON 文字列としてまとめる。
+
+    Args:
+        title (str): 結果種別を示すタイトル
+        payload (dict[str, Any]): 検索 API の応答ペイロード
+
+    Returns:
+        str: まとめられた検索結果 JSON 文字列
+    """
+
+    summary = _format_documents(payload)
+    return json.dumps(
+        {"title": title, "summary": summary, "raw": payload}, ensure_ascii=False
+    )
+
+
+@function_tool
+async def tool_search_text_text(
+    ctx: RunContextWrapper[_RagAgentContext],
+    args: _TextSearchArgs,
+) -> str:
+    """テキストクエリでテキストドキュメントを検索する。
+
+    Args:
+        ctx (RunContextWrapper[_RagAgentContext]): 実行時コンテキスト
+        args (_TextSearchArgs): 検索パラメータ
 
     Raises:
-        RuntimeError: クライアントが未設定の場合
-    """
-
-    if _ACTIVE_CLIENT is None:
-        raise RuntimeError("rag agent client is not configured")
-
-    return _ACTIVE_CLIENT
-
-
-@tool
-def text_search_tool(query: str) -> str:
-    """テキスト検索を実行する。
-
-    Args:
-        query (str): 検索クエリ
+        ValueError: クエリ文字列が指定されていない場合
 
     Returns:
-        str: 結果 JSON
+        str: 検索結果要約を含む JSON 文字列
     """
 
-    client = _require_client()
-    _ensure_session_key(SearchResult.SR_RAGSEARCH_TEXT_TEXT)
-    _ensure_session_key(FeedBack.FB_RAGSEARCH_TEXT_TEXT)
-    run_text_text_search_callback(
-        client,
-        query,
-        SearchResult.SR_RAGSEARCH_TEXT_TEXT,
-        FeedBack.FB_RAGSEARCH_TEXT_TEXT,
-    )
-    payload = st.session_state.get(SearchResult.SR_RAGSEARCH_TEXT_TEXT) or {}
+    query = args.get("query")
+    if not query:
+        raise ValueError("query is required")
 
-    return json.dumps(payload, ensure_ascii=False)
+    topk = args.get("topk")
+    response = ctx.context.client.query_text_text(query, topk)
+    return _format_response("text_text", response)
 
 
-@tool
-def multimodal_search_tool(query: str) -> str:
-    """テキストを基点としたマルチモーダル検索を実行する。
+@function_tool
+async def tool_search_text_image(
+    ctx: RunContextWrapper[_RagAgentContext],
+    args: _TextSearchArgs,
+) -> str:
+    """テキストクエリで画像ドキュメントを検索する。
 
     Args:
-        query (str): 検索クエリ
-
-    Returns:
-        str: 結果 JSON
-    """
-
-    client = _require_client()
-    _ensure_session_key(SearchResult.SR_RAGSEARCH_TEXT_IMAGE)
-    _ensure_session_key(FeedBack.FB_RAGSEARCH_IMAGE_IMAGE)
-    run_text_image_search_callback(
-        client,
-        query,
-        SearchResult.SR_RAGSEARCH_TEXT_IMAGE,
-        FeedBack.FB_RAGSEARCH_IMAGE_IMAGE,
-    )
-    payload = st.session_state.get(SearchResult.SR_RAGSEARCH_TEXT_IMAGE) or {}
-
-    return json.dumps(payload, ensure_ascii=False)
-
-
-@tool
-def image_search_tool(query: str) -> str:
-    """アップロード済み画像を用いた画像検索を実行する。
-
-    Args:
-        query (str): 検索クエリ
+        ctx (RunContextWrapper[_RagAgentContext]): 実行時コンテキスト
+        args (_TextSearchArgs): 検索パラメータ
 
     Raises:
-        ValueError: 画像無し
+        ValueError: クエリ文字列が指定されていない場合
 
     Returns:
-        str: 結果 JSON
+        str: 検索結果要約を含む JSON 文字列
     """
 
-    client = _require_client()
-    if _ACTIVE_IMAGE is None:
-        raise ValueError("no image uploaded")
+    query = args.get("query")
+    if not query:
+        raise ValueError("query is required")
 
-    _ensure_session_key(SearchResult.SR_RAGSEARCH_IMAGE_IMAGE)
-    _ensure_session_key(FeedBack.FB_RAGSEARCH_IMAGE_IMAGE)
-    run_image_image_search_callback(
-        client,
-        _ACTIVE_IMAGE,
-        SearchResult.SR_RAGSEARCH_IMAGE_IMAGE,
-        FeedBack.FB_RAGSEARCH_IMAGE_IMAGE,
-    )
-    payload = st.session_state.get(SearchResult.SR_RAGSEARCH_IMAGE_IMAGE) or {}
-
-    return json.dumps(payload, ensure_ascii=False)
+    topk = args.get("topk")
+    response = ctx.context.client.query_text_image(query, topk)
+    return _format_response("text_image", response)
 
 
-def _build_planner_prompt() -> ChatPromptTemplate:
-    """検索方針策定用プロンプトを生成する。
-
-    Returns:
-        ChatPromptTemplate: LangChain プロンプト
-    """
-
-    return ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "You are a search planner. Use tools to gather knowledge for the user's question. "
-                "Only call image_search_tool when an image is available. "
-                "Provide a short english summary after using the tool. "
-                "After you, responder agent will use your summary to make final answer",
-            ),
-            (
-                "human",
-                "Question: {question}\nImage hint: {image_hint}",
-            ),
-        ]
-    )
-
-
-def _build_responder_prompt() -> ChatPromptTemplate:
-    """最終回答生成用プロンプトを生成する。
-
-    Returns:
-        ChatPromptTemplate: LangChain プロンプト
-    """
-
-    return ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "You are a helpful assistant. Use the provided knowledge to answer the question in Japanese. "
-                "Use tables and emoji to ensure your HTML text is easy to read. "
-                "Please ensure that your answers utilize 'knowledge' and do not rely solely on "
-                "information you already know or information obtained through web searches. "
-                "So, if no relevant 'knowledge' is available, explain that no related information was found, "
-                "then base your answers on information you already know or information obtained through web searches. "
-                "Please also provide the reference URLs or local paths used in your response.",
-            ),
-            (
-                "human",
-                "Question: {question}\nKnowledge:\n{knowledge}\nPlanner summary: {planner_summary}\nImage hint: {image_hint}",
-            ),
-        ]
-    )
-
-
-def _collect_tool_outputs(
-    tool_calls: list[Any], available_tools: list[Any]
-) -> tuple[list[str], list[str]]:
-    """ツール呼び出し結果を集約し、ナレッジとして返す。
+@function_tool
+async def tool_search_image_image(
+    ctx: RunContextWrapper[_RagAgentContext],
+    args: _MultiModalSearchArgs,
+) -> str:
+    """アップロード済み画像を基に画像ドキュメントを検索する。
 
     Args:
-        tool_calls (list[Any]): LLM から返されたツール呼び出し定義
-        available_tools (list[Any]): 利用可能なツール一覧
-
-    Returns:
-        tuple[list[str], list[str]]: 使用したツール名とナレッジ
-    """
-
-    tool_map = {tool.name: tool for tool in available_tools}
-    used_names: list[str] = []
-    knowledge: list[str] = []
-
-    for call in tool_calls or []:
-        name = getattr(call, "name", None) or getattr(call, "tool", None)
-        if isinstance(call, dict):
-            name = call.get("name") or call.get("tool")
-        if not isinstance(name, str):
-            logger.warning("planner returned invalid tool call: %s", call)
-            continue
-
-        tool = tool_map.get(name)
-        if tool is None:
-            logger.warning("planner requested unknown tool: %s", name)
-            continue
-
-        raw_args = getattr(call, "args", None)
-        if isinstance(call, dict):
-            raw_args = call.get("args")
-        try:
-            args = _normalize_tool_args(raw_args)
-        except Exception as e:
-            logger.exception("tool %s arguments are invalid: %s", name, e)
-            continue
-
-        try:
-            result = tool.invoke(args)
-        except Exception as e:
-            logger.exception("tool %s failed: %s", name, e)
-            continue
-
-        used_names.append(name)
-        if result:
-            knowledge.append(str(result))
-
-    session_payloads = _extract_session_payloads(used_names)
-    for payload in session_payloads:
-        if payload not in knowledge:
-            knowledge.append(payload)
-
-    return used_names, knowledge
-
-
-def _normalize_tool_args(raw: Any) -> dict[str, Any]:
-    """ツール呼び出し引数を辞書へ正規化する。
-
-    Args:
-        raw (Any): ツール呼び出し引数
+        ctx (RunContextWrapper[_RagAgentContext]): 実行時コンテキスト
+        args (_MultiModalSearchArgs): 検索パラメータ
 
     Raises:
-        ValueError: 無効な引数形式
+        ValueError: 参照画像が未登録の場合
 
     Returns:
-        dict[str, Any]: 辞書形式の引数
+        str: 検索結果要約を含む JSON 文字列
     """
 
-    if raw is None:
-        return {}
+    if not ctx.context.image_path:
+        raise ValueError("image_path is not provided in context")
 
-    if isinstance(raw, dict):
-        return raw
-
-    if isinstance(raw, str):
-        text = raw.strip()
-        return json.loads(text) if text else {}
-
-    raise ValueError("tool arguments must be dict or json string")
+    topk = args.get("topk")
+    response = ctx.context.client.query_image_image(ctx.context.image_path, topk)
+    return _format_response("image_image", response)
 
 
-def _extract_session_payloads(tool_names: list[str]) -> list[str]:
-    """セッションステートの最新結果を JSON 文字列として抽出する。
-
-    Args:
-        tool_names (list[str]): ツール名のリスト
-
-    Returns:
-        list[str]: 抽出した JSON 文字列
-    """
-
-    outputs: list[str] = []
-    for name in tool_names:
-        key = _TOOL_RESULT_KEY_MAP.get(name)
-        if key is None:
-            continue
-
-        payload = st.session_state.get(key)
-        if payload is None:
-            continue
-
-        outputs.append(json.dumps(payload, ensure_ascii=True))
-
-    return outputs
-
-
-def _get_chat_model(provider: LLMProvider) -> ChatOpenAI:
-    """LLM プロバイダ設定に応じたチャットモデルを生成する。
+@function_tool
+async def tool_search_text_audio(
+    ctx: RunContextWrapper[_RagAgentContext],
+    args: _TextSearchArgs,
+) -> str:
+    """テキストクエリで音声ドキュメントを検索する。
 
     Args:
-        provider (LLMProvider): 利用する LLM プロバイダ名
-
-    Returns:
-        ChatOpenAI: LangChain 互換のチャットモデル
+        ctx (RunContextWrapper[_RagAgentContext]): 実行時コンテキスト
+        args (_TextSearchArgs): 検索パラメータ
 
     Raises:
-        ValueError: 未対応のプロバイダが指定された場合
+        ValueError: クエリ文字列が指定されていない場合
+
+    Returns:
+        str: 検索結果要約を含む JSON 文字列
     """
 
-    match provider:
-        case LLMProvider.LOCAL:
-            logger.info(f"llm model = {Config.llm_local_model}")
-            return ChatOpenAI(
-                model=Config.llm_local_model,
-                base_url=Config.llm_local_base_url.rstrip("/"),
-                timeout=30,
-                max_retries=3,
+    query = args.get("query")
+    if not query:
+        raise ValueError("query is required")
+
+    topk = args.get("topk")
+    response = ctx.context.client.query_text_audio(query, topk)
+    return _format_response("text_audio", response)
+
+
+@function_tool
+async def tool_search_audio_audio(
+    ctx: RunContextWrapper[_RagAgentContext],
+    args: _MultiModalSearchArgs,
+) -> str:
+    """アップロード済み音声を基に音声ドキュメントを検索する。
+
+    Args:
+        ctx (RunContextWrapper[_RagAgentContext]): 実行時コンテキスト
+        args (_MultiModalSearchArgs): 検索パラメータ
+
+    Raises:
+        ValueError: 参照音声が未登録の場合
+
+    Returns:
+        str: 検索結果要約を含む JSON 文字列
+    """
+
+    if not ctx.context.audio_path:
+        raise ValueError("audio_path is not provided in context")
+
+    topk = args.get("topk")
+    response = ctx.context.client.query_audio_audio(ctx.context.audio_path, topk)
+    return _format_response("audio_audio", response)
+
+
+_TOOLSET = [
+    tool_search_text_text,
+    tool_search_text_image,
+    tool_search_image_image,
+    tool_search_text_audio,
+    tool_search_audio_audio,
+]
+
+
+@dataclass
+class RagAgentManager:
+    """openai-agents を用いた RAG 検索の実行を管理するクラス。"""
+
+    client: RagServerClient
+    provider: LLMProvider
+
+    def run(
+        self,
+        *,
+        question: str,
+        image_path: Optional[str] = None,
+        audio_path: Optional[str] = None,
+        max_turns: int = 8,
+    ) -> str:
+        """エージェントを実行し最終回答を返す。
+
+        Args:
+            question (str): ユーザからの質問文
+            image_path (Optional[str]): 参照画像ファイルの保存パス
+            audio_path (Optional[str]): 参照音声ファイルの保存パス
+            max_turns (int): エージェントの最大ターン数
+
+        Raises:
+            ValueError: 質問文が空の場合
+            AgentExecutionError: エージェント実行に失敗した場合
+
+        Returns:
+            str: エージェントが生成した最終回答
+        """
+
+        if question.strip() == "":
+            raise ValueError("question must not be empty")
+
+        agent = Agent(
+            name="rag_assistant",
+            instructions=(
+                "あなたは検索アシスタントです。"
+                "回答する前に、ツールを使用して必ずナレッジベースを調べてください。"
+                "ツールが関連文書を返さない場合は、裏付けとなる証拠が見つからないことを明記してください。"
+                "日本語で回答してください。"
+                "最終的な回答を出す前に、提供されているツールを少なくとも１つ呼び出して下さい。"
+            ),
+            tools=_TOOLSET,  # type: ignore
+            model=self._resolve_model(),
+        )
+
+        context = _RagAgentContext(
+            client=self.client,
+            image_path=image_path,
+            audio_path=audio_path,
+        )
+        logger.info(f"image path = {image_path}, audio path = {audio_path}")
+
+        async def _run() -> str:
+            result = await Runner.run(
+                agent,
+                input=question,
+                max_turns=max_turns,
+                context=context,
             )
-        case LLMProvider.OPENAI:
-            logger.info(f"llm model = {Config.llm_openai_model}")
-            return ChatOpenAI(model=Config.llm_openai_model, timeout=30, max_retries=3)
-        case _:
-            raise ValueError(f"unsupported llm provider: {provider}")
+            final = getattr(result, "final_output", None)
+            if isinstance(final, str):
+                return final
+            if final is not None:
+                return str(final)
+            return ""
 
+        try:
+            return asyncio.run(_run())
+        except Exception as e:
+            logger.exception(e)
+            raise AgentExecutionError(str(e)) from e
 
-def execute_rag_search(question: str, provider: LLMProvider) -> str:
-    """RAG エージェントを実行し、最終回答を生成する。
+    def _resolve_model(self) -> str:
+        """LLM プロバイダ設定から使用するモデル名を取得する。
 
-    Args:
-        question (str): ユーザからの質問文
-        provider (LLMProvider): 利用する LLM プロバイダ
+        Raises:
+            AgentExecutionError: 未対応のプロバイダが指定された場合
 
-    Returns:
-        str: エージェントが生成した最終回答
-    """
+        Returns:
+            str: 利用するモデル名
+        """
 
-    if question.strip() == "":
-        raise ValueError("question must not be empty")
-
-    llm = _get_chat_model(provider)
-
-    # 検索プランナーエージェントのセットアップ
-    planner_prompt = _build_planner_prompt()
-
-    available_tools = [text_search_tool, multimodal_search_tool]
-    image_hint = "image_available" if _ACTIVE_IMAGE is not None else "no_image"
-    if _ACTIVE_IMAGE is not None:
-        available_tools.append(image_search_tool)
-
-    planner_messages = planner_prompt.format_messages(
-        question=question,
-        image_hint=image_hint,
-    )
-    planner_llm = llm.bind_tools(available_tools)
-
-    # 検索実行
-    planner_response = planner_llm.invoke(planner_messages)
-
-    if not isinstance(planner_response, AIMessage):
-        raise RuntimeError("planner did not return AIMessage")
-
-    logger.info(planner_response)
-
-    tool_calls = getattr(planner_response, "tool_calls", None)
-    used_tool_names, knowledge_chunks = _collect_tool_outputs(
-        tool_calls or [], available_tools
-    )
-    logger.info(f"used tools: {', '.join(used_tool_names)}")
-
-    planner_summary = (planner_response.content or "").strip()  # type: ignore
-
-    knowledge = "\n".join(knowledge_chunks).strip()
-
-    # 回答エージェントのセットアップ
-    responder_prompt = _build_responder_prompt()
-    messages = responder_prompt.format_messages(
-        question=question,
-        knowledge=knowledge or "",
-        planner_summary=planner_summary,
-        image_hint=image_hint,
-    )
-
-    # 回答生成
-    final_response = llm.invoke(messages)
-    logger.info(final_response)
-
-    if not isinstance(final_response.content, str):
-        raise ValueError("unexpected response shape")
-
-    return final_response.content
+        if self.provider is LLMProvider.OPENAI:
+            return Config.llm_openai_model
+        if self.provider is LLMProvider.LOCAL:
+            return Config.llm_local_model
+        raise AgentExecutionError(f"unsupported llm provider: {self.provider}")
