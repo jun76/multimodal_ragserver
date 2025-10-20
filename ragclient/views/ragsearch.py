@@ -2,27 +2,28 @@ from __future__ import annotations
 
 import streamlit as st
 
+from ragclient.agent import configure_agent_context, execute_rag_search
 from ragclient.api_client import RagServerClient
-from ragclient.config import get_config
+from ragclient.config.config import Config
+from ragclient.config.settings import LLMProvider
 from ragclient.logger import logger
-from ragclient.rag_agent import configure_agent_context, execute_rag_search
-from ragclient.state import VIEW_MAIN, set_view
+from ragclient.state import View, set_view
 from ragclient.views.common import emojify_robot
 
 __all__ = ["render_ragsearch_view"]
 
 
-def _resolve_provider_selection(selected: list[str]) -> str:
+def _resolve_provider_selection(selected: list[str]) -> LLMProvider:
     """マルチセレクトで選択されたプロバイダを 1 件へ確定する。
 
     Args:
         selected (list[str]): ユーザが選択したプロバイダ一覧
 
-    Returns:
-        str: 利用するプロバイダ
-
     Raises:
         ValueError: 選択数が 1 件でない場合
+
+    Returns:
+        LLMProvider: 利用するプロバイダ
     """
     logger.debug("trace")
 
@@ -31,7 +32,7 @@ def _resolve_provider_selection(selected: list[str]) -> str:
     if len(selected) != 1:
         raise ValueError("select exactly one provider")
 
-    return selected[0]
+    return LLMProvider(selected[0])
 
 
 def render_ragsearch_view(client: RagServerClient) -> None:
@@ -44,12 +45,11 @@ def render_ragsearch_view(client: RagServerClient) -> None:
 
     st.title(emojify_robot("🤖 RAG 検索"))
     st.button(
-        "⬅️ メニューに戻る", key="ragsearch_back", on_click=set_view, args=(VIEW_MAIN,)
+        "⬅️ メニューに戻る", key="ragsearch_back", on_click=set_view, args=(View.MAIN,)
     )
     st.divider()
 
-    cfg = get_config()
-    default_selection = cfg.llm_provider
+    default_selection = Config.llm_provider
     provider_options = ["local", "openai"]
     selected_providers = st.multiselect(
         "使用する LLM プロバイダを選択してください。",

@@ -17,6 +17,9 @@ from llama_index.core.vector_stores.types import (
 Embeddings = Sequence[float]
 
 
+from ragserver.logger import logger
+
+
 @dataclass
 class AudioEncoders:
     """音声検索用エンコーダ群。
@@ -30,43 +33,65 @@ class AudioEncoders:
 
     @classmethod
     def from_embed_model(cls, embed_model: Optional[BaseEmbedding]) -> "AudioEncoders":
-        """埋め込みモデルから利用可能なエンコーダを生成する。"""
+        """埋め込みモデルから利用可能なエンコーダを生成する。
+
+        Args:
+            embed_model (Optional[BaseEmbedding]): 埋め込みモデル
+
+        Returns:
+            AudioEncoders: テキスト・音声エンコーダを含むインスタンス
+        """
+        logger.debug("trace")
+
         if embed_model is None:
             return cls()
-
-        text_encoder: Optional[Callable[[list[str]], Awaitable[list[Embeddings]]]] = (
-            None
-        )
-        audio_encoder: Optional[Callable[[list[str]], Awaitable[list[Embeddings]]]] = (
-            None
-        )
 
         if hasattr(embed_model, "aget_text_embedding_batch"):
 
             async def encode_text(queries: list[str]) -> list[Embeddings]:
+                logger.debug("trace")
                 return await embed_model.aget_text_embedding_batch(texts=queries)  # type: ignore[attr-defined]
-
-            text_encoder = encode_text
 
         if hasattr(embed_model, "aget_audio_embedding_batch"):
 
             async def encode_audio(paths: list[str]) -> list[Embeddings]:
+                logger.debug("trace")
                 return await embed_model.aget_audio_embedding_batch(  # type: ignore[attr-defined]
                     audio_file_paths=paths
                 )
 
-            audio_encoder = encode_audio
-
-        return cls(text_encoder=text_encoder, audio_encoder=audio_encoder)
+        return cls(text_encoder=encode_text, audio_encoder=encode_audio)
 
     async def aencode_text(self, queries: list[str]) -> list[Embeddings]:
+        """テキストクエリ群を埋め込みベクトルへ変換する。
+
+        Args:
+            queries (list[str]): テキストクエリのリスト
+
+        Returns:
+            list[Embeddings]: テキスト埋め込みベクトルのリスト
+        """
+        logger.debug("trace")
+
         if self.text_encoder is None:
             raise RuntimeError("text encoder for audio retrieval is not available")
+
         return await self.text_encoder(queries)
 
     async def aencode_audio(self, paths: list[str]) -> list[Embeddings]:
+        """音声ファイル群を埋め込みベクトルへ変換する。
+
+        Args:
+            paths (list[str]): 音声ファイルパスのリスト
+
+        Returns:
+            list[Embeddings]: 音声埋め込みベクトルのリスト
+        """
+        logger.debug("trace")
+
         if self.audio_encoder is None:
             raise RuntimeError("audio encoder for audio retrieval is not available")
+
         return await self.audio_encoder(paths)
 
 
@@ -85,7 +110,19 @@ class AudioRetriever(BaseRetriever):
         doc_ids: Optional[list[str]] = None,
         vector_store_kwargs: Optional[dict] = None,
     ) -> None:
-        """Initialize retriever."""
+        """リトリーバーを初期化する。
+
+        Args:
+            index (VectorStoreIndex): ベクトルストアインデックス
+            top_k (int, optional): 類似ドキュメントの最大取得件数。Defaults to 10.
+            encoders (Optional[AudioEncoders], optional): 事前構築済みエンコーダ。Defaults to None.
+            filters (Optional[MetadataFilters], optional): メタデータフィルタ条件。Defaults to None.
+            vector_store_query_mode (VectorStoreQueryMode, optional): クエリモード。Defaults to VectorStoreQueryMode.DEFAULT.
+            node_ids (Optional[list[str]], optional): 対象ノード ID の制限。Defaults to None.
+            doc_ids (Optional[list[str]], optional): 対象ドキュメント ID の制限。Defaults to None.
+            vector_store_kwargs (Optional[dict], optional): ベクトルストアへ渡す追加パラメータ。Defaults to None.
+        """
+        logger.debug("trace")
 
         self._index = index
         self._vector_store = index.vector_store
@@ -104,15 +141,34 @@ class AudioRetriever(BaseRetriever):
 
         self._encoders = encoders
 
-    # BaseRetriever インタフェース（同期版）は今回利用しないため、利用者に警告を出す
-    def _retrieve(
-        self, query_bundle: QueryBundle
-    ) -> list[NodeWithScore]:  # pragma: no cover - sync API not used
+    def _retrieve(self, query_bundle: QueryBundle) -> list[NodeWithScore]:
+        """埋め込み済みクエリを利用して同期検索を実施する。
+
+        Args:
+            query_bundle (QueryBundle): クエリ情報
+
+        Raises:
+            NotImplementedError: 未実装
+
+        Returns:
+            list[NodeWithScore]: 類似ノードのリスト
+        """
         raise NotImplementedError("AudioRetriever only supports async retrieval APIs")
 
     async def _aretrieve(self, query_bundle: QueryBundle) -> list[NodeWithScore]:
+        """埋め込み済みクエリを利用して非同期検索を実施する。
+
+        Args:
+            query_bundle (QueryBundle): クエリ情報
+
+        Returns:
+            list[NodeWithScore]: 類似ノードのリスト
+        """
+        logger.debug("trace")
+
         if query_bundle.embedding is None:
             raise RuntimeError("embedding is required for async retrieval")
+
         return await self._aquery_with_embedding(
             embedding=query_bundle.embedding,
             query_str=query_bundle.query_str,
@@ -121,6 +177,16 @@ class AudioRetriever(BaseRetriever):
     async def atext_to_audio_retrieve(
         self, query: Union[str, QueryBundle]
     ) -> list[NodeWithScore]:
+        """テキストクエリから音声モダリティを検索する。
+
+        Args:
+            query (Union[str, QueryBundle]): テキストクエリまたは QueryBundle
+
+        Returns:
+            list[NodeWithScore]: 類似ノードのリスト
+        """
+        logger.debug("trace")
+
         if isinstance(query, QueryBundle):
             query_str = query.query_str
             embedding = query.embedding
@@ -130,15 +196,28 @@ class AudioRetriever(BaseRetriever):
                 else:
                     texts = [query.query_str]
                 embedding = (await self._encoders.aencode_text(texts))[0]  # type: ignore
+
             return await self._aquery_with_embedding(
                 embedding=embedding, query_str=query_str
             )
 
         embedding = (await self._encoders.aencode_text([query]))[0]  # type: ignore
+
         return await self._aquery_with_embedding(embedding=embedding, query_str=query)
 
     async def aaudio_to_audio_retrieve(self, audio_path: str) -> list[NodeWithScore]:
+        """音声ファイルをクエリとして検索する。
+
+        Args:
+            audio_path (str): クエリ音声ファイルパス
+
+        Returns:
+            list[NodeWithScore]: 類似ノードのリスト
+        """
+        logger.debug("trace")
+
         embedding = (await self._encoders.aencode_audio([audio_path]))[0]  # type: ignore
+
         return await self._aquery_with_embedding(embedding=embedding, query_str="")
 
     async def _aquery_with_embedding(
@@ -146,6 +225,17 @@ class AudioRetriever(BaseRetriever):
         embedding: Sequence[float],
         query_str: str,
     ) -> list[NodeWithScore]:
+        """埋め込みベクトルを用いてベクトルストアを検索する。
+
+        Args:
+            embedding (Sequence[float]): クエリ埋め込みベクトル
+            query_str (str): クエリ文字列
+
+        Returns:
+            list[NodeWithScore]: 類似ノードのリスト
+        """
+        logger.debug("trace")
+
         query = VectorStoreQuery(
             query_embedding=list(embedding),
             similarity_top_k=self._top_k,
@@ -157,11 +247,22 @@ class AudioRetriever(BaseRetriever):
         )
 
         query_result = await self._vector_store.aquery(query, **self._kwargs)
+
         return self._build_node_list_from_query_result(query_result)
 
     def _build_node_list_from_query_result(
         self, query_result: VectorStoreQueryResult
     ) -> list[NodeWithScore]:
+        """検索結果を NodeWithScore のリストへ変換する。
+
+        Args:
+            query_result (VectorStoreQueryResult): ベクトルストアの検索結果
+
+        Returns:
+            list[NodeWithScore]: 変換後のノード一覧
+        """
+        logger.debug("trace")
+
         nodes: Iterable[BaseNode] = query_result.nodes or []
         nodes = list(nodes)
 

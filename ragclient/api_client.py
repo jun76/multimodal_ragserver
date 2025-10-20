@@ -226,20 +226,6 @@ class RagServerClient:
 
         return self._post_json("/query/audio_audio", payload)
 
-    def reload(self, target: str, name: str) -> dict[str, Any]:
-        """リロード API を呼び出す。
-
-        Args:
-            target (str): リロード対象
-            name (str): 新規起動するプロバイダの名称
-
-        Returns:
-            dict[str, Any]: 応答データ
-        """
-        logger.debug("trace")
-
-        return self._post_json("/reload", {"target": target, "name": name})
-
     def upload(self, files: list[tuple[str, bytes, Optional[str]]]) -> dict[str, Any]:
         """ファイルアップロード API を呼び出す。
 
@@ -262,8 +248,10 @@ class RagServerClient:
         for name, data, content_type in files:
             if not isinstance(name, str) or name == "":
                 raise ValueError("file name must be non-empty string")
+
             if not isinstance(data, bytes):
                 raise ValueError("file data must be bytes")
+
             mime = content_type or "application/octet-stream"
             files_payload.append(("files", (name, data, mime)))
 

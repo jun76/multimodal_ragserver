@@ -7,7 +7,9 @@ import streamlit as st
 from ragclient.api_client import RagServerClient
 from ragclient.logger import logger
 from ragclient.state import (
-    VIEW_MAIN,
+    FeedBack,
+    SearchResult,
+    View,
     clear_feedback,
     clear_search_result,
     display_feedback,
@@ -30,16 +32,16 @@ __all__ = [
 def _run_text_search(
     func: Callable[[str], dict[str, Any]],
     query: str,
-    result_key: str,
-    feedback_key: str,
+    result_key: SearchResult,
+    feedback_key: FeedBack,
 ) -> None:
     """テキスト系検索を実行する。
 
     Args:
         func (Callable[[str], dict[str, Any]]): query_text または query_text_multi
         query (str): 検索クエリ
-        result_key (str): 検索結果を保持するセッションキー
-        feedback_key (str): フィードバック表示用キー
+        result_key (SearchResult): 検索結果を保持するセッションキー
+        feedback_key (FeedBack): フィードバック表示用キー
     """
     logger.debug("trace")
 
@@ -65,16 +67,16 @@ def _run_text_search(
 def run_text_text_search_callback(
     client: RagServerClient,
     query: str,
-    result_key: str,
-    feedback_key: str,
+    result_key: SearchResult,
+    feedback_key: FeedBack,
 ) -> None:
     """クエリ文字列によるテキストドキュメント検索 API を呼び出す。
 
     Args:
         client (RagServerClient): ragserver API クライアント
         query (str): 検索クエリ
-        result_key (str): 検索結果を保持するセッションキー
-        feedback_key (str): フィードバック表示用キー
+        result_key (SearchResult): 検索結果を保持するセッションキー
+        feedback_key (FeedBack): フィードバック表示用キー
     """
     logger.debug("trace")
 
@@ -89,16 +91,16 @@ def run_text_text_search_callback(
 def run_text_image_search_callback(
     client: RagServerClient,
     query: str,
-    result_key: str,
-    feedback_key: str,
+    result_key: SearchResult,
+    feedback_key: FeedBack,
 ) -> None:
     """クエリ文字列による画像ドキュメント検索 API を呼び出す。
 
     Args:
         client (RagServerClient): ragserver API クライアント
         query (str): 検索クエリ
-        result_key (str): 検索結果を保持するセッションキー
-        feedback_key (str): フィードバック表示用キー
+        result_key (SearchResult): 検索結果を保持するセッションキー
+        feedback_key (FeedBack): フィードバック表示用キー
     """
     logger.debug("trace")
 
@@ -113,16 +115,16 @@ def run_text_image_search_callback(
 def run_image_image_search_callback(
     client: RagServerClient,
     file_obj: Any,
-    result_key: str,
-    feedback_key: str,
+    result_key: SearchResult,
+    feedback_key: FeedBack,
 ) -> None:
     """クエリ画像による画像ドキュメント検索 API を呼び出す。
 
     Args:
         client (RagServerClient): ragserver API クライアント
         file_obj (Any): アップロードされた画像ファイル
-        result_key (str): 検索結果を保持するセッションキー
-        feedback_key (str): フィードバック表示用キー
+        result_key (SearchResult): 検索結果を保持するセッションキー
+        feedback_key (FeedBack): フィードバック表示用キー
     """
     logger.debug("trace")
 
@@ -148,16 +150,16 @@ def run_image_image_search_callback(
 def run_text_audio_search_callback(
     client: RagServerClient,
     query: str,
-    result_key: str,
-    feedback_key: str,
+    result_key: SearchResult,
+    feedback_key: FeedBack,
 ) -> None:
     """クエリ文字列による音声ドキュメント検索 API を呼び出す。
 
     Args:
         client (RagServerClient): ragserver API クライアント
         query (str): 検索クエリ
-        result_key (str): 検索結果を保持するセッションキー
-        feedback_key (str): フィードバック表示用キー
+        result_key (SearchResult): 検索結果を保持するセッションキー
+        feedback_key (FeedBack): フィードバック表示用キー
     """
     logger.debug("trace")
 
@@ -172,16 +174,16 @@ def run_text_audio_search_callback(
 def run_audio_audio_search_callback(
     client: RagServerClient,
     file_obj: Any,
-    result_key: str,
-    feedback_key: str,
+    result_key: SearchResult,
+    feedback_key: FeedBack,
 ) -> None:
     """クエリ音声による音声ドキュメント検索 API を呼び出す。
 
     Args:
         client (RagServerClient): ragserver API クライアント
         file_obj (Any): アップロードされた音声ファイル
-        result_key (str): 検索結果を保持するセッションキー
-        feedback_key (str): フィードバック表示用キー
+        result_key (SearchResult): 検索結果を保持するセッションキー
+        feedback_key (FeedBack): フィードバック表示用キー
     """
     logger.debug("trace")
 
@@ -310,7 +312,7 @@ def render_search_view(client: RagServerClient) -> None:
 
     st.title("🔎 検索")
     st.button(
-        "⬅️ メニューに戻る", key="search_back", on_click=set_view, args=(VIEW_MAIN,)
+        "⬅️ メニューに戻る", key="search_back", on_click=set_view, args=(View.MAIN,)
     )
     st.divider()
 
@@ -338,12 +340,12 @@ def render_search_view(client: RagServerClient) -> None:
             args=(
                 client,
                 text_text_query,
-                "text_text_search_result",
-                "search_text_text_feedback",
+                SearchResult.SR_SEARCH_TEXT_TEXT,
+                FeedBack.FB_SEARCH_TEXT_TEXT,
             ),
         )
-        display_feedback("search_text_text_feedback")
-        text_text_result = st.session_state.get("text_text_search_result")
+        display_feedback(FeedBack.FB_SEARCH_TEXT_TEXT)
+        text_text_result = st.session_state.get(SearchResult.SR_SEARCH_TEXT_TEXT)
         if text_text_result is not None:
             _render_query_results_text("📝 検索結果", text_text_result)
 
@@ -357,12 +359,12 @@ def render_search_view(client: RagServerClient) -> None:
             args=(
                 client,
                 text_image_query,
-                "text_image_search_result",
-                "search_text_image_feedback",
+                SearchResult.SR_SEARCH_TEXT_IMAGE,
+                FeedBack.FB_SEARCH_TEXT_IMAGE,
             ),
         )
-        display_feedback("search_text_image_feedback")
-        text_image_result = st.session_state.get("text_image_search_result")
+        display_feedback(FeedBack.FB_SEARCH_TEXT_IMAGE)
+        text_image_result = st.session_state.get(SearchResult.SR_SEARCH_TEXT_IMAGE)
         if text_image_result is not None:
             _render_query_results_image("🖼️ 検索結果", text_image_result)
 
@@ -378,12 +380,12 @@ def render_search_view(client: RagServerClient) -> None:
             args=(
                 client,
                 image_file,
-                "image_image_search_result",
-                "search_image_image_feedback",
+                SearchResult.SR_SEARCH_IMAGE_IMAGE,
+                FeedBack.FB_SEARCH_IMAGE_IMAGE,
             ),
         )
-        display_feedback("search_image_image_feedback")
-        image_image_result = st.session_state.get("image_image_search_result")
+        display_feedback(FeedBack.FB_SEARCH_IMAGE_IMAGE)
+        image_image_result = st.session_state.get(SearchResult.SR_SEARCH_IMAGE_IMAGE)
         if image_image_result is not None:
             _render_query_results_image("🖼️ 検索結果", image_image_result)
 
@@ -397,12 +399,12 @@ def render_search_view(client: RagServerClient) -> None:
             args=(
                 client,
                 text_audio_query,
-                "text_audio_search_result",
-                "search_text_audio_feedback",
+                SearchResult.SR_SEARCH_TEXT_AUDIO,
+                FeedBack.FB_SEARCH_TEXT_AUDIO,
             ),
         )
-        display_feedback("search_text_audio_feedback")
-        text_audio_result = st.session_state.get("text_audio_search_result")
+        display_feedback(FeedBack.FB_SEARCH_TEXT_AUDIO)
+        text_audio_result = st.session_state.get(SearchResult.SR_SEARCH_TEXT_AUDIO)
         if text_audio_result is not None:
             _render_query_results_audio("🎤 検索結果", text_audio_result)
 
@@ -418,11 +420,11 @@ def render_search_view(client: RagServerClient) -> None:
             args=(
                 client,
                 audio_file,
-                "audio_audio_search_result",
-                "search_audio_audio_feedback",
+                SearchResult.SR_SEARCH_AUDIO_AUDIO,
+                FeedBack.FB_SEARCH_AUDIO_AUDIO,
             ),
         )
-        display_feedback("search_audio_audio_feedback")
-        audio_audio_result = st.session_state.get("audio_audio_search_result")
+        display_feedback(FeedBack.FB_SEARCH_AUDIO_AUDIO)
+        audio_audio_result = st.session_state.get(SearchResult.SR_SEARCH_AUDIO_AUDIO)
         if audio_audio_result is not None:
             _render_query_results_audio("🎤 検索結果", audio_audio_result)

@@ -7,10 +7,13 @@ import streamlit as st
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
 
 from ragclient.api_client import RagServerClient
-from ragclient.llm import get_chat_model
+from ragclient.config.config import Config
+from ragclient.config.settings import LLMProvider
 from ragclient.logger import logger
+from ragclient.state import FeedBack, SearchResult
 from ragclient.views.search import (
     run_image_image_search_callback,
     run_text_image_search_callback,
@@ -19,17 +22,10 @@ from ragclient.views.search import (
 
 __all__ = ["configure_agent_context", "execute_rag_search"]
 
-_TEXT_RESULT_KEY = "rag_agent_text_result"
-_TEXT_FEEDBACK_KEY = "rag_agent_text_feedback"
-_MULTI_RESULT_KEY = "rag_agent_multi_result"
-_MULTI_FEEDBACK_KEY = "rag_agent_multi_feedback"
-_IMAGE_RESULT_KEY = "rag_agent_image_result"
-_IMAGE_FEEDBACK_KEY = "rag_agent_image_feedback"
-
 _TOOL_RESULT_KEY_MAP = {
-    "text_search_tool": _TEXT_RESULT_KEY,
-    "multimodal_search_tool": _MULTI_RESULT_KEY,
-    "image_search_tool": _IMAGE_RESULT_KEY,
+    "text_search_tool": SearchResult.SR_RAGSEARCH_TEXT_TEXT,
+    "multimodal_search_tool": SearchResult.SR_RAGSEARCH_TEXT_IMAGE,
+    "image_search_tool": SearchResult.SR_RAGSEARCH_IMAGE_IMAGE,
 }
 
 _ACTIVE_CLIENT: RagServerClient | None = None
@@ -94,15 +90,15 @@ def text_search_tool(query: str) -> str:
     logger.debug("trace")
 
     client = _require_client()
-    _ensure_session_key(_TEXT_RESULT_KEY)
-    _ensure_session_key(_TEXT_FEEDBACK_KEY)
+    _ensure_session_key(SearchResult.SR_RAGSEARCH_TEXT_TEXT)
+    _ensure_session_key(FeedBack.FB_RAGSEARCH_TEXT_TEXT)
     run_text_text_search_callback(
         client,
         query,
-        _TEXT_RESULT_KEY,
-        _TEXT_FEEDBACK_KEY,
+        SearchResult.SR_RAGSEARCH_TEXT_TEXT,
+        FeedBack.FB_RAGSEARCH_TEXT_TEXT,
     )
-    payload = st.session_state.get(_TEXT_RESULT_KEY) or {}
+    payload = st.session_state.get(SearchResult.SR_RAGSEARCH_TEXT_TEXT) or {}
 
     return json.dumps(payload, ensure_ascii=False)
 
@@ -120,15 +116,15 @@ def multimodal_search_tool(query: str) -> str:
     logger.debug("trace")
 
     client = _require_client()
-    _ensure_session_key(_MULTI_RESULT_KEY)
-    _ensure_session_key(_MULTI_FEEDBACK_KEY)
+    _ensure_session_key(SearchResult.SR_RAGSEARCH_TEXT_IMAGE)
+    _ensure_session_key(FeedBack.FB_RAGSEARCH_IMAGE_IMAGE)
     run_text_image_search_callback(
         client,
         query,
-        _MULTI_RESULT_KEY,
-        _MULTI_FEEDBACK_KEY,
+        SearchResult.SR_RAGSEARCH_TEXT_IMAGE,
+        FeedBack.FB_RAGSEARCH_IMAGE_IMAGE,
     )
-    payload = st.session_state.get(_MULTI_RESULT_KEY) or {}
+    payload = st.session_state.get(SearchResult.SR_RAGSEARCH_TEXT_IMAGE) or {}
 
     return json.dumps(payload, ensure_ascii=False)
 
@@ -152,15 +148,15 @@ def image_search_tool(query: str) -> str:
     if _ACTIVE_IMAGE is None:
         raise ValueError("no image uploaded")
 
-    _ensure_session_key(_IMAGE_RESULT_KEY)
-    _ensure_session_key(_IMAGE_FEEDBACK_KEY)
+    _ensure_session_key(SearchResult.SR_RAGSEARCH_IMAGE_IMAGE)
+    _ensure_session_key(FeedBack.FB_RAGSEARCH_IMAGE_IMAGE)
     run_image_image_search_callback(
         client,
         _ACTIVE_IMAGE,
-        _IMAGE_RESULT_KEY,
-        _IMAGE_FEEDBACK_KEY,
+        SearchResult.SR_RAGSEARCH_IMAGE_IMAGE,
+        FeedBack.FB_RAGSEARCH_IMAGE_IMAGE,
     )
-    payload = st.session_state.get(_IMAGE_RESULT_KEY) or {}
+    payload = st.session_state.get(SearchResult.SR_RAGSEARCH_IMAGE_IMAGE) or {}
 
     return json.dumps(payload, ensure_ascii=False)
 
@@ -327,12 +323,44 @@ def _extract_session_payloads(tool_names: list[str]) -> list[str]:
     return outputs
 
 
-def execute_rag_search(question: str, provider: str) -> str:
+def _get_chat_model(provider: LLMProvider) -> ChatOpenAI:
+    """LLM プロバイダ設定に応じたチャットモデルを生成する。
+
+    Args:
+        provider (LLMProvider): 利用する LLM プロバイダ名
+
+    Returns:
+        ChatOpenAI: LangChain 互換のチャットモデル
+
+    Raises:
+        ValueError: 未対応のプロバイダが指定された場合
+    """
+    logger.debug("trace")
+
+    match provider:
+        case LLMProvider.LOCAL:
+            logger.info(f"llm model = {Config.llm_openai_model}")
+            return ChatOpenAI(model=Config.llm_openai_model, timeout=30, max_retries=3)
+
+        case LLMProvider.OPENAI:
+            logger.info(f"llm model = {Config.llm_local_model}")
+            return ChatOpenAI(
+                model=Config.llm_local_model,
+                base_url=Config.llm_local_base_url.rstrip("/"),
+                timeout=30,
+                max_retries=3,
+            )
+
+        case _:
+            raise ValueError(f"unsupported llm provider: {provider}")
+
+
+def execute_rag_search(question: str, provider: LLMProvider) -> str:
     """RAG エージェントを実行し、最終回答を生成する。
 
     Args:
         question (str): ユーザからの質問文
-        provider (str): 利用する LLM プロバイダ
+        provider (LLMProvider): 利用する LLM プロバイダ
 
     Returns:
         str: エージェントが生成した最終回答
@@ -342,7 +370,7 @@ def execute_rag_search(question: str, provider: str) -> str:
     if question.strip() == "":
         raise ValueError("question must not be empty")
 
-    llm = get_chat_model(provider)
+    llm = _get_chat_model(provider)
 
     # 検索プランナーエージェントのセットアップ
     planner_prompt = _build_planner_prompt()

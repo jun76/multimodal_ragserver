@@ -36,11 +36,16 @@ class ClapEmbedding(AudioEmbedding):
 
     MultiModalEmbedding を参考に実装。
     MultiModalEmbedding 自身に音声埋め込みサポートがあれば良いが
-    未だ無いので BaseEmbedding を基底として実装する。
+    未だ無いので BaseEmbedding --> AudioEmbedding を基底として実装する。
     """
 
     @classmethod
     def class_name(cls) -> str:
+        """クラス名
+
+        Returns:
+            str: クラス名
+        """
         return "ClapEmbedding"
 
     def __init__(
@@ -188,7 +193,7 @@ class ClapEmbedding(AudioEmbedding):
     def _get_audio_embeddings(
         self, audio_file_paths: list[AudioType]
     ) -> list[Embedding]:
-        """LAION-AI CLAP の API 呼び出しラッパー。
+        """LAION-AI CLAP の同期 API 呼び出しラッパー。
 
         Args:
             audio_file_paths (list[AudioType]): 音声ファイルパス
@@ -274,7 +279,16 @@ class ClapEmbedding(AudioEmbedding):
     async def _aget_audio_embeddings(
         self, audio_file_paths: list[AudioType]
     ) -> list[Embedding]:
-        """この関数の実装時点で、LAION-AI CLAP には未だ同期インタフェースしかない"""
+        """LAION-AI CLAP の非同期 API 呼び出しラッパー。
+
+        この関数の実装時点で、LAION-AI CLAP には未だ同期インタフェースしかない
+
+        Args:
+            audio_file_paths (list[AudioType]): 音声ファイルパス
+
+        Returns:
+            list[Embedding]: 埋め込みベクトル
+        """
         logger.debug("trace")
 
         return await asyncio.to_thread(self.get_audio_embedding_batch, audio_file_paths)

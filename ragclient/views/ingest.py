@@ -7,7 +7,8 @@ import streamlit as st
 from ragclient.api_client import RagServerClient
 from ragclient.logger import logger
 from ragclient.state import (
-    VIEW_MAIN,
+    FeedBack,
+    View,
     clear_feedback,
     display_feedback,
     set_feedback,
@@ -26,14 +27,14 @@ __all__ = [
 def register_uploaded_files_callback(
     client: RagServerClient,
     files: Optional[list[Any]],
-    feedback_key: str,
+    feedback_key: FeedBack,
 ) -> None:
     """アップロードファイル経由でナレッジ登録を実行する。
 
     Args:
         client (RagServerClient): ragserver API クライアント
         files (Optional[list[Any]]): アップロードされたファイル群
-        feedback_key (str): フィードバック表示用キー
+        feedback_key (FeedBack): フィードバック表示用キー
 
     """
     logger.debug("trace")
@@ -55,14 +56,14 @@ def register_uploaded_files_callback(
 
 
 def register_url_callback(
-    client: RagServerClient, url_value: str, feedback_key: str
+    client: RagServerClient, url_value: str, feedback_key: FeedBack
 ) -> None:
     """URL 指定でナレッジ登録を実行する。
 
     Args:
         client (RagServerClient): ragserver API クライアント
         url_value (str): 取り込み対象 URL
-        feedback_key (str): フィードバック表示用キー
+        feedback_key (FeedBack): フィードバック表示用キー
 
     """
     logger.debug("trace")
@@ -85,14 +86,14 @@ def register_url_callback(
 def register_url_list_callback(
     client: RagServerClient,
     file_obj: Any,
-    feedback_key: str,
+    feedback_key: FeedBack,
 ) -> None:
     """URL リストファイル経由でナレッジ登録を実行する。
 
     Args:
         client (RagServerClient): ragserver API クライアント
         file_obj (Any): アップロードされた URL リスト
-        feedback_key (str): フィードバック表示用キー
+        feedback_key (FeedBack): フィードバック表示用キー
 
     """
     logger.debug("trace")
@@ -122,7 +123,7 @@ def render_ingest_view(client: RagServerClient) -> None:
     logger.debug("trace")
 
     st.title("📝 ナレッジ登録")
-    st.button("⬅️ メニューに戻る", on_click=set_view, args=(VIEW_MAIN,))
+    st.button("⬅️ メニューに戻る", on_click=set_view, args=(View.MAIN,))
 
     st.divider()
     st.subheader("📁 ファイルをアップロードして登録")
@@ -131,9 +132,9 @@ def render_ingest_view(client: RagServerClient) -> None:
     st.button(
         "📁 登録",
         on_click=register_uploaded_files_callback,
-        args=(client, files, "ingest_files_feedback"),
+        args=(client, files, FeedBack.FB_INGEST_FILES),
     )
-    display_feedback("ingest_files_feedback")
+    display_feedback(FeedBack.FB_INGEST_FILES)
 
     st.divider()
     st.subheader("🌐 URL を指定して登録")
@@ -142,9 +143,9 @@ def render_ingest_view(client: RagServerClient) -> None:
     st.button(
         "🌐 登録",
         on_click=register_url_callback,
-        args=(client, url_value, "ingest_url_feedback"),
+        args=(client, url_value, FeedBack.FB_INGEST_URL),
     )
-    display_feedback("ingest_url_feedback")
+    display_feedback(FeedBack.FB_INGEST_URL)
 
     st.divider()
     st.subheader("📚 URL リストをアップロードして登録")
@@ -155,6 +156,6 @@ def render_ingest_view(client: RagServerClient) -> None:
     st.button(
         "📚 登録",
         on_click=register_url_list_callback,
-        args=(client, url_list, "ingest_url_list_feedback"),
+        args=(client, url_list, FeedBack.FB_INGEST_URL_LIST),
     )
-    display_feedback("ingest_url_list_feedback")
+    display_feedback(FeedBack.FB_INGEST_URL_LIST)

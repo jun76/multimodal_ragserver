@@ -57,7 +57,7 @@ def create_vector_store_manager(
         conts=conts,
         embed=embed,
         meta_store=meta_store,
-        load_limit=VectorStoreConfig.load_limit,
+        cache_load_limit=VectorStoreConfig.cache_load_limit,
         check_update=VectorStoreConfig.check_update,
     )
 
@@ -77,14 +77,14 @@ def _create_container(space_key: str) -> VectorStoreContainer:
     logger.debug("trace")
 
     table_name = _generate_table_name(space_key)
-    match GeneralConfig.vector_store:
+    match GeneralConfig.vector_store_provider:
         case VectorStoreProvider.PGVECTOR:
             cont = _pgvector(table_name)
         case VectorStoreProvider.CHROMA:
             cont = _chroma(table_name)
         case _:
             raise RuntimeError(
-                f"unsupported vector store: {GeneralConfig.vector_store}"
+                f"unsupported vector store: {GeneralConfig.vector_store_provider}"
             )
 
     return cont

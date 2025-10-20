@@ -141,7 +141,7 @@ async def upload(files: list[UploadFile] = File(...)) -> dict[str, Any]:
     logger.debug("trace")
 
     try:
-        upload_dir = Path(IngestConfig.upload_dir)
+        upload_dir = Path(IngestConfig.upload_dir).absolute()
         upload_dir.mkdir(parents=True, exist_ok=True)
     except Exception as e:
         traceback.print_exc()

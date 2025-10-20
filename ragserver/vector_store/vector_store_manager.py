@@ -8,7 +8,7 @@ from typing import Callable, Optional, Sequence
 
 from llama_index.core.indices import VectorStoreIndex
 from llama_index.core.indices.multi_modal import MultiModalVectorStoreIndex
-from llama_index.core.schema import BaseNode, ImageNode, MediaResource, TextNode
+from llama_index.core.schema import BaseNode, ImageNode, TextNode
 from llama_index.core.vector_stores.types import BasePydanticVectorStore
 
 from ragserver.core.exts import Exts
@@ -41,16 +41,16 @@ class VectorStoreManager:
         conts: dict[Modality, VectorStoreContainer],
         embed: EmbedManager,
         meta_store: Structured,
-        load_limit: int,
+        cache_load_limit: int,
         check_update: bool = True,
     ) -> None:
         """コンストラクタ
 
         Args:
             conts (dict[Modality, VectorStoreContainer]): ベクトルストアコンテナの辞書
-            embed (EmbeddingManager): 埋め込み管理
+            embed (EmbedManager): 埋め込み管理
             meta_store (StructuredStoreManager): メタデータ管理
-            load_limit (int): キャッシュロード件数上限
+            cache_load_limit (int): キャッシュロード件数上限
             check_update (bool, optional): ファイルの更新チェック要否。Defaults to True.
         """
         logger.debug("trace")
@@ -64,7 +64,7 @@ class VectorStoreManager:
             cont.index = self._create_index(modality)
 
         # メタデータ専用ストアから fingerprint キャッシュを復元
-        self._fp_cache = self._load_fp_cache(load_limit)
+        self._fp_cache = self._load_fp_cache(cache_load_limit)
 
     @property
     def name(self) -> str:
@@ -166,11 +166,11 @@ class VectorStoreManager:
         # check_update 指定がなく、かつソースが登録済み
         return (not self._check_update) and (self._fp_cache.get(source) is not None)
 
-    def _load_fp_cache(self, load_limit: int) -> dict[str, str]:
+    def _load_fp_cache(self, cache_load_limit: int) -> dict[str, str]:
         """メタデータ用ストアから fingerprint のキャッシュを読み込む。
 
         Args:
-            load_limit (int): メタデータ読み込み件数上限
+            cache_load_limit (int): メタデータ読み込み件数上限
 
         Returns:
             dict[str, str]: ソース情報対 fingerprint の KVS
@@ -180,7 +180,7 @@ class VectorStoreManager:
         rows = self._meta_store.select(
             cols=[MK.FILE_PATH, MK.URL, MK.FINGERPRINT],
             table_names=self.table_names,
-            limit=load_limit,
+            limit=cache_load_limit,
         )
 
         fp_cache = {}
