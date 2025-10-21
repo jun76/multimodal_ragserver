@@ -31,8 +31,7 @@ class _MultiModalSearchArgs(TypedDict, total=False):
 class _RagAgentContext(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     client: RagServerClient
-    image_path: Optional[str] = None
-    audio_path: Optional[str] = None
+    file_path: Optional[str] = None
 
 
 def _format_documents(payload: dict[str, Any]) -> str:
@@ -73,9 +72,14 @@ def _format_response(title: str, payload: dict[str, Any]) -> str:
     """
 
     summary = _format_documents(payload)
-    return json.dumps(
-        {"title": title, "summary": summary, "raw": payload}, ensure_ascii=False
+    result = json.dumps(
+        {"title": title, "summary": summary, "raw": payload},
+        ensure_ascii=False,
+        indent=2,
     )
+    logger.debug(result)
+
+    return result
 
 
 @function_tool
@@ -150,11 +154,11 @@ async def tool_search_image_image(
         str: 検索結果要約を含む JSON 文字列
     """
 
-    if not ctx.context.image_path:
-        raise ValueError("image_path is not provided in context")
+    if not ctx.context.file_path:
+        raise ValueError("file_path is not provided in context")
 
     topk = args.get("topk")
-    response = ctx.context.client.query_image_image(ctx.context.image_path, topk)
+    response = ctx.context.client.query_image_image(ctx.context.file_path, topk)
     return _format_response("image_image", response)
 
 
@@ -203,11 +207,11 @@ async def tool_search_audio_audio(
         str: 検索結果要約を含む JSON 文字列
     """
 
-    if not ctx.context.audio_path:
-        raise ValueError("audio_path is not provided in context")
+    if not ctx.context.file_path:
+        raise ValueError("file_path is not provided in context")
 
     topk = args.get("topk")
-    response = ctx.context.client.query_audio_audio(ctx.context.audio_path, topk)
+    response = ctx.context.client.query_audio_audio(ctx.context.file_path, topk)
     return _format_response("audio_audio", response)
 
 
@@ -231,16 +235,14 @@ class RagAgentManager:
         self,
         *,
         question: str,
-        image_path: Optional[str] = None,
-        audio_path: Optional[str] = None,
-        max_turns: int = 8,
+        file_path: Optional[str] = None,
+        max_turns: int = 5,
     ) -> str:
         """エージェントを実行し最終回答を返す。
 
         Args:
             question (str): ユーザからの質問文
-            image_path (Optional[str]): 参照画像ファイルの保存パス
-            audio_path (Optional[str]): 参照音声ファイルの保存パス
+            file_path (Optional[str]): 参照画像ファイルの保存パス
             max_turns (int): エージェントの最大ターン数
 
         Raises:
@@ -258,23 +260,23 @@ class RagAgentManager:
         agent = Agent(
             name="rag_assistant",
             instructions=(
-                "あなたは検索アシスタントです。"
+                "あなたは検索エージェントです。"
                 "ユーザからの質問に対し、日本語で回答して下さい。"
-                "回答する前に、ツールを使用して必ずナレッジベースを検索して下さい。"
-                "検索の際に使用できる参考画像や音声がある場合は、"
-                "それぞれ image_path, audio_path に格納されています。"
-                "最終的な回答を出す前に、提供されているツールを少なくとも１つ呼び出して下さい。"
-                "ツールが関連文書を返さない場合は、裏付けとなる証拠が見つからないことを明記して下さい。"
+                "回答する前に、提供されているツールを使用して必ずナレッジベースを検索して下さい。"
+                "検索の際に使用できる参考画像や音声がある場合は file_path に格納されています。"
+                "関連文書が見つかった場合は、ファイルパスを回答に含めて下さい。"
+                "ただし、スコアは回答に含めないで下さい。"
+                "その他、関連文書が見つからない場合やエラー時は"
+                "「該当するドキュメントが見つかりませんでした。」とだけ回答下さい。"
             ),
             tools=_TOOLSET,  # type: ignore
             model=self.model,
         )
 
-        logger.debug(f"image path = {image_path}, audio path = {audio_path}")
+        logger.debug(f"file path = {file_path}")
         context = _RagAgentContext(
             client=self.client,
-            image_path=image_path,
-            audio_path=audio_path,
+            file_path=file_path,
         )
 
         async def _run() -> str:

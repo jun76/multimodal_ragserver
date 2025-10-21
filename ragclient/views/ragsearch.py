@@ -69,42 +69,34 @@ def render_ragsearch_view(client: RagServerClient) -> None:
 
     question = st.text_area("質問文", key="ragsearch_question")
 
-    image_file = st.file_uploader(
-        "参考画像（任意）",
-        type=["png", "jpg", "jpeg", "gif", "bmp"],
+    ref_file = st.file_uploader(
+        "添付ファイル（任意）",
+        type=["png", "jpg", "jpeg", "gif", "bmp"] + ["wav", "mp3", "flac", "ogg"],
         key="ragsearch_image",
-    )
-    audio_file = st.file_uploader(
-        "参考音声（任意）", type=["wav", "mp3", "flac", "ogg"], key="ragsearch_audio"
     )
 
     if RagSearchSessionKey.ANSWER not in st.session_state:
         st.session_state[RagSearchSessionKey.ANSWER] = None
 
-    if st.button("送信", key="ragsearch_submit"):
+    if st.button(emojify_robot("🤖 送信"), key="ragsearch_submit"):
         if not question.strip():
             st.warning("質問文を入力してください")
         else:
-            image_path = None
-            audio_path = None
+            file_path = None
             try:
-                image_path = _save_reference_file(
-                    client, image_file, RagSearchSessionKey.IMAGE_PATH
-                )
-                audio_path = _save_reference_file(
-                    client, audio_file, RagSearchSessionKey.AUDIO_PATH
+                file_path = _save_reference_file(
+                    client, ref_file, RagSearchSessionKey.IMAGE_PATH
                 )
             except AgentExecutionError as e:
                 st.error(str(e))
                 st.session_state[RagSearchSessionKey.ANSWER] = None
             else:
-                manager = RagAgentManager(client=client, model=Config.llm_openai_model)
+                manager = RagAgentManager(client=client, model=Config.openai_llm_model)
                 try:
                     with st.spinner("RAG 検索を実行しています..."):
                         answer = manager.run(
                             question=question,
-                            image_path=image_path,
-                            audio_path=audio_path,
+                            file_path=file_path,
                         )
                 except AgentExecutionError as e:
                     st.session_state[RagSearchSessionKey.ANSWER] = None

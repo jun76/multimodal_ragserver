@@ -6,7 +6,6 @@ LOGGER_NAME = "ragclient"
 
 
 class Color:
-    # https://pkg.go.dev/github.com/whitedevops/colors
     ResetAll = "\033[0m"
 
     Bold = "\033[1m"
@@ -40,24 +39,6 @@ class Color:
     LightMagenta = "\033[95m"
     LightCyan = "\033[96m"
     White = "\033[97m"
-
-    BackgroundDefault = "\033[49m"
-    BackgroundBlack = "\033[40m"
-    BackgroundRed = "\033[41m"
-    BackgroundGreen = "\033[42m"
-    BackgroundYellow = "\033[43m"
-    BackgroundBlue = "\033[44m"
-    BackgroundMagenta = "\033[45m"
-    BackgroundCyan = "\033[46m"
-    BackgroundLightGray = "\033[47m"
-    BackgroundDarkGray = "\033[100m"
-    BackgroundLightRed = "\033[101m"
-    BackgroundLightGreen = "\033[102m"
-    BackgroundLightYellow = "\033[103m"
-    BackgroundLightBlue = "\033[104m"
-    BackgroundLightMagenta = "\033[105m"
-    BackgroundLightCyan = "\033[106m"
-    BackgroundWhite = "\033[107m"
 
 
 logging.basicConfig(
