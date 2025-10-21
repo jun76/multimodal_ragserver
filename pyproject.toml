@@ -1,2 +1,49 @@
+[project]
+name = "multimodal-ragserver"
+version = "0.1.0"
+description = "Multimodal RAG server and client"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "llama-index-core",
+    "llama-index",
+    "llama-index-vector-stores-chroma",
+    "llama-index-vector-stores-postgres",
+    "chromadb",
+    "psycopg2-binary",
+    "llama-index-readers-web",
+    "docx2txt",
+    "nbconvert",
+    "pymupdf",
+    "unstructured",
+    "pillow",
+    "llama-index-embeddings-openai",
+    "llama-index-embeddings-cohere",
+    "llama-index-embeddings-huggingface",
+    "sentence-transformers==2.7.0",
+    "llama-index-embeddings-clip",
+    "clip @ git+https://github.com/openai/CLIP.git",
+    "torch==2.6.0",
+    "torchaudio==2.6.0",
+    "torchvision==0.21.0",
+    "numpy==1.26.4",
+    "laion-clap==1.1.7",
+    "openai-whisper @ git+https://github.com/openai/whisper.git",
+    "llama-index-postprocessor-cohere-rerank",
+    "llama-index-postprocessor-flag-embedding-reranker",
+    "FlagEmbedding",
+    "fastapi",
+    "fastapi-mcp",
+    "uvicorn[standard]",
+    "aiofiles",
+    "python-multipart",
+    "starlette",
+    "python-dotenv",
+    "requests",
+    "pydantic",
+    "pydantic-settings",
+    "streamlit",
+    "openai-agents",
+]
+
 [tool.mypy]
 disable_error_code = ["return"]
