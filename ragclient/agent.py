@@ -10,8 +10,6 @@ from pydantic import BaseModel, ConfigDict
 from typing_extensions import TypedDict
 
 from .api_client import RagServerClient
-from .config.config import Config
-from .config.settings import LLMProvider
 from .logger import logger
 
 __all__ = ["AgentExecutionError", "RagAgentManager"]
@@ -227,7 +225,7 @@ class RagAgentManager:
     """openai-agents を用いた RAG 検索の実行を管理するクラス。"""
 
     client: RagServerClient
-    provider: LLMProvider
+    model: str
 
     def run(
         self,
@@ -256,25 +254,28 @@ class RagAgentManager:
         if question.strip() == "":
             raise ValueError("question must not be empty")
 
+        logger.debug([tool.name for tool in _TOOLSET])
         agent = Agent(
             name="rag_assistant",
             instructions=(
                 "あなたは検索アシスタントです。"
-                "回答する前に、ツールを使用して必ずナレッジベースを調べてください。"
-                "ツールが関連文書を返さない場合は、裏付けとなる証拠が見つからないことを明記してください。"
-                "日本語で回答してください。"
+                "ユーザからの質問に対し、日本語で回答して下さい。"
+                "回答する前に、ツールを使用して必ずナレッジベースを検索して下さい。"
+                "検索の際に使用できる参考画像や音声がある場合は、"
+                "それぞれ image_path, audio_path に格納されています。"
                 "最終的な回答を出す前に、提供されているツールを少なくとも１つ呼び出して下さい。"
+                "ツールが関連文書を返さない場合は、裏付けとなる証拠が見つからないことを明記して下さい。"
             ),
             tools=_TOOLSET,  # type: ignore
-            model=self._resolve_model(),
+            model=self.model,
         )
 
+        logger.debug(f"image path = {image_path}, audio path = {audio_path}")
         context = _RagAgentContext(
             client=self.client,
             image_path=image_path,
             audio_path=audio_path,
         )
-        logger.info(f"image path = {image_path}, audio path = {audio_path}")
 
         async def _run() -> str:
             result = await Runner.run(
@@ -283,6 +284,7 @@ class RagAgentManager:
                 max_turns=max_turns,
                 context=context,
             )
+
             final = getattr(result, "final_output", None)
             if isinstance(final, str):
                 return final
@@ -295,19 +297,3 @@ class RagAgentManager:
         except Exception as e:
             logger.exception(e)
             raise AgentExecutionError(str(e)) from e
-
-    def _resolve_model(self) -> str:
-        """LLM プロバイダ設定から使用するモデル名を取得する。
-
-        Raises:
-            AgentExecutionError: 未対応のプロバイダが指定された場合
-
-        Returns:
-            str: 利用するモデル名
-        """
-
-        if self.provider is LLMProvider.OPENAI:
-            return Config.llm_openai_model
-        if self.provider is LLMProvider.LOCAL:
-            return Config.llm_local_model
-        raise AgentExecutionError(f"unsupported llm provider: {self.provider}")

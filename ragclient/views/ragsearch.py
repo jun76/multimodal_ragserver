@@ -8,7 +8,6 @@ import streamlit as st
 from ..agent import AgentExecutionError, RagAgentManager
 from ..api_client import RagServerClient
 from ..config.config import Config
-from ..config.settings import LLMProvider
 from ..state import View, set_view
 from .common import emojify_robot, save_uploaded_files
 
@@ -19,32 +18,6 @@ class RagSearchSessionKey(StrEnum):
     ANSWER = auto()
     IMAGE_PATH = auto()
     AUDIO_PATH = auto()
-
-
-def _resolve_provider_selection(selected: list[str]) -> LLMProvider:
-    """マルチセレクトで選択されたプロバイダを 1 件へ確定する。
-
-    Args:
-        selected (list[str]): 選択されたプロバイダ名のリスト
-
-    Raises:
-        ValueError: 選択が 0 件、または複数件、あるいは未対応プロバイダの場合
-
-    Returns:
-        LLMProvider: 利用する LLM プロバイダ
-    """
-
-    if not selected:
-        raise ValueError("provider must be selected")
-
-    if len(selected) != 1:
-        raise ValueError("select exactly one provider")
-
-    key = selected[0].upper()
-    try:
-        return LLMProvider[key]
-    except KeyError as exc:
-        raise ValueError(f"{selected[0]!r} is not a supported provider") from exc
 
 
 def _save_reference_file(
@@ -72,9 +45,9 @@ def _save_reference_file(
 
     try:
         saved = save_uploaded_files(client, [file_obj])
-    except Exception as exc:  # pragma: no cover - upload side effects
+    except Exception as e:  # pragma: no cover - upload side effects
         st.session_state[session_key] = None
-        raise AgentExecutionError(f"failed to upload reference file: {exc}") from exc
+        raise AgentExecutionError(f"failed to upload reference file: {e}") from e
 
     path = saved[0] if saved else None
     st.session_state[session_key] = path
@@ -94,15 +67,6 @@ def render_ragsearch_view(client: RagServerClient) -> None:
     )
     st.divider()
 
-    default_provider = Config.llm_provider
-    provider_options = [provider.value.lower() for provider in LLMProvider]
-    selected = st.multiselect(
-        "使用する LLM プロバイダを選択してください。",
-        options=provider_options,
-        default=[default_provider.value.lower()],
-        key="ragsearch_provider",
-    )
-
     question = st.text_area("質問文", key="ragsearch_question")
 
     image_file = st.file_uploader(
@@ -121,40 +85,33 @@ def render_ragsearch_view(client: RagServerClient) -> None:
         if not question.strip():
             st.warning("質問文を入力してください")
         else:
+            image_path = None
+            audio_path = None
             try:
-                provider = _resolve_provider_selection(selected)
-            except ValueError as error:
-                st.warning(str(error))
+                image_path = _save_reference_file(
+                    client, image_file, RagSearchSessionKey.IMAGE_PATH
+                )
+                audio_path = _save_reference_file(
+                    client, audio_file, RagSearchSessionKey.AUDIO_PATH
+                )
+            except AgentExecutionError as e:
+                st.error(str(e))
+                st.session_state[RagSearchSessionKey.ANSWER] = None
             else:
-                image_path = None
-                audio_path = None
+                manager = RagAgentManager(client=client, model=Config.llm_openai_model)
                 try:
-                    image_path = _save_reference_file(
-                        client, image_file, RagSearchSessionKey.IMAGE_PATH
-                    )
-                    audio_path = _save_reference_file(
-                        client, audio_file, RagSearchSessionKey.AUDIO_PATH
-                    )
-                except AgentExecutionError as exc:
-                    st.error(str(exc))
-                    st.session_state[RagSearchSessionKey.ANSWER] = None
-                else:
-                    manager = RagAgentManager(client=client, provider=provider)
-                    try:
-                        with st.spinner("RAG 検索を実行しています..."):
-                            answer = manager.run(
-                                question=question,
-                                image_path=image_path,
-                                audio_path=audio_path,
-                            )
-                    except AgentExecutionError as exc:
-                        st.session_state[RagSearchSessionKey.ANSWER] = None
-                        st.error(f"RAG 検索に失敗しました: {exc}")
-                    else:
-                        st.session_state[RagSearchSessionKey.ANSWER] = emojify_robot(
-                            answer
+                    with st.spinner("RAG 検索を実行しています..."):
+                        answer = manager.run(
+                            question=question,
+                            image_path=image_path,
+                            audio_path=audio_path,
                         )
-                        st.success("RAG 検索が完了しました")
+                except AgentExecutionError as e:
+                    st.session_state[RagSearchSessionKey.ANSWER] = None
+                    st.error(f"RAG 検索に失敗しました: {e}")
+                else:
+                    st.session_state[RagSearchSessionKey.ANSWER] = emojify_robot(answer)
+                    st.success("RAG 検索が完了しました")
 
     final_answer: Optional[str] = st.session_state.get(RagSearchSessionKey.ANSWER)
     if final_answer:
