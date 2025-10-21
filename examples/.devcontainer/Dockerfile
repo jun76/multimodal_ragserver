@@ -1,16 +1,18 @@
 FROM nvidia/cuda:12.9.1-devel-ubuntu24.04
 # FROM ubuntu:24.04
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive 
 
 RUN apt-get update && apt-get install -y \
     sudo \
     curl \
     git \
+    zsh \
     unzip \
     locales \
     net-tools \
     lsof \
+    tree \
     python3 \
     python3-pip \
     sqlite3 \
@@ -21,16 +23,13 @@ RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     libpq-dev \
+    ffmpeg \
+    libsndfile1 \
     && locale-gen en_US.UTF-8 \
     && update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-ENV LANG=en_US.UTF-8
-ENV LC_ALL=en_US.UTF-8
-ENV LANGUAGE=en_US:en
-
-COPY requirements.txt /tmp/
-RUN pip install --no-cache-dir --break-system-packages -r /tmp/requirements.txt
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 CMD ["sleep", "infinity"]

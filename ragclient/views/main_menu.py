@@ -25,14 +25,9 @@ def _check_service_health(url: str) -> Optional[dict[str, Any]]:
     try:
         res = requests.get(url, timeout=10)
         res.raise_for_status()
-    except requests.RequestException as e:
-        logger.exception("health check failed for %s: %s", url, e)
-        return None
-
-    try:
         data = res.json()
-    except ValueError as e:
-        logger.exception("health check response is not json for %s: %s", url, e)
+    except Exception:
+        logger.warning("no response from ragserver")
         return None
 
     if not isinstance(data, dict):

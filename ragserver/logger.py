@@ -42,8 +42,8 @@ class Color:
 
 
 logging.basicConfig(
-    format=f"{Color.DarkGray}%(asctime)s "
-    f"{Color.Green}%(levelname)7s "
+    format=f"{Color.Blue}%(levelname)s{Color.ResetAll}: "
+    f"{Color.DarkGray}%(asctime)s "
     f"{Color.DarkGray}%(name)s "
     f"{Color.White}%(message)s "
     f"{Color.DarkGray}@ %(pathname)s:%(lineno)d %(funcName)s "

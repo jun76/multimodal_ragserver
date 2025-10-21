@@ -16,18 +16,14 @@
 			]
 		}
 	},
-	"postCreateCommand": "/bin/sh .devcontainer/postCreateCommand.sh",
+	"postCreateCommand": "/bin/bash .devcontainer/postCreateCommand.sh",
 	"postStartCommand": "service postgresql start",
 	"remoteUser": "root",
 	"forwardPorts": [
-		1234, // LM Studio
-		8000, // ragserver + MCP
-		8001, // clip_embed
-		8002, // flagembedding_rerank
-		8003, // chroma
-		8004, // ragclient
-		8005, // reserved
-		5432 // pgvector
+        8000, // ragserver + MCP
+        8003, // chroma
+        8004, // ragclient
+        5432 // pgvector
 	],
 	"containerEnv": {
 		"HF_HOME": "/opt/hf",

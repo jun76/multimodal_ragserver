@@ -11,3 +11,4 @@ ragserver_db
 ragserver_metas.db
 uv.lock
 .venv
+.zshrc
